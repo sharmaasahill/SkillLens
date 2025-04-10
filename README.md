@@ -1,4 +1,4 @@
-# 🚀 IT Career Navigator
+# IT Career Navigator
 
 > An AI-powered full-stack career guidance platform that predicts salaries, recommends jobs, and analyzes resumes with advanced NLP models like spaCy.
 
@@ -20,13 +20,6 @@
 
 ---
 
-## 🖼️ UI Screenshots
-
-| Home Page | Resume Analysis | Admin Dashboard |
-|----------|------------------|-----------------|
-| ![Home](screenshots/home.png) | ![Resume](screenshots/resume.png) | ![Admin](screenshots/admin.png) |
-
----
 
 ## 🛠️ Tech Stack
 
@@ -83,7 +76,7 @@ npm start  # will run on http://localhost:3000
 
 ## 🧪 Sample Admin Credentials
 
-- Email: `anupamharsh2002@gmail.com`
+- Email: `your_admin_email_here`
 - Password: `your_admin_password_here`
 
 Only the admin can access `/admin` dashboard and delete users.
@@ -134,4 +127,4 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## 💬 Feedback & Contributions
 
-Pull requests and feedback welcome! Let’s grow this into a full-fledged career platform together 🚀
+Pull requests and feedback welcome! Let’s grow this into a full-fledged career platform together 
