@@ -1,0 +1,4 @@
+title,company,location,description,requirements,salary_range
+Senior Software Engineer,Tech Corp,"New York, NY",We are looking for a Senior Software Engineer to join our team...,"Python, JavaScript, React, AWS, 5+ years experience","$120,000 - $150,000"
+Data Scientist,Data Analytics Inc,"San Francisco, CA",Join our data science team to work on cutting-edge ML projects...,"Python, Machine Learning, TensorFlow, SQL, 3+ years experience","$130,000 - $160,000"
+DevOps Engineer,Cloud Solutions,Remote,Looking for a DevOps Engineer to manage our cloud infrastructure...,"AWS, Docker, Kubernetes, CI/CD, 4+ years experience","$110,000 - $140,000"
