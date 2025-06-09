@@ -387,3 +387,204 @@ def extract_skills_from_resume(file_path):
     except Exception as e:
         logger.error(f"Error in extract_skills_from_resume: {str(e)}")
         raise ValueError(f"Failed to analyze resume: {str(e)}")
+
+class ResumeAnalyzer:
+    """Resume analysis class for extracting skills and performing ATS analysis"""
+    
+    def __init__(self):
+        """Initialize the resume analyzer"""
+        self.logger = logging.getLogger(__name__)
+        
+    def analyze_resume(self, file_path):
+        """
+        Analyze a resume file and extract comprehensive information
+        
+        Args:
+            file_path (str): Path to the resume file
+            
+        Returns:
+            dict: Analysis results containing skills, experience, and other data
+        """
+        try:
+            # Extract text from PDF
+            text = extract_text_from_pdf(file_path)
+            
+            if not text.strip():
+                raise ValueError("No text could be extracted from the resume")
+            
+            # Extract skills using the existing function
+            skills_data = extract_skills_from_resume(file_path)
+            
+            # Extract experience information
+            experience_summary = self._extract_experience_info(text)
+            
+            # Extract education information
+            education_info = self._extract_education_info(text)
+            
+            # Extract contact information
+            contact_info = self._extract_contact_info(text)
+            
+            # Create comprehensive analysis
+            analysis_result = {
+                'extracted_skills': skills_data.get('skills', []),
+                'experience_summary': experience_summary,
+                'education_info': education_info,
+                'contact_info': contact_info,
+                'ats_analysis': skills_data.get('ats_analysis', {}),
+                'raw_text': text,
+                'analysis_summary': {
+                    'total_skills_found': len(skills_data.get('skills', [])),
+                    'text_length': len(text),
+                    'ats_score': skills_data.get('ats_analysis', {}).get('score', 0),
+                    'has_contact_info': bool(contact_info.get('email') or contact_info.get('phone')),
+                    'estimated_experience': experience_summary.get('total_years', 0)
+                }
+            }
+            
+            return analysis_result
+            
+        except Exception as e:
+            self.logger.error(f"Error analyzing resume: {str(e)}")
+            raise ValueError(f"Failed to analyze resume: {str(e)}")
+    
+    def _extract_experience_info(self, text):
+        """Extract experience information from resume text"""
+        experience_info = {
+            'total_years': 0,
+            'companies': [],
+            'positions': [],
+            'experience_level': 'Entry'
+        }
+        
+        try:
+            # Look for years of experience patterns
+            experience_patterns = [
+                r'(\d+)\+?\s*years?\s*(?:of\s*)?experience',
+                r'experience[:\s]*(\d+)\+?\s*years?',
+                r'(\d+)\+?\s*years?\s*(?:in|of)',
+                r'over\s*(\d+)\s*years?',
+                r'more\s*than\s*(\d+)\s*years?'
+            ]
+            
+            for pattern in experience_patterns:
+                matches = re.findall(pattern, text.lower())
+                if matches:
+                    years = max([int(match) for match in matches])
+                    experience_info['total_years'] = years
+                    break
+            
+            # Determine experience level based on years
+            years = experience_info['total_years']
+            if years == 0:
+                experience_info['experience_level'] = 'Entry'
+            elif years <= 2:
+                experience_info['experience_level'] = 'Junior'
+            elif years <= 5:
+                experience_info['experience_level'] = 'Mid-level'
+            elif years <= 10:
+                experience_info['experience_level'] = 'Senior'
+            else:
+                experience_info['experience_level'] = 'Executive'
+            
+            # Extract company names (basic pattern matching)
+            company_patterns = [
+                r'(?:worked?\s*(?:at|for)|employed\s*(?:at|by))\s+([A-Z][A-Za-z\s&]+(?:Inc|LLC|Corp|Company|Ltd)?)',
+                r'([A-Z][A-Za-z\s&]+(?:Inc|LLC|Corp|Company|Ltd))\s*[-–—]\s*\d{4}',
+                r'\b([A-Z][A-Za-z\s&]+(?:Inc|LLC|Corp|Company|Ltd))\b'
+            ]
+            
+            companies = set()
+            for pattern in company_patterns:
+                matches = re.findall(pattern, text)
+                companies.update([match.strip() for match in matches if len(match.strip()) > 2])
+            
+            experience_info['companies'] = list(companies)[:5]  # Limit to 5 companies
+            
+        except Exception as e:
+            self.logger.warning(f"Error extracting experience info: {str(e)}")
+        
+        return experience_info
+    
+    def _extract_education_info(self, text):
+        """Extract education information from resume text"""
+        education_info = {
+            'degrees': [],
+            'institutions': [],
+            'graduation_years': []
+        }
+        
+        try:
+            # Common degree patterns
+            degree_patterns = [
+                r'\b(?:bachelor|master|phd|doctorate|diploma|certificate|associate)s?\s*(?:of\s*)?(?:science|arts|engineering|business|technology)?\b',
+                r'\b(?:bs|ba|ms|ma|mba|phd|btech|mtech)\b',
+                r'\b(?:b\.s\.|b\.a\.|m\.s\.|m\.a\.|ph\.d\.)\b'
+            ]
+            
+            degrees = set()
+            for pattern in degree_patterns:
+                matches = re.findall(pattern, text.lower())
+                degrees.update(matches)
+            
+            education_info['degrees'] = list(degrees)
+            
+            # Extract graduation years
+            year_patterns = [
+                r'(?:graduated|graduation|class\s*of)\s*(\d{4})',
+                r'(\d{4})\s*[-–—]\s*(?:present|current|\d{4})',
+                r'\b(19\d{2}|20\d{2})\b'
+            ]
+            
+            years = set()
+            for pattern in year_patterns:
+                matches = re.findall(pattern, text)
+                for year in matches:
+                    year_int = int(year)
+                    if 1950 <= year_int <= datetime.now().year:
+                        years.add(year_int)
+            
+            education_info['graduation_years'] = sorted(list(years))
+            
+        except Exception as e:
+            self.logger.warning(f"Error extracting education info: {str(e)}")
+        
+        return education_info
+    
+    def _extract_contact_info(self, text):
+        """Extract contact information from resume text"""
+        contact_info = {
+            'email': None,
+            'phone': None,
+            'linkedin': None,
+            'location': None
+        }
+        
+        try:
+            # Email pattern
+            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+            email_matches = re.findall(email_pattern, text)
+            if email_matches:
+                contact_info['email'] = email_matches[0]
+            
+            # Phone pattern
+            phone_pattern = r'(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})'
+            phone_matches = re.findall(phone_pattern, text)
+            if phone_matches:
+                contact_info['phone'] = f"({phone_matches[0][0]}) {phone_matches[0][1]}-{phone_matches[0][2]}"
+            
+            # LinkedIn pattern
+            linkedin_pattern = r'(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w-]+'
+            linkedin_matches = re.findall(linkedin_pattern, text.lower())
+            if linkedin_matches:
+                contact_info['linkedin'] = linkedin_matches[0]
+            
+            # Basic location pattern (city, state)
+            location_pattern = r'\b([A-Z][a-z]+),\s*([A-Z]{2})\b'
+            location_matches = re.findall(location_pattern, text)
+            if location_matches:
+                contact_info['location'] = f"{location_matches[0][0]}, {location_matches[0][1]}"
+                
+        except Exception as e:
+            self.logger.warning(f"Error extracting contact info: {str(e)}")
+        
+        return contact_info

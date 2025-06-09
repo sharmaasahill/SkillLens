@@ -18,6 +18,9 @@ from models.database import db, User, Resume, ProfileHistory
 # Resume Analysis Import
 from models.resume_analyzer import extract_skills_from_resume
 
+# Job Recommendation Import
+from models.job_recommender import JobRecommender
+
 # -------------------------------------
 # 🔧 Configuration
 # -------------------------------------
@@ -45,6 +48,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
+
+# Initialize job recommender
+job_recommender = JobRecommender()
 
 ADMIN_EMAIL = "anupamharsh2002@gmail.com"
 
@@ -1170,6 +1176,189 @@ def delete_resume(resume_id):
         return jsonify({'error': 'Failed to delete resume'}), 500
 
 # -------------------------------------
+# 🎯 Job Recommendation Routes
+# -------------------------------------
+
+@app.route('/api/recommend-jobs', methods=['POST'])
+@jwt_required()
+def recommend_jobs():
+    """Get personalized job recommendations for the authenticated user"""
+    try:
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+        
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        # Get the latest resume for the user
+        latest_resume = Resume.query.filter_by(user_id=user.id).order_by(Resume.uploaded_at.desc()).first()
+        
+        if not latest_resume:
+            return jsonify({"error": "No resume found. Please upload a resume first."}), 400
+        
+        # Extract skills from the user's resume
+        from models.resume_analyzer import ResumeAnalyzer
+        analyzer = ResumeAnalyzer()
+        
+        # Get the resume file path
+        resume_filename = latest_resume.filename
+        resume_path = os.path.join(app.config['UPLOAD_FOLDER'], resume_filename)
+        
+        if not os.path.exists(resume_path):
+            return jsonify({"error": "Resume file not found on server"}), 404
+        
+        # Extract skills from resume
+        analysis_result = analyzer.analyze_resume(resume_path)
+        user_skills = analysis_result.get('extracted_skills', [])
+        
+        if not user_skills:
+            return jsonify({"error": "No skills could be extracted from your resume. Please try uploading a different resume or use manual skill input."}), 400
+        
+        # Get user preferences from request
+        data = request.get_json() or {}
+        
+        # Get user experience (try to extract from resume or use provided value)
+        user_experience = data.get('experience_years', 0)
+        if user_experience == 0:
+            # Try to extract experience from resume analysis
+            experience_info = analysis_result.get('experience_summary', {})
+            user_experience = experience_info.get('total_years', 0)
+        
+        preferred_locations = data.get('preferred_locations', [])
+        preferred_categories = data.get('preferred_categories', [])
+        top_k = data.get('top_k', 10)
+        
+        # Get job recommendations
+        from models.job_recommender import JobRecommender
+        recommender = JobRecommender()
+        
+        recommendations = recommender.recommend_jobs(
+            user_skills=user_skills,
+            user_experience=user_experience,
+            preferred_locations=preferred_locations,
+            preferred_categories=preferred_categories,
+            top_k=top_k
+        )
+        
+        # Get skills analysis
+        skills_analysis = recommender.get_skills_analysis(user_skills)
+        
+        return jsonify({
+            "success": True,
+            "recommendations": recommendations,
+            "user_profile": {
+                "extracted_skills": user_skills,
+                "experience_years": user_experience,
+                "resume_analysis": {
+                    "total_skills_found": len(user_skills),
+                    "resume_filename": resume_filename,
+                    "analysis_summary": analysis_result.get('analysis_summary', {})
+                }
+            },
+            "skills_analysis": skills_analysis,
+            "total_recommendations": len(recommendations),
+            "message": f"Found {len(recommendations)} job recommendations based on {len(user_skills)} skills extracted from your resume"
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in recommend_jobs: {str(e)}")
+        return jsonify({"error": f"Failed to get recommendations: {str(e)}"}), 500
+
+@app.route('/api/job-market-analysis', methods=['POST'])
+@jwt_required()
+def job_market_analysis():
+    try:
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        data = request.get_json()
+        user_skills = data.get('skills', [])
+        
+        # If no skills provided, get from latest resume
+        if not user_skills:
+            latest_resume = Resume.query.filter_by(user_id=user.id).order_by(Resume.uploaded_at.desc()).first()
+            if latest_resume:
+                user_skills = latest_resume.get_skills()
+
+        if not user_skills:
+            return jsonify({'error': 'No skills found. Please upload a resume or provide skills manually.'}), 400
+
+        # Get skills analysis
+        analysis = job_recommender.get_skills_analysis(user_skills)
+
+        return jsonify({
+            'success': True,
+            'analysis': analysis,
+            'user_skills': user_skills
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error in job_market_analysis: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/job-categories', methods=['GET'])
+def get_job_categories():
+    try:
+        categories = job_recommender.get_job_categories()
+        return jsonify({
+            'success': True,
+            'categories': categories
+        }), 200
+    except Exception as e:
+        logger.error(f"Error in get_job_categories: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/job-locations', methods=['GET'])
+def get_job_locations():
+    try:
+        locations = job_recommender.get_locations()
+        return jsonify({
+            'success': True,
+            'locations': locations
+        }), 200
+    except Exception as e:
+        logger.error(f"Error in get_job_locations: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/recommend-jobs-by-skills', methods=['POST'])
+def recommend_jobs_by_skills():
+    """Public endpoint for job recommendations based on skills (no authentication required)"""
+    try:
+        data = request.get_json()
+        user_skills = data.get('skills', [])
+        
+        if not user_skills:
+            return jsonify({'error': 'Skills are required'}), 400
+
+        user_experience = int(data.get('experience', 0))
+        preferred_locations = data.get('preferred_locations', [])
+        preferred_categories = data.get('preferred_categories', [])
+        top_k = int(data.get('top_k', 10))
+
+        # Get job recommendations
+        recommendations = job_recommender.recommend_jobs(
+            user_skills=user_skills,
+            user_experience=user_experience,
+            preferred_locations=preferred_locations,
+            preferred_categories=preferred_categories,
+            top_k=top_k
+        )
+
+        return jsonify({
+            'success': True,
+            'recommendations': recommendations,
+            'user_skills': user_skills,
+            'total_recommendations': len(recommendations)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error in recommend_jobs_by_skills: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# -------------------------------------
 # 🌐 Serve React Frontend
 # -------------------------------------
 @app.route('/', defaults={'path': ''})
@@ -1182,4 +1371,4 @@ def serve(path):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)

@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useTheme } from '../contexts/ThemeContext';
+import ThemeToggle from '../components/ThemeToggle';
 
 const Home = () => {
     const navigate = useNavigate();
-    const [dark, setDark] = useState(false);
+    const { isDarkMode } = useTheme();
     const [profile, setProfile] = useState({
         email: '',
         full_name: '',
@@ -59,12 +61,6 @@ const Home = () => {
         achievements: ''
     });
     const [resumeHistory, setResumeHistory] = useState([]);
-    const [userStats, setUserStats] = useState({
-        totalResumes: 0,
-        averageScore: 0,
-        topSkills: [],
-        lastUpload: null
-    });
     const [profileHistory, setProfileHistory] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [uploadError, setUploadError] = useState('');
@@ -73,12 +69,6 @@ const Home = () => {
     const [isAdmin, setIsAdmin] = useState(false);
     const [showAllUsers, setShowAllUsers] = useState(false);
     const [allUsers, setAllUsers] = useState([]);
-    const [quickStats, setQuickStats] = useState({
-        totalUploads: 0,
-        thisWeekUploads: 0,
-        improvementTips: [],
-        nextGoals: []
-    });
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -137,15 +127,121 @@ const Home = () => {
         fetchResumeHistory();
     }, [navigate]);
 
-    useEffect(() => {
-        if (dark) {
-            document.documentElement.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-            localStorage.setItem('theme', 'light');
+    // Utility function to normalize skills data
+    const normalizeSkills = (skills) => {
+        if (!skills) return [];
+        
+        if (typeof skills === 'string') {
+            return skills.split(',').map(skill => skill.trim()).filter(skill => skill);
+        } else if (Array.isArray(skills)) {
+            return skills.map(skill => String(skill).trim()).filter(skill => skill);
+        } else if (typeof skills === 'object') {
+            return Object.values(skills).flat().map(skill => String(skill).trim()).filter(skill => skill);
         }
-    }, [dark]);
+        
+        return [];
+    };
+
+    const calculateUserStats = (resumes) => {
+        if (!resumes || resumes.length === 0) {
+            return {
+                totalResumes: 0,
+                averageScore: 0,
+                topSkills: [],
+                lastUpload: null
+            };
+        }
+
+        // Calculate total resumes
+        const totalResumes = resumes.length;
+
+        // Calculate average score
+        const averageScore = Math.round(
+            resumes.reduce((acc, curr) => acc + (curr.score || 0), 0) / totalResumes
+        );
+
+        // Get top skills using utility function
+        const skillCounts = {};
+        resumes.forEach(resume => {
+            const skills = normalizeSkills(resume.skills);
+            skills.forEach(skill => {
+                skillCounts[skill] = (skillCounts[skill] || 0) + 1;
+            });
+        });
+        const topSkills = Object.entries(skillCounts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5)
+            .map(([skill]) => skill);
+
+        // Get last upload
+        const lastUpload = resumes[0] ? new Date(resumes[0].timestamp || resumes[0].uploaded_at).toLocaleDateString() : null;
+
+        return {
+            totalResumes,
+            averageScore,
+            topSkills,
+            lastUpload
+        };
+    };
+
+    const calculateQuickStats = (resumes) => {
+        const totalUploads = resumes.length;
+        
+        // Calculate this week uploads
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const thisWeekUploads = resumes.filter(resume => {
+            const uploadDate = new Date(resume.timestamp || resume.uploaded_at);
+            return uploadDate > oneWeekAgo;
+        }).length;
+
+        // Generate improvement tips based on average score
+        let improvementTips = [];
+        if (totalUploads > 0) {
+            const averageScore = Math.round(
+                resumes.reduce((acc, curr) => acc + (curr.score || 0), 0) / totalUploads
+            );
+            
+            if (averageScore < 70) {
+                improvementTips = [
+                    "Add more quantified achievements",
+                    "Include industry-specific keywords",
+                    "Improve resume structure"
+                ];
+            } else if (averageScore < 85) {
+                improvementTips = [
+                    "Enhance technical skills section",
+                    "Add more action verbs",
+                    "Optimize for ATS compatibility"
+                ];
+            } else {
+                improvementTips = [
+                    "Your resume is performing well!",
+                    "Keep updating with new skills",
+                    "Tailor for specific job applications"
+                ];
+            }
+        }
+
+        // Generate next goals
+        const nextGoals = [
+            "Upload updated resume monthly",
+            "Achieve 90+ resume score",
+            "Explore salary predictions",
+            "Get personalized job recommendations"
+        ];
+
+        return {
+            totalUploads,
+            thisWeekUploads,
+            improvementTips,
+            nextGoals
+        };
+    };
+
+    // Memoize expensive calculations for optimization
+    const memoizedUserStats = useMemo(() => calculateUserStats(resumeHistory), [resumeHistory]);
+    const memoizedQuickStats = useMemo(() => calculateQuickStats(resumeHistory), [resumeHistory]);
 
     const handleProfileEdit = () => {
         setIsEditing(true);
@@ -319,48 +415,6 @@ const Home = () => {
         }
     };
 
-    const calculateUserStats = (resumes) => {
-        if (!resumes || resumes.length === 0) {
-            return {
-                totalResumes: 0,
-                averageScore: 0,
-                topSkills: [],
-                lastUpload: null
-            };
-        }
-
-        // Calculate total resumes
-        const totalResumes = resumes.length;
-
-        // Calculate average score
-        const averageScore = Math.round(
-            resumes.reduce((acc, curr) => acc + (curr.score || 0), 0) / totalResumes
-        );
-
-        // Get top skills using utility function
-        const skillCounts = {};
-        resumes.forEach(resume => {
-            const skills = normalizeSkills(resume.skills);
-            skills.forEach(skill => {
-                skillCounts[skill] = (skillCounts[skill] || 0) + 1;
-            });
-        });
-        const topSkills = Object.entries(skillCounts)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 5)
-            .map(([skill]) => skill);
-
-        // Get last upload
-        const lastUpload = resumes[0] ? new Date(resumes[0].timestamp || resumes[0].uploaded_at).toLocaleDateString() : null;
-
-        return {
-            totalResumes,
-            averageScore,
-            topSkills,
-            lastUpload
-        };
-    };
-
     const handleFileUpload = async (event) => {
         const file = event.target.files[0];
         if (!file) return;
@@ -429,14 +483,6 @@ const Home = () => {
             });
             const resumes = response.data.resumes || [];
             setResumeHistory(resumes);
-            
-            // Calculate stats
-            const stats = calculateUserStats(resumes);
-            setUserStats(stats);
-            
-            // Calculate quick stats
-            const quickStatsData = calculateQuickStats(resumes);
-            setQuickStats(quickStatsData);
         } catch (err) {
             console.error('Error fetching resume history:', err);
         }
@@ -473,88 +519,20 @@ const Home = () => {
         }
     };
 
-    // Utility function to normalize skills data
-    const normalizeSkills = (skills) => {
-        if (!skills) return [];
-        
-        if (typeof skills === 'string') {
-            return skills.split(',').map(skill => skill.trim()).filter(skill => skill);
-        } else if (Array.isArray(skills)) {
-            return skills.map(skill => String(skill).trim()).filter(skill => skill);
-        } else if (typeof skills === 'object') {
-            return Object.values(skills).flat().map(skill => String(skill).trim()).filter(skill => skill);
-        }
-        
-        return [];
-    };
 
-    const calculateQuickStats = (resumes) => {
-        const totalUploads = resumes.length;
-        
-        // Calculate this week uploads
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        const thisWeekUploads = resumes.filter(resume => {
-            const uploadDate = new Date(resume.timestamp || resume.uploaded_at);
-            return uploadDate > oneWeekAgo;
-        }).length;
-
-        // Generate improvement tips based on average score
-        let improvementTips = [];
-        if (totalUploads > 0) {
-            const averageScore = Math.round(
-                resumes.reduce((acc, curr) => acc + (curr.score || 0), 0) / totalUploads
-            );
-            
-            if (averageScore < 70) {
-                improvementTips = [
-                    "Add more quantified achievements",
-                    "Include industry-specific keywords",
-                    "Improve resume structure"
-                ];
-            } else if (averageScore < 85) {
-                improvementTips = [
-                    "Enhance technical skills section",
-                    "Add more action verbs",
-                    "Optimize for ATS compatibility"
-                ];
-            } else {
-                improvementTips = [
-                    "Your resume is performing well!",
-                    "Keep updating with new skills",
-                    "Tailor for specific job applications"
-                ];
-            }
-        }
-
-        // Generate next goals
-        const nextGoals = [
-            "Upload updated resume monthly",
-            "Achieve 90+ resume score",
-            "Explore salary predictions",
-            "Get personalized job recommendations"
-        ];
-
-        return {
-            totalUploads,
-            thisWeekUploads,
-            improvementTips,
-            nextGoals
-        };
-    };
 
     if (loading) {
-    return (
-            <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-                <div className="text-xl">Loading...</div>
+        return (
+            <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center transition-colors duration-300">
+                <div className="text-xl text-gray-900 dark:text-white">Loading...</div>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-                <div className="text-xl text-red-600">{error}</div>
+            <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center transition-colors duration-300">
+                <div className="text-xl text-red-600 dark:text-red-400">{error}</div>
             </div>
         );
     }
@@ -1146,14 +1124,9 @@ const Home = () => {
                     </div>
                 )}
 
-            {/* 🌙 Theme Toggle */}
+            {/* Theme Toggle */}
             <div className="fixed top-4 right-4 z-50">
-                <button
-                    onClick={() => setDark(prev => !prev)}
-                    className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl shadow-xl px-4 py-3 rounded-2xl text-sm font-semibold hover:scale-105 transition-all duration-300 border border-white/30 dark:border-gray-700/40"
-                >
-                    {dark ? '☀️ Light Mode' : '🌙 Dark Mode'}
-                </button>
+                <ThemeToggle />
             </div>
 
             {/* Main Content Container */}
@@ -1248,7 +1221,7 @@ const Home = () => {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <h3 className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Resumes</h3>
-                                            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{userStats.totalResumes}</p>
+                                            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{memoizedUserStats.totalResumes}</p>
                                         </div>
                                         <div className="text-3xl">📊</div>
                                     </div>
@@ -1257,7 +1230,7 @@ const Home = () => {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <h3 className="text-sm font-medium text-green-700 dark:text-green-300">Average Score</h3>
-                                            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{userStats.averageScore}%</p>
+                                            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{memoizedUserStats.averageScore}%</p>
                                         </div>
                                         <div className="text-3xl">🎯</div>
                                     </div>
@@ -1266,7 +1239,7 @@ const Home = () => {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <h3 className="text-sm font-medium text-purple-700 dark:text-purple-300">This Week</h3>
-                                            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{quickStats.thisWeekUploads}</p>
+                                            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{memoizedQuickStats.thisWeekUploads}</p>
                                         </div>
                                         <div className="text-3xl">📈</div>
                                     </div>
@@ -1276,7 +1249,7 @@ const Home = () => {
                                         <div>
                                             <h3 className="text-sm font-medium text-orange-700 dark:text-orange-300">Last Upload</h3>
                                             <p className="text-xs text-orange-600 dark:text-orange-400 truncate">
-                                                {userStats.lastUpload || 'No uploads yet'}
+                                                {memoizedUserStats.lastUpload || 'No uploads yet'}
                                             </p>
                                         </div>
                                         <div className="text-3xl">🕒</div>
@@ -1292,9 +1265,9 @@ const Home = () => {
                                 <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-white flex items-center gap-2">
                                     ⭐ Top Skills
                                 </h3>
-                                {userStats.topSkills.length > 0 ? (
+                                {memoizedUserStats.topSkills.length > 0 ? (
                                     <div className="flex flex-wrap gap-2">
-                                        {userStats.topSkills.map((skill, idx) => (
+                                        {memoizedUserStats.topSkills.map((skill, idx) => (
                                             <span key={idx} className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-3 py-1 rounded-full text-sm font-medium shadow-sm">
                                                 {skill}
                                             </span>
@@ -1311,7 +1284,7 @@ const Home = () => {
                                     💡 Improvement Tips
                                 </h3>
                                 <div className="space-y-2">
-                                    {quickStats.improvementTips.map((tip, idx) => (
+                                    {memoizedQuickStats.improvementTips.map((tip, idx) => (
                                         <div key={idx} className="flex items-start gap-2">
                                             <span className="text-emerald-500 mt-1">•</span>
                                             <span className="text-sm text-gray-600 dark:text-gray-300">{tip}</span>
@@ -1327,7 +1300,7 @@ const Home = () => {
                                 🎯 Your Next Goals
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {quickStats.nextGoals.map((goal, idx) => (
+                                {memoizedQuickStats.nextGoals.map((goal, idx) => (
                                     <div key={idx} className="flex items-center gap-3 bg-white/50 dark:bg-gray-800/50 p-3 rounded-lg">
                                         <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold">
                                             {idx + 1}
