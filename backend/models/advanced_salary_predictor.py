@@ -10,6 +10,8 @@ import os
 import warnings
 warnings.filterwarnings('ignore')
 
+MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
+
 class AdvancedSalaryPredictor:
     def __init__(self):
         self.models = {}
@@ -33,11 +35,11 @@ class AdvancedSalaryPredictor:
         }
         
         self.model_paths = {
-            'ensemble': 'models/advanced_ensemble_model.pkl',
-            'encoders': 'models/advanced_label_encoders.pkl',
-            'scaler': 'models/advanced_scaler.pkl',
-            'feature_names': 'models/advanced_feature_names.pkl',
-            'feature_importance': 'models/advanced_feature_importance.pkl'
+            'ensemble': os.path.join(MODEL_DIR, 'advanced_ensemble_model.pkl'),
+            'encoders': os.path.join(MODEL_DIR, 'advanced_label_encoders.pkl'),
+            'scaler': os.path.join(MODEL_DIR, 'advanced_scaler.pkl'),
+            'feature_names': os.path.join(MODEL_DIR, 'advanced_feature_names.pkl'),
+            'feature_importance': os.path.join(MODEL_DIR, 'advanced_feature_importance.pkl')
         }
         
         self._load_or_train_model()
@@ -94,6 +96,8 @@ class AdvancedSalaryPredictor:
                 self.scaler = joblib.load(self.model_paths['scaler'])
                 self.feature_names = joblib.load(self.model_paths['feature_names'])
                 self.feature_importance = joblib.load(self.model_paths['feature_importance'])
+                # Individual models are not saved separately; use the fitted ensemble members
+                self.models = dict(getattr(self.ensemble_model, 'named_estimators_', {}))
                 print("Advanced model loaded successfully!")
             else:
                 print("Training new advanced model...")
@@ -106,7 +110,7 @@ class AdvancedSalaryPredictor:
     def _train_advanced_model(self):
         """Train advanced ensemble model with multiple algorithms"""
         # Load and preprocess data
-        df = pd.read_csv('models/Salary_Data.csv')
+        df = pd.read_csv(os.path.join(MODEL_DIR, 'Salary_Data.csv'))
         df.dropna(inplace=True)
         
         # Apply feature engineering

@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api, { errorMessage } from '../api';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { API_URL } from '../config';
 
 const educationLevels = ["High School", "Bachelor's", "Master's", "PhD"];
 const genders = ["Male", "Female", "Other"];
@@ -57,7 +56,6 @@ function SalaryPredictor() {
         setIsLoading(true);
 
         try {
-            const token = localStorage.getItem("token");
             // Ensure all required fields are present and properly formatted
             const requestData = {
                 age: parseInt(formData.age),
@@ -67,12 +65,10 @@ function SalaryPredictor() {
                 years_of_experience: parseInt(formData.years_of_experience)
             };
 
-            const res = await axios.post(`${API_URL}/predict`, requestData, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.post(`/predict`, requestData);
             setResult(res.data);
         } catch (err) {
-            setError(err.response?.data?.error || 'Prediction failed');
+            setError(errorMessage(err, 'Prediction failed'));
         } finally {
             setIsLoading(false);
         }

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { API_URL } from '../config';
+import React, { useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { errorMessage } from '../api';
+import { useAuth } from '../contexts/AuthContext';
 
 function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -12,18 +12,9 @@ function Auth() {
   const [loading, setLoading] = useState(false);
   const [loginType, setLoginType] = useState('user'); // 'user' or 'hr'
   const navigate = useNavigate();
+  const { user, loading: sessionLoading, login, register } = useAuth();
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userType = localStorage.getItem('userType');
-    if (token) {
-      if (userType === 'hr') {
-        navigate('/hr-dashboard', { replace: true });
-      } else {
-        navigate('/', { replace: true });
-      }
-    }
-  }, [navigate]);
+  const homeFor = (account) => (account.is_admin ? '/hr-dashboard' : '/');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,44 +22,21 @@ function Auth() {
     setLoading(true);
 
     try {
-      if (isLogin) {
-        const response = await axios.post(`${API_URL}/login`, {
-          email,
-          password
-        });
-
-        if (response.data.token) {
-          localStorage.setItem('token', response.data.token);
-          localStorage.setItem('userEmail', response.data.email);
-          localStorage.setItem('userType', response.data.is_admin ? 'hr' : 'user');
-          
-          // Navigate based on user type
-          if (response.data.is_admin) {
-            navigate('/hr-dashboard', { replace: true });
-          } else {
-            navigate('/', { replace: true });
-          }
-        }
-      } else {
-        const response = await axios.post(`${API_URL}/register`, {
-          email,
-          password,
-          full_name: fullName
-        });
-
-        if (response.data.token) {
-          localStorage.setItem('token', response.data.token);
-          localStorage.setItem('userEmail', response.data.email);
-          navigate('/', { replace: true });
-        }
-      }
+      const account = isLogin
+        ? await login(email, password)
+        : await register(email, password, fullName);
+      navigate(homeFor(account), { replace: true });
     } catch (err) {
-      console.error('Auth error:', err);
-      setError(err.response?.data?.message || 'An error occurred');
+      setError(errorMessage(err, 'An error occurred'));
     } finally {
       setLoading(false);
     }
   };
+
+  // Already signed in (e.g. returning visitor with a valid session cookie)
+  if (!sessionLoading && user) {
+    return <Navigate to={homeFor(user)} replace />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -164,6 +132,8 @@ function Auth() {
                 name="password"
                 type="password"
                 required
+                minLength={isLogin ? undefined : 8}
+                autoComplete={isLogin ? 'current-password' : 'new-password'}
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
                 value={password}

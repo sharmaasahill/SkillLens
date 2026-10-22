@@ -30,3 +30,7 @@ frontend/build/
 Thumbs.db
 .vscode/
 .idea/
+
+# Test caches
+.pytest_cache/
+frontend/coverage/

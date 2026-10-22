@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api, { errorMessage } from '../api';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { API_URL } from '../config';
 
 const educationLevels = ["High School", "Bachelor's", "Master's", "PhD", "MBA"];
 const genders = ["Male", "Female", "Other"];
@@ -67,7 +66,6 @@ function AdvancedSalaryPredictor() {
         setIsLoading(true);
 
         try {
-            const token = localStorage.getItem("token");
             const requestData = {
                 age: parseInt(formData.age),
                 gender: formData.gender,
@@ -76,9 +74,7 @@ function AdvancedSalaryPredictor() {
                 years_of_experience: parseInt(formData.years_of_experience)
             };
 
-            const res = await axios.post(`${API_URL}/compare-predictions`, requestData, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.post(`/compare-predictions`, requestData);
             
             setResults({
                 basic: res.data.basic_model,
@@ -86,7 +82,7 @@ function AdvancedSalaryPredictor() {
                 comparison: res.data.comparison
             });
         } catch (err) {
-            setError(err.response?.data?.error || 'Comparison failed');
+            setError(errorMessage(err, 'Comparison failed'));
         } finally {
             setIsLoading(false);
         }

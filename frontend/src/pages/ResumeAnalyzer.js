@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api, { errorMessage } from '../api';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { API_URL } from '../config';
 
 function ResumeAnalyzer() {
     const [file, setFile] = useState(null);
@@ -44,10 +43,8 @@ function ResumeAnalyzer() {
         formData.append('file', file);
 
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post(`${API_URL}/upload-resume`, formData, {
+            const response = await api.post(`/upload-resume`, formData, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'multipart/form-data'
                 }
             });
@@ -56,7 +53,7 @@ function ResumeAnalyzer() {
             setUploadedFileName(response.data.filename || file.name);
         } catch (err) {
             console.error('Upload error:', err);
-            setError(err.response?.data?.error || 'Failed to upload resume');
+            setError(errorMessage(err, 'Failed to upload resume'));
         } finally {
             setUploading(false);
             setFile(null);

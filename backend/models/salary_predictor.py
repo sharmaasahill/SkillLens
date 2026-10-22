@@ -6,6 +6,8 @@ from sklearn.ensemble import RandomForestRegressor
 import joblib
 import os
 
+MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
+
 class SalaryPredictor:
     def __init__(self):
         self.model = None
@@ -14,10 +16,11 @@ class SalaryPredictor:
             "High School": 0,
             "Bachelor's": 1,
             "Master's": 2,
-            "PhD": 3
+            "PhD": 3,
+            "MBA": 2  # closest level the basic model was trained on
         }
-        self.model_path = 'models/salary_predictor.pkl'
-        self.encoders_path = 'models/label_encoders.pkl'
+        self.model_path = os.path.join(MODEL_DIR, 'salary_predictor.pkl')
+        self.encoders_path = os.path.join(MODEL_DIR, 'label_encoders.pkl')
         self._load_or_train_model()
 
     def _load_or_train_model(self):
@@ -33,7 +36,7 @@ class SalaryPredictor:
 
     def _train_model(self):
         # Load and preprocess data
-        df = pd.read_csv('models/Salary_Data.csv')
+        df = pd.read_csv(os.path.join(MODEL_DIR, 'Salary_Data.csv'))
         
         # Drop null values
         df.dropna(inplace=True)
@@ -44,7 +47,7 @@ class SalaryPredictor:
         df['Job Title'] = df['Job Title'].apply(lambda x: 'Others' if x in job_title_edited else x)
         
         # Standardize education levels
-        df['Education Level'] = df['Education Level'].str.replace("'s Degree", "")
+        df['Education Level'] = df['Education Level'].str.replace(" Degree", "")
         df['Education Level'] = df['Education Level'].str.replace("phD", "PhD")
         
         # Prepare features
@@ -68,7 +71,7 @@ class SalaryPredictor:
         self.model.fit(X_train, y_train)
         
         # Save model and encoders separately
-        os.makedirs('models', exist_ok=True)
+        os.makedirs(MODEL_DIR, exist_ok=True)
         joblib.dump(self.model, self.model_path)
         joblib.dump(self.label_encoders, self.encoders_path)
 
@@ -92,13 +95,12 @@ class SalaryPredictor:
                     # Get the encoder for this column
                     le = self.label_encoders[col]
                     
-                    # Handle unseen categories
-                    if input_data[col] not in le.classes_:
-                        # Add the new category to the encoder
-                        le.classes_ = np.append(le.classes_, input_data[col])
-                    
-                    # Transform the value
-                    input_df[col] = le.transform([input_data[col]])[0]
+                    # Unseen job titles fall back to the 'Others' group the model was trained with.
+                    # The shared encoder is never mutated, because this predictor is reused across requests.
+                    value = input_data[col]
+                    if value not in le.classes_ and 'Others' in le.classes_:
+                        value = 'Others'
+                    input_df[col] = le.transform([value])[0] if value in le.classes_ else 0
             
             # Map education level
             input_df['Education Level'] = input_df['Education Level'].map(self.education_mapping)

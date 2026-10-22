@@ -1,47 +1,47 @@
 """
 Create (or update) the SkillLens HR account.
 
-Run from the backend directory:
+Run from the backend directory, after `flask --app app db upgrade`:
     python create_hr_user.py
 
 Reads HR_EMAIL, HR_PASSWORD and HR_NAME from backend/.env (see .env.example).
-Creates the database tables if they do not exist yet, then makes sure the
-HR user exists with those credentials.
 """
 import os
 import sys
 
+from sqlalchemy import inspect
 from werkzeug.security import generate_password_hash
 
-from app import app
-from models.database import db, User
-
-HR_EMAIL = os.environ.get("HR_EMAIL")
-HR_PASSWORD = os.environ.get("HR_PASSWORD")
-HR_NAME = os.environ.get("HR_NAME", "HR Manager")
+from models.database import User
+from skilllens import create_app
+from skilllens.extensions import db
 
 
 def create_hr_user():
-    if not HR_EMAIL or not HR_PASSWORD:
+    email = (os.environ.get("HR_EMAIL") or "").strip().lower()
+    password = os.environ.get("HR_PASSWORD")
+    name = os.environ.get("HR_NAME", "HR Manager")
+    if not email or not password:
         sys.exit("HR_EMAIL and HR_PASSWORD must be set in backend/.env")
+    if len(password) < 8:
+        sys.exit("HR_PASSWORD must be at least 8 characters")
 
+    app = create_app()
     with app.app_context():
-        db.create_all()
+        if not inspect(db.engine).has_table("users"):
+            sys.exit("Database tables are missing. Run `flask --app app db upgrade` first.")
 
-        user = User.query.filter_by(email=HR_EMAIL).first()
+        user = User.query.filter_by(email=email).first()
+        action = "updated" if user else "created"
         if user is None:
-            user = User(email=HR_EMAIL, full_name=HR_NAME)
+            user = User(email=email, full_name=name)
             db.session.add(user)
-            action = "created"
-        else:
-            action = "updated"
 
-        user.password = generate_password_hash(HR_PASSWORD, method='pbkdf2:sha256')
+        user.password = generate_password_hash(password, method='pbkdf2:sha256')
         user.is_admin = True
-        user.full_name = user.full_name or HR_NAME
-
+        user.full_name = user.full_name or name
         db.session.commit()
-        print(f"HR user {action}: {HR_EMAIL}")
+        print(f"HR user {action}: {email}")
 
 
 if __name__ == "__main__":

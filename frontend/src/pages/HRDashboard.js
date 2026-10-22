@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { API_URL } from '../config';
+import api from '../api';
+import { useAuth } from '../contexts/AuthContext';
+
+const PER_PAGE = 12;
 
 const HRDashboard = () => {
     const navigate = useNavigate();
+    const { logout } = useAuth();
     const [users, setUsers] = useState([]);
     const [stats, setStats] = useState({});
     const [analytics, setAnalytics] = useState({});
@@ -38,20 +41,27 @@ const HRDashboard = () => {
     const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'table'
     const [showAnalytics, setShowAnalytics] = useState(false);
 
+    // Server-side pagination
+    const [page, setPage] = useState(1);
+    const [pagination, setPagination] = useState({ total: 0, pages: 1 });
+    const isFirstLoad = useRef(true);
+
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            navigate('/auth', { replace: true });
-            return;
-        }
-
-        fetchHRData();
         fetchDropdownData();
-    }, [navigate]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    const fetchHRData = async () => {
+    useEffect(() => {
+        // Debounce typing in the search box; page and sort changes load immediately
+        const delay = isFirstLoad.current ? 0 : 300;
+        isFirstLoad.current = false;
+        const timer = setTimeout(() => fetchHRData(page), delay);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [page, sortBy, searchTerm]);
+
+    const fetchHRData = async (pageToLoad = page) => {
         try {
-            const token = localStorage.getItem('token');
             
             // Build query parameters
             const params = new URLSearchParams();
@@ -63,30 +73,26 @@ const HRDashboard = () => {
             if (maxExperience) params.append('max_experience', maxExperience);
             if (minScore) params.append('min_score', minScore);
             if (hasResume) params.append('has_resume', hasResume);
+            if (searchTerm.trim()) params.append('search', searchTerm.trim());
+            params.append('sort', sortBy);
+            params.append('page', pageToLoad);
+            params.append('per_page', PER_PAGE);
             
             const [usersResponse, statsResponse, analyticsResponse] = await Promise.all([
-                axios.get(`${API_URL}/hr/all-users?${params.toString()}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                }),
-                axios.get(`${API_URL}/hr/stats`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                }),
-                axios.get(`${API_URL}/hr/analytics`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                })
+                api.get(`/hr/all-users?${params.toString()}`),
+                api.get(`/hr/stats`),
+                api.get(`/hr/analytics`)
             ]);
 
             setUsers(usersResponse.data.users);
+            setPagination({ total: usersResponse.data.total_users, pages: usersResponse.data.pages });
             setStats(statsResponse.data);
             setAnalytics(analyticsResponse.data);
         } catch (err) {
             console.error('Error fetching HR data:', err);
             if (err.response?.status === 403) {
                 setError('Access denied. HR privileges required.');
-            } else if (err.response?.status === 401) {
-                localStorage.removeItem('token');
-                navigate('/auth', { replace: true });
-            } else {
+            } else if (err.response?.status !== 401) {
                 setError('Failed to load HR data');
             }
         } finally {
@@ -96,20 +102,11 @@ const HRDashboard = () => {
 
     const fetchDropdownData = async () => {
         try {
-            const token = localStorage.getItem('token');
             const [rolesResponse, locationsResponse, companiesResponse, skillsResponse] = await Promise.all([
-                axios.get(`${API_URL}/hr/job-roles`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                }),
-                axios.get(`${API_URL}/hr/locations`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                }),
-                axios.get(`${API_URL}/hr/companies`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                }),
-                axios.get(`${API_URL}/hr/skills`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                })
+                api.get(`/hr/job-roles`),
+                api.get(`/hr/locations`),
+                api.get(`/hr/companies`),
+                api.get(`/hr/skills`)
             ]);
 
             setJobRoles(rolesResponse.data.job_roles);
@@ -123,10 +120,7 @@ const HRDashboard = () => {
 
     const fetchUserDetails = async (userId) => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get(`${API_URL}/hr/user/${userId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await api.get(`/hr/user/${userId}`);
             setUserDetails(response.data);
         } catch (err) {
             console.error('Error fetching user details:', err);
@@ -136,9 +130,7 @@ const HRDashboard = () => {
 
     const downloadUserResume = async (userId) => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get(`${API_URL}/hr/download-profile-resume/${userId}`, {
-                headers: { 'Authorization': `Bearer ${token}` },
+            const response = await api.get(`/hr/download-profile-resume/${userId}`, {
                 responseType: 'blob'
             });
 
@@ -156,9 +148,8 @@ const HRDashboard = () => {
         }
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userEmail');
+    const handleLogout = async () => {
+        await logout();
         navigate('/auth', { replace: true });
     };
 
@@ -176,8 +167,8 @@ const HRDashboard = () => {
     };
 
     const applyAdvancedFilters = () => {
-        setLoading(true);
-        fetchHRData();
+        setPage(1);
+        fetchHRData(1);
     };
 
     const exportToCSV = () => {
@@ -223,31 +214,12 @@ const HRDashboard = () => {
         setSelectedUsers([]);
     };
 
-    const filteredUsers = users.filter(user => {
-        const matchesSearch = user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             user.current_work?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             user.current_company?.toLowerCase().includes(searchTerm.toLowerCase());
-
-        const matchesFilter = filterBy === 'all' || 
-                             (filterBy === 'with_resume' && user.profile_resume_filename) ||
-                             (filterBy === 'without_resume' && !user.profile_resume_filename) ||
-                             (filterBy === 'high_score' && user.latest_score >= 75);
-
-        return matchesSearch && matchesFilter;
-    }).sort((a, b) => {
-        switch (sortBy) {
-            case 'name':
-                return (a.full_name || '').localeCompare(b.full_name || '');
-            case 'experience':
-                return (b.total_experience || 0) - (a.total_experience || 0);
-            case 'score':
-                return (b.latest_score || 0) - (a.latest_score || 0);
-            case 'created_at':
-            default:
-                return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-        }
-    });
+    const filteredUsers = users.filter(user => (
+        filterBy === 'all' ||
+        (filterBy === 'with_resume' && user.profile_resume_filename) ||
+        (filterBy === 'without_resume' && !user.profile_resume_filename) ||
+        (filterBy === 'high_score' && user.latest_score >= 75)
+    ));
 
     if (loading) {
         return (
@@ -372,7 +344,7 @@ const HRDashboard = () => {
                             <input
                                 type="text"
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
                                 placeholder="Search by name, email, position..."
                                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
                             />
@@ -400,7 +372,7 @@ const HRDashboard = () => {
                             </label>
                             <select
                                 value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
+                                onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
                                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
                             >
                                 <option value="created_at">Registration Date</option>
@@ -581,7 +553,7 @@ const HRDashboard = () => {
                     <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
                         <div className="flex items-center gap-4">
                             <span className="text-sm text-gray-600 dark:text-gray-400">
-                                {filteredUsers.length} candidates found
+                                {pagination.total} candidates found
                             </span>
                             {selectedUsers.length > 0 && (
                                 <span className="text-sm text-blue-600 dark:text-blue-400">
@@ -611,7 +583,7 @@ const HRDashboard = () => {
                                 Export CSV
                             </button>
                             <button
-                                onClick={fetchHRData}
+                                onClick={() => fetchHRData(page)}
                                 className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm transition-colors"
                             >
                                 Refresh
@@ -882,6 +854,27 @@ const HRDashboard = () => {
                     </div>
                 )}
 
+                {pagination.pages > 1 && (
+                    <nav className="flex items-center justify-center gap-4 mt-8" aria-label="Candidate pages">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page <= 1}
+                            className="px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Previous
+                        </button>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                            Page {page} of {pagination.pages}
+                        </span>
+                        <button
+                            onClick={() => setPage(p => Math.min(pagination.pages, p + 1))}
+                            disabled={page >= pagination.pages}
+                            className="px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Next
+                        </button>
+                    </nav>
+                )}
                 {filteredUsers.length === 0 && (
                     <div className="text-center py-12">
                         <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No users found</h3>

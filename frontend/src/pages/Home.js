@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api, { errorMessage } from '../api';
+import { useAuth } from '../contexts/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
-import { API_URL } from '../config';
 
 const Home = () => {
     const navigate = useNavigate();
+    const { logout } = useAuth();
     const [profile, setProfile] = useState({
         email: '',
         full_name: '',
@@ -28,7 +29,7 @@ const Home = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [profileMessage, setProfileMessage] = useState('');
     const [userProfile, setUserProfile] = useState({
-        email: localStorage.getItem('email') || '',
+        email: '',
         full_name: '',
         phone_number: '',
         address: '',
@@ -67,21 +68,12 @@ const Home = () => {
     const [profileResumeMessage, setProfileResumeMessage] = useState('');
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            navigate('/auth', { replace: true });
-            return;
-        }
 
         const fetchProfileData = async () => {
             try {
                 const [profileResponse, historyResponse] = await Promise.all([
-                    axios.get(`${API_URL}/profile`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    }),
-                    axios.get(`${API_URL}/profile/history`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    })
+                    api.get(`/profile`),
+                    api.get(`/profile/history`)
                 ]);
 
                 setProfile(profileResponse.data);
@@ -107,11 +99,7 @@ const Home = () => {
                 });
             } catch (err) {
                 console.error('Profile fetch error:', err);
-                if (err.response?.status === 401 || err.response?.status === 422) {
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('userEmail');
-                    navigate('/auth', { replace: true });
-                } else {
+                if (err.response?.status !== 401) {
                     setError('Failed to load profile data');
                 }
             } finally {
@@ -254,11 +242,9 @@ const Home = () => {
 
     const handleProfileSave = async () => {
         try {
-        const token = localStorage.getItem('token');
-            const response = await axios.put(`${API_URL}/update-profile`, editForm, {
+            const response = await api.put(`/update-profile`, editForm, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                 }
             });
 
@@ -270,15 +256,13 @@ const Home = () => {
                 setTimeout(() => setProfileMessage(''), 3000);
                 
                 // Refresh profile data
-                const profileResponse = await axios.get(`${API_URL}/profile`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                const profileResponse = await api.get(`/profile`);
                 setUserProfile(profileResponse.data);
                 setProfile(profileResponse.data);
             }
         } catch (error) {
             console.error('Error updating profile:', error);
-            setProfileMessage(error.response?.data?.error || 'Failed to update profile');
+            setProfileMessage(errorMessage(error, 'Failed to update profile'));
         }
     };
 
@@ -303,10 +287,8 @@ const Home = () => {
         formData.append('file', file);
 
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post(`${API_URL}/profile/upload-resume`, formData, {
+            const response = await api.post(`/profile/upload-resume`, formData, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'multipart/form-data'
                 }
             });
@@ -315,9 +297,7 @@ const Home = () => {
                 setProfileResumeMessage('Resume uploaded successfully!');
                 
                 // Refresh profile data to get updated resume info
-                const profileResponse = await axios.get(`${API_URL}/profile`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                const profileResponse = await api.get(`/profile`);
                 setUserProfile(profileResponse.data);
                 setProfile(profileResponse.data);
                 
@@ -325,7 +305,7 @@ const Home = () => {
             }
         } catch (error) {
             console.error('Profile resume upload error:', error);
-            setProfileResumeMessage(error.response?.data?.error || 'Failed to upload resume');
+            setProfileResumeMessage(errorMessage(error, 'Failed to upload resume'));
         } finally {
             setProfileResumeUploading(false);
             event.target.value = '';
@@ -334,9 +314,7 @@ const Home = () => {
 
     const downloadProfileResume = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get(`${API_URL}/profile/download-resume`, {
-                headers: { 'Authorization': `Bearer ${token}` },
+            const response = await api.get(`/profile/download-resume`, {
                 responseType: 'blob'
             });
 
@@ -355,17 +333,8 @@ const Home = () => {
         }
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userEmail');
-        setProfile({
-            email: '',
-            full_name: '',
-            phone_number: '',
-            address: '',
-            age: '',
-            is_admin: false
-        });
+    const handleLogout = async () => {
+        await logout();
         navigate('/auth', { replace: true });
     };
 
@@ -393,10 +362,8 @@ const Home = () => {
         formData.append('file', file);
 
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post(`${API_URL}/upload-resume`, formData, {
+            const response = await api.post(`/upload-resume`, formData, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'multipart/form-data'
                 }
             });
@@ -420,7 +387,7 @@ const Home = () => {
             }
         } catch (err) {
             console.error('Upload error:', err);
-            setUploadError(err.response?.data?.message || 'Failed to upload resume');
+            setUploadError(errorMessage(err, 'Failed to upload resume'));
         } finally {
             setUploading(false);
             // Clear the file input
@@ -430,12 +397,7 @@ const Home = () => {
 
     const fetchResumeHistory = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get(`${API_URL}/resume-history`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const response = await api.get(`/resume-history`);
             const resumes = response.data.resumes || [];
             setResumeHistory(resumes);
         } catch (err) {
@@ -449,12 +411,7 @@ const Home = () => {
         }
 
         try {
-            const token = localStorage.getItem('token');
-            await axios.delete(`${API_URL}/resume-history/${resumeId}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            await api.delete(`/resume-history/${resumeId}`);
 
             // Show success message
             const tempDiv = document.createElement('div');
@@ -470,7 +427,7 @@ const Home = () => {
             await fetchResumeHistory();
         } catch (err) {
             console.error('Error deleting resume:', err);
-            alert(err.response?.data?.error || 'Failed to delete resume');
+            alert(errorMessage(err, 'Failed to delete resume'));
         }
     };
 

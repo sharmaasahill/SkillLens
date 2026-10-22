@@ -23,7 +23,8 @@ class User(db.Model):
     website_url = db.Column(db.String(300))  # Personal website
     bio = db.Column(db.Text)  # Professional bio/summary
     # Profile resume fields
-    profile_resume_filename = db.Column(db.String(255))  # Current profile resume
+    profile_resume_filename = db.Column(db.String(255))  # Original name of the current profile resume
+    profile_resume_path = db.Column(db.String(255))  # Unique storage path (relative to the upload folder)
     profile_resume_uploaded_at = db.Column(db.DateTime)  # When profile resume was uploaded
     skills_summary = db.Column(db.Text)  # Key skills from profile resume
     education = db.Column(db.String(300))  # Education background
@@ -46,7 +47,7 @@ class ProfileHistory(db.Model):
     __tablename__ = 'profile_history'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     full_name = db.Column(db.String(100))
     phone_number = db.Column(db.String(20))
     address = db.Column(db.String(200))
@@ -75,8 +76,9 @@ class Resume(db.Model):
     __tablename__ = 'resumes'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    filename = db.Column(db.String(255), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    filename = db.Column(db.String(255), nullable=False)  # Original upload name, for display
+    stored_filename = db.Column(db.String(255))  # Unique storage path (relative to the upload folder)
     skills = db.Column(db.Text)  # Store skills as JSON string
     score = db.Column(db.Float, nullable=True)
     raw_text = db.Column(db.Text)

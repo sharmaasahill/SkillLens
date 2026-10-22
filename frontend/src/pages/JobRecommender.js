@@ -16,8 +16,8 @@ import {
 import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/solid';
 import { useNavigate } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle';
+import api, { errorMessage } from '../api';
 
-import { API_URL } from '../config';
 
 const JobRecommender = () => {
   const navigate = useNavigate();
@@ -39,76 +39,43 @@ const JobRecommender = () => {
     loadAvailableOptions();
     // Auto-load recommendations on component mount
     handleGetRecommendations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadAvailableOptions = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const categoriesRes = await fetch(`${API_URL}/api/job-categories`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (categoriesRes.ok) {
-        const categoriesData = await categoriesRes.json();
-        setAvailableCategories(Array.isArray(categoriesData.categories) ? categoriesData.categories : []);
-      } else {
-        setAvailableCategories([]);
-      }
-    } catch (error) {
-      console.error('Error loading options:', error);
+      const { data } = await api.get('/api/job-categories');
+      setAvailableCategories(Array.isArray(data.categories) ? data.categories : []);
+    } catch (err) {
+      console.error('Error loading options:', err);
       setAvailableCategories([]);
     }
   };
 
   const handleGetRecommendations = async () => {
     if (loading) return;
-    
+
     setLoading(true);
     setError('');
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Please log in to get job recommendations');
-        setLoading(false);
-        return;
-      }
-
-      const requestData = {
+      const { data } = await api.post('/api/recommend-jobs', {
         experience_years: parseInt(filters.experienceYears) || 0,
         preferred_locations: filters.preferredLocations,
         preferred_categories: filters.preferredCategories,
         top_k: filters.topK
-      };
-
-      const response = await fetch(`${API_URL}/api/recommend-jobs`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestData)
       });
 
-      const data = await response.json();
+      setRecommendations(data.recommendations || []);
+      setUserProfile(data.user_profile || null);
+      setSkillsAnalysis(data.skills_analysis || null);
 
-      if (response.ok) {
-        setRecommendations(data.recommendations || []);
-        setUserProfile(data.user_profile || null);
-        setSkillsAnalysis(data.skills_analysis || null);
-        
-        if (data.recommendations && data.recommendations.length === 0) {
-          setError('No job recommendations found. Try adjusting your filters or uploading a more detailed resume.');
-        }
-      } else {
-        setError(data.error || 'Failed to get recommendations');
+      if (data.recommendations && data.recommendations.length === 0) {
+        setError('No job recommendations found. Try adjusting your filters or uploading a more detailed resume.');
       }
-    } catch (error) {
-      console.error('Error getting recommendations:', error);
-      setError('Failed to connect to server. Please try again.');
+    } catch (err) {
+      console.error('Error getting recommendations:', err);
+      setError(errorMessage(err, 'Failed to connect to server. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -121,29 +88,14 @@ const JobRecommender = () => {
     }
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/job-market-analysis`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          skills: userProfile.extracted_skills
-        })
+      const { data } = await api.post('/api/job-market-analysis', {
+        skills: userProfile.extracted_skills
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSkillsAnalysis(data);
-        setShowAnalysisModal(true);
-      } else {
-        setError(data.error || 'Failed to analyze skills');
-      }
-    } catch (error) {
-      console.error('Error analyzing skills:', error);
-      setError('Failed to analyze skills');
+      setSkillsAnalysis(data.analysis || null);
+      setShowAnalysisModal(true);
+    } catch (err) {
+      console.error('Error analyzing skills:', err);
+      setError(errorMessage(err, 'Failed to analyze skills'));
     }
   };
 
