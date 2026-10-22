@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, animate, useMotionValue, useTransform } from 'framer-motion';
-import { BoltIcon, ScaleIcon, ArrowsRightLeftIcon } from '@heroicons/react/24/outline';
 import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
 import { Badge, Button, Card, Meter, Notice, ScoreRing, Segmented, SelectField, TextField, EASE, cx } from '../components/ui/primitives';
@@ -171,10 +170,7 @@ function CompareResult({ results }) {
 
       {comparison && (
         <Card className="!p-7">
-          <div className="flex items-center gap-2">
-            <ArrowsRightLeftIcon className="h-5 w-5 text-orange" aria-hidden="true" />
-            <h3 className="font-display text-[19px] font-semibold tracking-tight">Model comparison</h3>
-          </div>
+          <h3 className="font-display text-[19px] font-semibold tracking-tight">Model comparison</h3>
           <div className="mt-5 grid gap-4 sm:grid-cols-3">
             <div className="rounded-2xl bg-orange-soft p-5">
               <p className="text-[13px] text-orange-ink">Salary difference</p>
@@ -270,10 +266,7 @@ function SalaryPredictor() {
 
       <div className="grid items-start gap-6 lg:grid-cols-[400px_1fr]">
         <Card className="lg:sticky lg:top-24">
-          <div className="mb-6 flex items-center gap-2">
-            {mode === 'compare' ? <ScaleIcon className="h-5 w-5 text-green" /> : <BoltIcon className="h-5 w-5 text-green" />}
-            <h2 className="font-display text-[19px] font-semibold tracking-tight">Your details</h2>
-          </div>
+          <h2 className="mb-6 font-display text-[19px] font-semibold tracking-tight">Your details</h2>
           <SalaryForm form={form} setForm={setForm} onSubmit={handleSubmit} loading={loading} mode={mode} />
           {error && <Notice className="mt-4">{error}</Notice>}
         </Card>

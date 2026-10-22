@@ -14,11 +14,27 @@
 - **Salary Predictor** - Estimates salary from age, gender, education, job title and experience using a Random Forest model trained on `Salary_Data.csv`.
 - **Advanced Salary Predictor** - Ensemble model (Random Forest + Gradient Boosting + Ridge) with feature engineering, confidence scores and a side-by-side comparison with the basic model.
 - **Resume Analyzer** - Extracts skills from PDF resumes, calculates an ATS compatibility score, and gives section, keyword, action-verb and formatting feedback.
+
+### How the ATS score works
+
+Every resume is scored out of 100 on seven parts, and every lost point comes with an explanation:
+
+| Part | Points | What earns them |
+| --- | --- | --- |
+| Contact details | 10 | Email, phone number, LinkedIn/GitHub/portfolio |
+| Standard sections | 20 | Experience, education, skills, summary, projects or certifications |
+| Skills and keywords | 20 | Recognised skills and industry keywords, matched as whole words |
+| Quantified impact | 15 | Results with numbers: percentages, money, users, time saved |
+| Action verbs | 15 | Strong verbs such as led, built, reduced; weak phrases cost points |
+| Length | 10 | 300 to 1,000 words |
+| ATS-safe formatting | 10 | No tables, image references, page-number footers or icon glyphs |
+
+After changing the scoring rules, rescore stored resumes with `flask --app app rescore-resumes` (add `--dry-run` to preview).
 - **Professional Profile** - Users maintain a profile (work, education, skills, links) with a profile resume and change history.
 - **HR Dashboard** - HR users can search and filter candidates by role, location, company, experience, skills and score, view analytics, and download resumes.
 - **Secure auth** - httpOnly cookie sessions with short-lived access tokens, silent refresh, CSRF protection, rate-limited login and separate User and HR roles.
-- **Job Recommender** - Matches skills from your latest resume against a Glassdoor job listings dataset using TF-IDF similarity, with experience fit, match reasoning and a skills-gap analysis.
-- Dark mode (saved per browser) and responsive UI built with Tailwind CSS, Framer Motion and Heroicons.
+- **Job Recommender** - Matches skills from your latest resume against a Glassdoor job listings dataset by skill overlap, with experience fit, match reasoning and a skills-gap analysis.
+- Clean white, Apple-inspired UI with scroll animations, built with Tailwind CSS and Framer Motion. Fully responsive.
 
 ---
 
@@ -196,8 +212,11 @@ SkillLens/
       App.js
       api.js                Axios client: cookies, CSRF, silent token refresh
       config.js             Reads REACT_APP_API_URL
-      components/           Shared UI (theme toggle, protected routes)
-      contexts/             Auth and theme state
+      components/
+        landing/            Animated landing page sections
+        ui/                 Design system: buttons, cards, fields, modals, toasts, app shell
+      contexts/             Auth state
+      lib/                  Formatting, dashboard stats and resume insight rules
       pages/
   README.md
 ```

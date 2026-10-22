@@ -3,7 +3,7 @@
 
 export const flattenSkills = (skills) => (Array.isArray(skills) ? skills : Object.values(skills || {}).flat());
 
-export const wordCount = (text) => (text ? text.split(/\s+/).length : 0);
+export const wordCount = (text) => (text ? text.split(/\s+/).filter(Boolean).length : 0);
 
 export function getScoreLabel(score) {
   if (score >= 80) return 'Excellent';
@@ -34,6 +34,16 @@ const WEAK_VERBS = [
   'responsible for', 'worked on', 'helped with', 'participated in',
   'involved in', 'assisted with', 'contributed to',
 ];
+
+/** Verbs found by the backend scorer when available, so the page and the score always agree. */
+export function verbsFor(analysis) {
+  const fromServer = analysis?.ats_analysis?.action_verbs;
+  if (fromServer) {
+    const score = Math.max(0, Math.min(100, fromServer.strong.length * 10 - fromServer.weak.length * 5));
+    return { strong: fromServer.strong, weak: fromServer.weak, score };
+  }
+  return analyzeActionVerbs(analysis?.text);
+}
 
 export function analyzeActionVerbs(text) {
   if (!text) return { strong: [], weak: [], score: 0 };
@@ -124,16 +134,17 @@ export function getIndustrySpecificAdvice(skills) {
 const hasContactIssue = (ats) => Boolean(ats?.issues?.some((issue) => issue.toLowerCase().includes('contact')));
 
 export function buildActionItems(analysis) {
-  const words = wordCount(analysis.text);
+  const words = analysis.ats_analysis?.word_count ?? wordCount(analysis.text);
   const skillCount = flattenSkills(analysis.skills).length;
   const atsScore = analysis.ats_analysis?.score || 0;
-  const verbs = analyzeActionVerbs(analysis.text);
+  const verbs = verbsFor(analysis);
   return [
     { task: 'Add contact information', completed: !hasContactIssue(analysis.ats_analysis), priority: 'High' },
     { task: 'Use strong action verbs', completed: verbs.strong.length >= 5, priority: 'Medium' },
     { task: 'Optimize for ATS (70+ score)', completed: atsScore >= 70, priority: 'High' },
     { task: 'Add more skills (10+ recommended)', completed: skillCount >= 10, priority: 'Medium' },
-    { task: 'Ensure proper length (200-600 words)', completed: words >= 200 && words <= 600, priority: 'Medium' },
+    { task: 'Ensure proper length (300-1000 words)', completed: words >= 300 && words <= 1000, priority: 'Medium' },
+    { task: 'Quantify results (3+ numbers)', completed: (analysis.ats_analysis?.quantified_achievements || 0) >= 3, priority: 'High' },
     { task: 'Include standard sections', completed: (analysis.ats_analysis?.found_sections?.length || 0) >= 4, priority: 'High' },
     { task: 'Remove weak phrases', completed: verbs.weak.length === 0, priority: 'Low' },
   ];
@@ -141,7 +152,7 @@ export function buildActionItems(analysis) {
 
 export function buildRecommendations(analysis) {
   const skillCount = flattenSkills(analysis.skills).length;
-  const words = wordCount(analysis.text);
+  const words = analysis.ats_analysis?.word_count ?? wordCount(analysis.text);
   const atsScore = analysis.ats_analysis?.score || 0;
   const foundSections = analysis.ats_analysis?.found_sections?.length || 0;
   const keywordMatches = analysis.ats_analysis?.keyword_matches || 0;

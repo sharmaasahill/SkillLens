@@ -68,6 +68,13 @@ def login():
     password_ok = check_password_hash(user.password if user else _DUMMY_HASH, data.password)
     if not user or not password_ok:
         raise ApiError('Invalid email or password', 401)
+
+    # Checked only after the password is correct, so it reveals nothing to someone guessing
+    is_hr = bool(user.is_admin)
+    if data.account_type == 'hr' and not is_hr:
+        raise ApiError('This is a candidate account. Sign in with the Candidate option instead.', 403)
+    if data.account_type == 'candidate' and is_hr:
+        raise ApiError('This is an HR team account. Sign in with the HR team option instead.', 403)
     return _session_response(user)
 
 

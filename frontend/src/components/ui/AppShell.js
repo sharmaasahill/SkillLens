@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRightOnRectangleIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../contexts/AuthContext';
 import { EASE, cx } from './primitives';
 import { tone } from './tones';
@@ -75,14 +74,14 @@ function AccountMenu() {
                 onClick={() => { setOpen(false); navigate('/account'); }}
                 className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[14px] text-ink hover:bg-mist"
               >
-                <UserCircleIcon className="h-5 w-5 text-orange" aria-hidden="true" /> Profile
+                Profile
               </button>
             )}
             <button
               type="button" role="menuitem" onClick={signOut}
               className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[14px] text-red-ink hover:bg-red-soft"
             >
-              <ArrowRightOnRectangleIcon className="h-5 w-5" aria-hidden="true" /> Sign out
+              Sign out
             </button>
           </motion.div>
         )}

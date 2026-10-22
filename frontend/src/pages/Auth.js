@@ -32,11 +32,19 @@ function Auth() {
 
     try {
       const account = isLogin
-        ? await login(email, password)
+        ? await login(email, password, loginType === 'hr' ? 'hr' : 'candidate')
         : await register(email, password, fullName);
       navigate(homeFor(account), { replace: true });
     } catch (err) {
-      setError(errorMessage(err, 'An error occurred'));
+      const msg = errorMessage(err, 'An error occurred');
+      // The backend gives clear messages for wrong-side login, so show them as-is
+      if (err.response?.status === 403) {
+        setError(msg);
+      } else if (err.response?.status === 401) {
+        setError('Invalid email or password');
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }

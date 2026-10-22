@@ -44,6 +44,9 @@ def create_app(config_object=Config, overrides=None):
     from .routes import register_blueprints
     register_blueprints(app)
 
+    from .cli import register_commands
+    register_commands(app)
+
     @app.get('/health')
     def health():
         return {'status': 'ok'}

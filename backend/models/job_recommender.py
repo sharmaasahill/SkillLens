@@ -1,20 +1,19 @@
-import pandas as pd
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import re
-import json
-from typing import List, Dict, Any
+import heapq
+import logging
 import os
+from collections import Counter
+from typing import Any, Dict, List
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 class JobRecommender:
     def __init__(self):
         self.jobs_df = None
-        self.skills_vectorizer = None
-        self.jobs_skills_matrix = None
-        self.all_skills = []
+        self._index = None
+        self._trending = None
         self._load_jobs_data()
-        self._preprocess_skills()
 
     def _load_jobs_data(self):
         """Load and preprocess the Glassdoor jobs dataset"""
@@ -36,10 +35,10 @@ class JobRecommender:
             # Extract job category
             self.jobs_df['Job_Category'] = self.jobs_df['Position'].apply(self._categorize_job)
             
-            print(f"Loaded {len(self.jobs_df)} jobs from dataset")
+            logger.info("Loaded %d jobs from dataset", len(self.jobs_df))
             
         except Exception as e:
-            print(f"Error loading jobs data: {str(e)}")
+            logger.error("Error loading jobs data: %s", e)
             self.jobs_df = pd.DataFrame()
 
     def _clean_skills_text(self, skills_text: str) -> str:
@@ -54,7 +53,7 @@ class JobRecommender:
         skill_list = [skill.strip() for skill in skills.split(',')]
         
         # Remove empty skills and duplicates
-        clean_skills = list(set([skill for skill in skill_list if skill and len(skill) > 1]))
+        clean_skills = sorted(set(skill for skill in skill_list if skill and len(skill) > 1))
         
         return ', '.join(clean_skills)
 
@@ -101,36 +100,6 @@ class JobRecommender:
         
         else:
             return 'Other'
-
-    def _preprocess_skills(self):
-        """Preprocess skills for vectorization"""
-        if self.jobs_df.empty:
-            return
-        
-        try:
-            # Create a corpus of all skills
-            skills_corpus = self.jobs_df['Cleaned_Skills'].tolist()
-            
-            # Initialize TF-IDF vectorizer
-            self.skills_vectorizer = TfidfVectorizer(
-                max_features=1000,
-                stop_words='english',
-                ngram_range=(1, 2),
-                min_df=1,
-                max_df=0.8
-            )
-            
-            # Fit and transform the skills corpus
-            self.jobs_skills_matrix = self.skills_vectorizer.fit_transform(skills_corpus)
-            
-            # Get all unique skills
-            feature_names = self.skills_vectorizer.get_feature_names_out()
-            self.all_skills = list(feature_names)
-            
-            print(f"Processed {len(self.all_skills)} unique skill features")
-            
-        except Exception as e:
-            print(f"Error preprocessing skills: {str(e)}")
 
     def _calculate_skill_match_score(self, user_skills: List[str], job_skills: str) -> float:
         """Calculate skill match score between user skills and job requirements"""
@@ -235,89 +204,88 @@ class JobRecommender:
         
         return " • ".join(reasons[:4])  # Limit to top 4 reasons
 
-    def recommend_jobs(self, user_skills: List[str], user_experience: int = 0, 
-                      preferred_locations: List[str] = None, 
+    def _job_index(self):
+        """Per-job values used for scoring, computed once instead of on every request."""
+        if getattr(self, '_index', None) is None:
+            df = self.jobs_df
+            self._index = [
+                (idx, cleaned.lower(), [part.strip() for part in cleaned.lower().split(',')], level,
+                 category, (loc.lower() if pd.notna(loc) else ''))
+                for idx, cleaned, level, category, loc in zip(
+                    df.index, df['Cleaned_Skills'], df['Experience_Level'], df['Job_Category'], df['Location'])
+            ]
+        return self._index
+
+    def recommend_jobs(self, user_skills: List[str], user_experience: int = 0,
+                      preferred_locations: List[str] = None,
                       preferred_categories: List[str] = None,
                       top_k: int = 10) -> List[Dict[str, Any]]:
         """
-        Recommend jobs based on user skills and preferences
-        
-        Args:
-            user_skills: List of user's skills
-            user_experience: User's years of experience
-            preferred_locations: Preferred job locations
-            preferred_categories: Preferred job categories
-            top_k: Number of recommendations to return
-        
-        Returns:
-            List of recommended jobs with scores and detailed reasoning
+        Recommend jobs based on user skills and preferences.
+
+        Every job is scored, but the detailed fields (reasoning, highlights, description)
+        are only built for the top_k results, which keeps a request to a few milliseconds.
         """
-        
         if self.jobs_df.empty or not user_skills:
             return []
-        
+
+        skills_lower = [skill.lower().strip() for skill in user_skills]
+        long_skills = [skill for skill in skills_lower if len(skill) > 3]
+        locations = [loc.lower() for loc in (preferred_locations or [])]
+        categories = set(preferred_categories or [])
+        exp_cache = {}
+
+        scored = []
+        for order, (idx, skills_text, parts, level, category, location) in enumerate(self._job_index()):
+            # Same formula as _calculate_skill_match_score, on precomputed lowercase text
+            exact = sum(1 for skill in skills_lower if skill in skills_text)
+            partial = 0.0
+            for skill in long_skills:
+                for part in parts:
+                    if skill in part or part in skill:
+                        partial += 0.5
+                        break
+            max_possible = max(len(skills_lower), len(parts))
+            skill_score = min((exact + partial) / max_possible, 1.0) if max_possible else 0.0
+            if skill_score <= 0.1:
+                continue
+
+            if level not in exp_cache:
+                exp_cache[level] = self._calculate_experience_match(user_experience, level)
+            experience_score = exp_cache[level]
+            location_score = (1.2 if any(loc in location for loc in locations) else 0.8) if locations else 1.0
+            category_score = (1.2 if category in categories else 0.8) if categories else 1.0
+            overall = skill_score * 0.5 + experience_score * 0.3 + location_score * 0.1 + category_score * 0.1
+            scored.append((round(overall, 3), order, idx, skill_score, experience_score, location_score, category_score))
+
+        # Highest score first; ties keep dataset order, exactly as a stable sort would
+        top = heapq.nsmallest(top_k, scored, key=lambda item: (-item[0], item[1]))
+
         recommendations = []
-        
-        for idx, job in self.jobs_df.iterrows():
-            # Calculate skill match score
-            skill_score = self._calculate_skill_match_score(user_skills, job['Cleaned_Skills'])
-            
-            # Calculate experience match score
-            experience_score = self._calculate_experience_match(user_experience, job['Experience_Level'])
-            
-            # Location preference score
-            location_score = 1.0
-            if preferred_locations:
-                location_lower = job['Location'].lower() if pd.notna(job['Location']) else ''
-                location_score = 1.2 if any(loc.lower() in location_lower for loc in preferred_locations) else 0.8
-            
-            # Category preference score
-            category_score = 1.0
-            if preferred_categories:
-                category_score = 1.2 if job['Job_Category'] in preferred_categories else 0.8
-            
-            # Calculate overall score (weighted combination)
-            overall_score = (
-                skill_score * 0.5 +           # 50% weight on skills
-                experience_score * 0.3 +      # 30% weight on experience
-                location_score * 0.1 +        # 10% weight on location
-                category_score * 0.1          # 10% weight on category
-            )
-            
-            # Only include jobs with reasonable skill match
-            if skill_score > 0.1:
-                matched_skills = self._get_matched_skills(user_skills, job['Cleaned_Skills'])
-                
-                # Generate detailed reasoning
-                reasoning = self._generate_recommendation_reasoning(
+        for overall, _, idx, skill_score, experience_score, location_score, category_score in top:
+            job = self.jobs_df.loc[idx]
+            matched_skills = self._get_matched_skills(user_skills, job['Cleaned_Skills'])
+            description = job['Job Description']
+            recommendations.append({
+                'job_id': int(idx),
+                'position': job['Position'],
+                'company': job['Company'],
+                'location': job['Location'],
+                'job_url': job.get('Job URL', ''),
+                'job_description': description[:500] + '...' if len(description) > 500 else description,
+                'required_skills': job['Skills'],
+                'job_category': job['Job_Category'],
+                'experience_level': job['Experience_Level'],
+                'overall_score': overall,
+                'skill_match_score': round(skill_score, 3),
+                'experience_match_score': round(experience_score, 3),
+                'matched_skills': matched_skills,
+                'recommendation_reasoning': self._generate_recommendation_reasoning(
                     user_skills, user_experience, job, skill_score, experience_score,
-                    location_score, category_score, matched_skills
-                )
-                
-                recommendation = {
-                    'job_id': idx,
-                    'position': job['Position'],
-                    'company': job['Company'],
-                    'location': job['Location'],
-                    'job_url': job.get('Job URL', ''),
-                    'job_description': job['Job Description'][:500] + '...' if len(job['Job Description']) > 500 else job['Job Description'],
-                    'required_skills': job['Skills'],
-                    'job_category': job['Job_Category'],
-                    'experience_level': job['Experience_Level'],
-                    'overall_score': round(overall_score, 3),
-                    'skill_match_score': round(skill_score, 3),
-                    'experience_match_score': round(experience_score, 3),
-                    'matched_skills': matched_skills,
-                    'recommendation_reasoning': reasoning,
-                    'why_recommended': self._get_key_highlights(job, matched_skills, skill_score, experience_score)
-                }
-                
-                recommendations.append(recommendation)
-        
-        # Sort by overall score (descending)
-        recommendations.sort(key=lambda x: x['overall_score'], reverse=True)
-        
-        return recommendations[:top_k]
+                    location_score, category_score, matched_skills),
+                'why_recommended': self._get_key_highlights(job, matched_skills, skill_score, experience_score),
+            })
+        return recommendations
 
     def _get_key_highlights(self, job: Dict, matched_skills: List[str], skill_score: float, experience_score: float) -> List[str]:
         """Get key highlights for why this job is recommended"""
@@ -367,44 +335,37 @@ class JobRecommender:
             return []
         return self.jobs_df['Location'].unique().tolist()
 
+    def _trending_skills(self):
+        """Most frequent skills across all listings. The dataset is static, so compute once."""
+        if getattr(self, '_trending', None) is None:
+            counts = {}
+            for skills_text in self.jobs_df['Cleaned_Skills']:
+                if pd.notna(skills_text):
+                    for skill in skills_text.split(','):
+                        skill = skill.strip().lower()
+                        if len(skill) > 2:
+                            counts[skill] = counts.get(skill, 0) + 1
+            self._trending = [skill for skill, _ in sorted(counts.items(), key=lambda x: x[1], reverse=True)[:20]]
+        return self._trending
+
     def get_skills_analysis(self, user_skills: List[str]) -> Dict[str, Any]:
         """Analyze user skills against job market demand"""
         if self.jobs_df.empty or not user_skills:
             return {}
-        
-        skills_demand = {}
+
         total_jobs = len(self.jobs_df)
-        
+        index = self._job_index()
+        skills_demand = {}
         for skill in user_skills:
             skill_lower = skill.lower()
-            matching_jobs = self.jobs_df[
-                self.jobs_df['Cleaned_Skills'].str.contains(skill_lower, case=False, na=False)
-            ]
-            
-            demand_percentage = (len(matching_jobs) / total_jobs) * 100
+            levels = [level for _, skills_text, _, level, _, _ in index if skill_lower in skills_text]
             skills_demand[skill] = {
-                'demand_percentage': round(demand_percentage, 2),
-                'job_count': len(matching_jobs),
-                'avg_experience_level': matching_jobs['Experience_Level'].mode().iloc[0] if not matching_jobs.empty else 'Unknown'
+                'demand_percentage': round(len(levels) / total_jobs * 100, 2),
+                'job_count': len(levels),
+                'avg_experience_level': Counter(levels).most_common(1)[0][0] if levels else 'Unknown',
             }
-        
-        # Get trending skills (most in-demand skills in the dataset)
-        all_job_skills = ' '.join(self.jobs_df['Cleaned_Skills'].fillna(''))
-        trending_skills = []
-        
-        # Count skill frequencies
-        skill_counts = {}
-        for skills_text in self.jobs_df['Cleaned_Skills']:
-            if pd.notna(skills_text):
-                for skill in skills_text.split(','):
-                    skill = skill.strip().lower()
-                    if len(skill) > 2:  # Ignore very short terms
-                        skill_counts[skill] = skill_counts.get(skill, 0) + 1
-        
-        # Get top trending skills
-        sorted_skills = sorted(skill_counts.items(), key=lambda x: x[1], reverse=True)
-        trending_skills = [skill for skill, count in sorted_skills[:20]]
-        
+
+        trending_skills = self._trending_skills()
         return {
             'user_skills_demand': skills_demand,
             'trending_skills': trending_skills,

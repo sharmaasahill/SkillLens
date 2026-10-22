@@ -1,6 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { XMarkIcon, CheckCircleIcon, ExclamationCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { Button, EASE, cx } from './primitives';
 
 /* ---------- Modal / sheet ---------- */
@@ -56,10 +55,9 @@ export function Modal({ open, onClose, title, children, size = 'lg', footer }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-mist text-graphite transition hover:text-ink"
-                aria-label="Close"
+                className="rounded-full bg-mist px-3.5 py-1.5 text-[13px] font-medium text-graphite transition hover:text-ink"
               >
-                <XMarkIcon className="h-4 w-4" />
+                Close
               </button>
             </div>
             <div className="overflow-y-auto px-6 py-6 md:px-8">{children}</div>
@@ -76,9 +74,9 @@ export function Modal({ open, onClose, title, children, size = 'lg', footer }) {
 const FeedbackContext = createContext(null);
 
 const TOAST_STYLE = {
-  success: { icon: CheckCircleIcon, color: 'text-green-ink' },
-  error: { icon: ExclamationCircleIcon, color: 'text-red-ink' },
-  info: { icon: InformationCircleIcon, color: 'text-blue-ink' },
+  success: { dot: 'bg-green' },
+  error: { dot: 'bg-red' },
+  info: { dot: 'bg-blue' },
 };
 
 export function FeedbackProvider({ children }) {
@@ -111,7 +109,6 @@ export function FeedbackProvider({ children }) {
         <AnimatePresence>
           {toasts.map((t) => {
             const style = TOAST_STYLE[t.type] || TOAST_STYLE.info;
-            const Icon = style.icon;
             return (
               <motion.div
                 key={t.id}
@@ -122,7 +119,7 @@ export function FeedbackProvider({ children }) {
                 transition={{ duration: 0.35, ease: EASE }}
                 className="pointer-events-auto flex items-center gap-2.5 rounded-full bg-white/90 px-5 py-3 text-[14px] text-ink shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] ring-1 ring-black/5 backdrop-blur-xl"
               >
-                <Icon className={cx('h-5 w-5', style.color)} aria-hidden="true" />
+                <span className={cx('h-2 w-2 shrink-0 rounded-full', style.dot)} aria-hidden="true" />
                 {t.message}
               </motion.div>
             );

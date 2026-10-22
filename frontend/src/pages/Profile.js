@@ -1,8 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-  UserIcon, BriefcaseIcon, AcademicCapIcon, LinkIcon, DocumentArrowDownIcon, ClockIcon, PencilSquareIcon,
-} from '@heroicons/react/24/outline';
 import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
 import { Appear, Button, Card, Notice, ScoreRing, Skeleton, TextArea, TextField, EASE, cx } from '../components/ui/primitives';
@@ -14,7 +11,7 @@ import { dateLabel, dateTimeLabel, downloadBlob } from '../lib/format';
 
 const SECTIONS = [
   {
-    key: 'personal', title: 'Personal information', icon: UserIcon, toneName: 'orange',
+    key: 'personal', title: 'Personal information', toneName: 'orange',
     fields: [
       { name: 'full_name', label: 'Full name', placeholder: 'Enter your full name', span: 2 },
       { name: 'phone_number', label: 'Phone', type: 'tel', placeholder: '+1 (555) 123-4567' },
@@ -23,7 +20,7 @@ const SECTIONS = [
     ],
   },
   {
-    key: 'professional', title: 'Professional information', icon: BriefcaseIcon, toneName: 'blue',
+    key: 'professional', title: 'Professional information', toneName: 'blue',
     fields: [
       { name: 'current_work', label: 'Current position', placeholder: 'e.g., Senior Software Engineer' },
       { name: 'current_company', label: 'Company', placeholder: 'e.g., Tech Corp Inc.' },
@@ -32,7 +29,7 @@ const SECTIONS = [
     ],
   },
   {
-    key: 'education', title: 'Education and skills', icon: AcademicCapIcon, toneName: 'green',
+    key: 'education', title: 'Education and skills', toneName: 'green',
     fields: [
       { name: 'education', label: 'Education', placeholder: 'e.g., BS Computer Science, Stanford University', span: 2 },
       { name: 'skills_summary', label: 'Skills', multiline: 2, placeholder: 'e.g., Python, JavaScript, React, Node.js, AWS, Docker...', span: 2 },
@@ -42,7 +39,7 @@ const SECTIONS = [
     ],
   },
   {
-    key: 'links', title: 'Links and bio', icon: LinkIcon, toneName: 'purple',
+    key: 'links', title: 'Links and bio', toneName: 'purple',
     fields: [
       { name: 'linkedin_url', label: 'LinkedIn', type: 'url', placeholder: 'https://linkedin.com/in/yourprofile' },
       { name: 'website_url', label: 'Portfolio or website', type: 'url', placeholder: 'https://yourportfolio.com' },
@@ -66,14 +63,11 @@ function displayValue(field, value) {
 
 function SectionCard({ section, profile, editing, form, onChange, delay }) {
   const t = tone(section.toneName);
-  const Icon = section.icon;
   return (
     <Appear delay={delay}>
       <Card className="!p-6 md:!p-8">
         <div className="mb-6 flex items-center gap-3">
-          <span className={cx('flex h-9 w-9 items-center justify-center rounded-xl', t.soft)}>
-            <Icon className={cx('h-5 w-5', t.text)} aria-hidden="true" />
-          </span>
+          <span className={cx('h-5 w-1 rounded-full', t.bg)} aria-hidden="true" />
           <h2 className="font-display text-[21px] font-semibold tracking-tight">{section.title}</h2>
         </div>
         {editing ? (
@@ -219,7 +213,7 @@ function Profile() {
             <Button onClick={save} loading={saving}>Save changes</Button>
           </>
         ) : (
-          <Button variant="dark" onClick={startEditing}><PencilSquareIcon className="h-4 w-4" /> Edit profile</Button>
+          <Button variant="dark" onClick={startEditing}>Edit profile</Button>
         )}
       />
 
@@ -261,10 +255,7 @@ function Profile() {
 
           <Appear delay={0.15}>
             <Card className="!p-6">
-              <div className="mb-4 flex items-center gap-2">
-                <DocumentArrowDownIcon className="h-5 w-5 text-blue" aria-hidden="true" />
-                <h2 className="font-display text-[19px] font-semibold tracking-tight">Profile resume</h2>
-              </div>
+              <h2 className="mb-4 font-display text-[19px] font-semibold tracking-tight">Profile resume</h2>
               {profile.profile_resume_filename ? (
                 <div className="mb-4 rounded-2xl bg-green-soft p-4">
                   <p className="truncate text-[14px] font-medium text-green-ink" title={profile.profile_resume_filename}>{profile.profile_resume_filename}</p>
@@ -283,10 +274,7 @@ function Profile() {
 
           <Appear delay={0.2}>
             <Card className="!p-6">
-              <div className="mb-4 flex items-center gap-2">
-                <ClockIcon className="h-5 w-5 text-purple" aria-hidden="true" />
-                <h2 className="font-display text-[19px] font-semibold tracking-tight">Profile history</h2>
-              </div>
+              <h2 className="mb-4 font-display text-[19px] font-semibold tracking-tight">Profile history</h2>
               {history.length > 0 ? (
                 <ol className="relative space-y-5 border-l border-hairline pl-5">
                   {history.slice(0, 10).map((entry, i) => (

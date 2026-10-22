@@ -1,26 +1,22 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-  CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon, InformationCircleIcon, SparklesIcon,
-  DocumentTextIcon, BoltIcon, BuildingOffice2Icon, KeyIcon, ClipboardDocumentCheckIcon, LightBulbIcon,
-} from '@heroicons/react/24/outline';
 import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
-import { Appear, Badge, Button, Card, Chip, Notice, ScoreRing, SectionTitle, Skeleton, cx } from '../components/ui/primitives';
+import { Appear, Badge, Button, Card, Chip, Meter, Notice, ScoreRing, SectionTitle, Skeleton, cx } from '../components/ui/primitives';
 import Dropzone, { pdfError } from '../components/ui/Dropzone';
 import { scoreTone, tone } from '../components/ui/tones';
 import {
-  analyzeActionVerbs, buildActionItems, buildRecommendations, calculateReadabilityScore,
+  verbsFor, buildActionItems, buildRecommendations, calculateReadabilityScore,
   flattenSkills, getIndustrySpecificAdvice, getScoreLabel, wordCount,
 } from '../lib/resumeInsights';
 
 const SKILL_TONES = ['blue', 'purple', 'teal', 'green', 'indigo', 'pink', 'orange'];
 const PRIORITY_TONE = { High: 'red', Medium: 'orange', Low: 'blue' };
 const REC_STYLE = {
-  critical: { toneName: 'red', icon: XCircleIcon },
-  warning: { toneName: 'orange', icon: ExclamationTriangleIcon },
-  success: { toneName: 'green', icon: CheckCircleIcon },
-  info: { toneName: 'blue', icon: InformationCircleIcon },
+  critical: { toneName: 'red' },
+  warning: { toneName: 'orange' },
+  success: { toneName: 'green' },
+  info: { toneName: 'blue' },
 };
 
 function QualityTile({ value, label, hint, toneName, delay }) {
@@ -40,11 +36,11 @@ function Results({ analysis, fileName }) {
   const ats = analysis.ats_analysis;
   const score = ats?.score ?? 0;
   const skills = flattenSkills(analysis.skills);
-  const words = wordCount(analysis.text);
+  const words = ats?.word_count ?? wordCount(analysis.text);
   const sections = ats?.found_sections?.length || 0;
   const keywords = ats?.keyword_matches || 0;
   const readability = calculateReadabilityScore(analysis.text);
-  const verbs = analyzeActionVerbs(analysis.text);
+  const verbs = verbsFor(analysis);
   const industry = getIndustrySpecificAdvice(analysis.skills);
   const actionItems = buildActionItems(analysis);
   const done = actionItems.filter((i) => i.completed);
@@ -63,22 +59,20 @@ function Results({ analysis, fileName }) {
                 <span className="font-display text-[48px] font-semibold leading-none tracking-tight tabular-nums">{Math.round(score)}</span>
               </ScoreRing>
               <div>
-                <p className="flex items-center gap-2 text-[14px] text-graphite">
-                  <DocumentTextIcon className="h-4 w-4" aria-hidden="true" /> {fileName}
-                </p>
+                <p className="text-[14px] text-graphite">{fileName}</p>
                 <h2 className="mt-2 font-display text-[32px] font-semibold tracking-tight">ATS compatibility: {getScoreLabel(score)}</h2>
                 <div className="mt-6 grid gap-6 sm:grid-cols-2">
                   <div>
                     <p className="mb-2 text-[13px] font-semibold text-green-ink">Strengths</p>
                     <ul className="space-y-2 text-[14px] text-ink">
                       {ats.found_sections?.length > 0 && (
-                        <li className="flex gap-2"><CheckCircleIcon className="h-5 w-5 shrink-0 text-green" />Found {ats.found_sections.length} required sections: {ats.found_sections.join(', ')}</li>
+                        <li className="flex gap-2.5"><span className="mt-[7px] h-2 w-2 shrink-0 rounded-full bg-green" aria-hidden="true" />Found {ats.found_sections.length} required sections: {ats.found_sections.join(', ')}</li>
                       )}
                       {ats.keyword_matches > 10 && (
-                        <li className="flex gap-2"><CheckCircleIcon className="h-5 w-5 shrink-0 text-green" />Contains {ats.keyword_matches} industry keywords</li>
+                        <li className="flex gap-2.5"><span className="mt-[7px] h-2 w-2 shrink-0 rounded-full bg-green" aria-hidden="true" />Contains {ats.keyword_matches} industry keywords</li>
                       )}
                       {ats.problematic_elements?.length === 0 && (
-                        <li className="flex gap-2"><CheckCircleIcon className="h-5 w-5 shrink-0 text-green" />No problematic formatting elements detected</li>
+                        <li className="flex gap-2.5"><span className="mt-[7px] h-2 w-2 shrink-0 rounded-full bg-green" aria-hidden="true" />No problematic formatting elements detected</li>
                       )}
                     </ul>
                   </div>
@@ -87,7 +81,7 @@ function Results({ analysis, fileName }) {
                     {ats.issues?.length > 0 ? (
                       <ul className="space-y-2 text-[14px] text-ink">
                         {ats.issues.map((issue) => (
-                          <li key={issue} className="flex gap-2"><ExclamationTriangleIcon className="h-5 w-5 shrink-0 text-orange" />{issue}</li>
+                          <li key={issue} className="flex gap-2.5"><span className="mt-[7px] h-2 w-2 shrink-0 rounded-full bg-orange" aria-hidden="true" />{issue}</li>
                         ))}
                       </ul>
                     ) : (
@@ -101,10 +95,37 @@ function Results({ analysis, fileName }) {
         </Appear>
       )}
 
+      {/* Score breakdown */}
+      {ats?.breakdown?.length > 0 && (
+        <Appear delay={0.05}>
+          <Card>
+            <SectionTitle eyebrow="How the score adds up" toneName="blue" title="Score breakdown" />
+            <div className="grid gap-x-10 gap-y-5 md:grid-cols-2">
+              {ats.breakdown.map((part, i) => {
+                const ratio = part.max ? (part.score / part.max) * 100 : 0;
+                const partTone = ratio >= 80 ? 'green' : ratio >= 50 ? 'orange' : 'red';
+                return (
+                  <div key={part.key}>
+                    <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                      <span className="text-[15px] font-medium text-ink">{part.label}</span>
+                      <span className="text-[14px] text-graphite tabular-nums">
+                        <span className={cx('font-semibold', tone(partTone).text)}>{part.score}</span> / {part.max}
+                      </span>
+                    </div>
+                    <Meter value={ratio} toneName={partTone} delay={i * 0.06} />
+                    <p className="mt-1 text-[12px] text-silver">{part.detail}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </Appear>
+      )}
+
       {/* Quality metrics */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <QualityTile delay={0.05} toneName="blue" value={words} label="Total words"
-          hint={words < 200 ? 'Consider adding more detail' : words > 800 ? 'Consider being more concise' : 'Good length'} />
+          hint={words < 300 ? 'Consider adding more detail' : words > 1000 ? 'Consider being more concise' : 'Good length'} />
         <QualityTile delay={0.1} toneName="green" value={sections} label="Sections detected"
           hint={sections >= 4 ? 'Well structured' : 'Add more sections'} />
         <QualityTile delay={0.15} toneName="purple" value={keywords} label="Industry keywords"
@@ -150,10 +171,7 @@ function Results({ analysis, fileName }) {
         <Appear delay={0.1}>
           <Card className="h-full">
             <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BoltIcon className="h-5 w-5 text-yellow-ink" aria-hidden="true" />
-                <h2 className="font-display text-[21px] font-semibold tracking-tight">Action verbs</h2>
-              </div>
+              <h2 className="font-display text-[21px] font-semibold tracking-tight">Action verbs</h2>
               <Badge toneName={scoreTone(verbs.score)}>{verbs.score}/100</Badge>
             </div>
             {verbs.strong.length > 0 && (
@@ -182,10 +200,7 @@ function Results({ analysis, fileName }) {
         {/* Industry */}
         <Appear delay={0.15}>
           <Card className="h-full">
-            <div className="mb-5 flex items-center gap-2">
-              <BuildingOffice2Icon className="h-5 w-5 text-indigo" aria-hidden="true" />
-              <h2 className="font-display text-[21px] font-semibold tracking-tight">Industry</h2>
-            </div>
+            <h2 className="mb-5 font-display text-[21px] font-semibold tracking-tight">Industry</h2>
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-display text-[19px] font-semibold text-indigo-ink">{industry.industry}</p>
               <Badge toneName={industry.confidence === 'High' ? 'green' : industry.confidence === 'Medium' ? 'orange' : 'gray'}>
@@ -193,10 +208,7 @@ function Results({ analysis, fileName }) {
               </Badge>
             </div>
             <p className="mt-3 text-[14px] leading-[1.55] text-graphite">{industry.advice}</p>
-            <div className="mt-5 flex items-center gap-2">
-              <KeyIcon className="h-4 w-4 text-purple" aria-hidden="true" />
-              <p className="text-[13px] font-medium">Recommended keywords</p>
-            </div>
+            <p className="mt-5 text-[13px] font-medium">Recommended keywords</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {industry.keywords.map((k) => <Chip key={k} toneName="purple">{k}</Chip>)}
             </div>
@@ -209,10 +221,7 @@ function Results({ analysis, fileName }) {
       <Appear delay={0.1}>
         <Card>
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <ClipboardDocumentCheckIcon className="h-5 w-5 text-green" aria-hidden="true" />
-              <h2 className="font-display text-[21px] font-semibold tracking-tight">Action items</h2>
-            </div>
+            <h2 className="font-display text-[21px] font-semibold tracking-tight">Action items</h2>
             <div className="flex items-center gap-3">
               <div className="h-2 w-40 overflow-hidden rounded-full bg-[#e8e8ed]">
                 <motion.div className="h-full rounded-full bg-green" initial={{ width: 0 }} animate={{ width: `${(done.length / actionItems.length) * 100}%` }} transition={{ duration: 1 }} />
@@ -242,7 +251,7 @@ function Results({ analysis, fileName }) {
               <ul className="space-y-2">
                 {done.map((item) => (
                   <li key={item.task} className="flex items-center gap-3 rounded-2xl bg-green-soft px-4 py-3">
-                    <CheckCircleIcon className="h-5 w-5 shrink-0 text-green" aria-hidden="true" />
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green" aria-hidden="true" />
                     <span className="text-[14px] text-ink">{item.task}</span>
                   </li>
                 ))}
@@ -256,22 +265,18 @@ function Results({ analysis, fileName }) {
       {/* Recommendations */}
       <Appear delay={0.1}>
         <Card>
-          <div className="mb-6 flex items-center gap-2">
-            <LightBulbIcon className="h-5 w-5 text-yellow-ink" aria-hidden="true" />
-            <h2 className="font-display text-[21px] font-semibold tracking-tight">Smart recommendations</h2>
-          </div>
+          <h2 className="mb-6 font-display text-[21px] font-semibold tracking-tight">Smart recommendations</h2>
           <div className="grid gap-3 md:grid-cols-2">
             {recommendations.map((rec, i) => {
               const style = REC_STYLE[rec.type] || REC_STYLE.info;
               const t = tone(style.toneName);
-              const Icon = style.icon;
               return (
                 <motion.div
                   key={rec.title}
                   className={cx('flex gap-3 rounded-2xl p-4', t.soft)}
                   initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.05 }}
                 >
-                  <Icon className={cx('h-5 w-5 shrink-0', t.text)} aria-hidden="true" />
+                  <span className={cx('mt-[7px] h-2 w-2 shrink-0 rounded-full', t.bg)} aria-hidden="true" />
                   <div>
                     <p className={cx('text-[15px] font-semibold', t.text)}>{rec.title}</p>
                     <p className="mt-0.5 text-[14px] leading-[1.5] text-ink/80">{rec.message}</p>
@@ -332,8 +337,7 @@ function ResumeAnalyzer() {
         <Dropzone onFile={pick} file={file} busy={uploading} busyLabel="Analyzing resume..." />
         {error && <Notice className="mt-4">{error}</Notice>}
         <div className="mt-5 flex flex-col items-center justify-between gap-3 sm:flex-row">
-          <p className="flex items-center gap-2 text-[13px] text-graphite">
-            <SparklesIcon className="h-4 w-4 text-purple" aria-hidden="true" />
+          <p className="text-[13px] text-graphite">
             Each analysis is saved to your history on the overview page.
           </p>
           <Button size="lg" onClick={handleUpload} disabled={!file || uploading} loading={uploading}>

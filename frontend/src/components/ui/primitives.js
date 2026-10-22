@@ -153,18 +153,11 @@ export function ScoreRing({ value, max = 100, size = 120, stroke = 10, toneName 
 }
 
 /** Small coloured tile for a single statistic. */
-export function StatTile({ label, value, hint, toneName = 'blue', icon: Icon }) {
+export function StatTile({ label, value, hint, toneName = 'blue' }) {
   const t = tone(toneName);
   return (
     <div className="rounded-[20px] bg-white p-5 ring-1 ring-black/[0.05]">
-      <div className="flex items-center gap-2">
-        {Icon && (
-          <span className={cx('flex h-7 w-7 items-center justify-center rounded-full', t.soft)}>
-            <Icon className={cx('h-4 w-4', t.text)} aria-hidden="true" />
-          </span>
-        )}
-        <p className="text-[13px] text-graphite">{label}</p>
-      </div>
+      <p className={cx('text-[13px] font-medium', t.text)}>{label}</p>
       <p className="mt-3 truncate font-display text-[28px] font-semibold leading-none tracking-tight text-ink tabular-nums">{value}</p>
       {hint && <p className="mt-2 text-[12px] text-silver">{hint}</p>}
     </div>
@@ -271,16 +264,10 @@ export function Notice({ toneName = 'red', title, children, className = '' }) {
   );
 }
 
-export function EmptyState({ icon: Icon, title, children, action, toneName = 'blue' }) {
-  const t = tone(toneName);
+export function EmptyState({ title, children, action }) {
   return (
     <div className="flex flex-col items-center px-6 py-14 text-center">
-      {Icon && (
-        <span className={cx('flex h-14 w-14 items-center justify-center rounded-full', t.soft)}>
-          <Icon className={cx('h-7 w-7', t.text)} aria-hidden="true" />
-        </span>
-      )}
-      <h3 className="mt-5 font-display text-[21px] font-semibold tracking-tight text-ink">{title}</h3>
+      <h3 className="font-display text-[21px] font-semibold tracking-tight text-ink">{title}</h3>
       {children && <p className="mt-2 max-w-[42ch] text-[15px] leading-[1.5] text-graphite">{children}</p>}
       {action && <div className="mt-6">{action}</div>}
     </div>

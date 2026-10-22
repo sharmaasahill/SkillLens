@@ -36,17 +36,9 @@ function Check({ item, progress }) {
   return (
     <motion.li className="flex items-start gap-3 text-[17px] text-ink" style={{ opacity, x }}>
       <span
-        className={`mt-[3px] flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${
-          item.warn ? 'bg-[#bf4800]' : 'bg-[#1d8a3a]'
-        }`}
+        className={`mt-[9px] h-2 w-2 shrink-0 rounded-full ${item.warn ? 'bg-orange' : 'bg-green'}`}
         aria-hidden="true"
-      >
-        {item.warn ? '!' : (
-          <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M2.5 6.5l2.2 2.2 4.8-5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </span>
+      />
       {item.label}
     </motion.li>
   );

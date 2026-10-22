@@ -9,7 +9,7 @@ from .conftest import add_resume, create_user, login
 @pytest.fixture
 def hr_session(client):
     create_user('hr@example.com', is_admin=True, full_name='HR')
-    return login(client, 'hr@example.com')
+    return login(client, 'hr@example.com', account_type='hr')
 
 
 def _seed_candidates(count):

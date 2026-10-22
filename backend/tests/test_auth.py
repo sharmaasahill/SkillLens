@@ -44,6 +44,30 @@ def test_login_failure_does_not_reveal_which_part_was_wrong(client):
     assert wrong_password.get_json() == unknown_email.get_json()
 
 
+def test_candidate_and_hr_logins_are_separate(client):
+    """Candidates can only use the candidate login; HR can only use the HR login."""
+    from models.database import User
+    from werkzeug.security import generate_password_hash
+    candidate = User(email='cand@example.com', password=generate_password_hash('password123'), full_name='C', is_admin=False)
+    hr = User(email='hr@example.com', password=generate_password_hash('password123'), full_name='H', is_admin=True)
+    db.session.add_all([candidate, hr])
+    db.session.commit()
+
+    # Candidate trying HR login
+    r = client.post('/auth/login', json={'email': 'cand@example.com', 'password': 'password123', 'account_type': 'hr'})
+    assert r.status_code == 403
+    assert 'candidate account' in r.get_json()['error'].lower()
+
+    # HR trying candidate login
+    r = client.post('/auth/login', json={'email': 'hr@example.com', 'password': 'password123', 'account_type': 'candidate'})
+    assert r.status_code == 403
+    assert 'HR team account' in r.get_json()['error']
+
+    # Each working on their own side
+    assert client.post('/auth/login', json={'email': 'cand@example.com', 'password': 'password123', 'account_type': 'candidate'}).status_code == 200
+    assert client.post('/auth/login', json={'email': 'hr@example.com', 'password': 'password123', 'account_type': 'hr'}).status_code == 200
+
+
 def test_me_requires_login(client):
     assert client.get('/auth/me').status_code == 401
     create_user('user@example.com', full_name='Test User')

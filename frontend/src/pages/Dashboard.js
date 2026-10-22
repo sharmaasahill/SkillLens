@@ -1,10 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import {
-  BanknotesIcon, DocumentTextIcon, BriefcaseIcon, ChartBarIcon, SparklesIcon,
-  CalendarDaysIcon, ClockIcon, ArrowPathIcon, TrashIcon, ArrowRightIcon, CheckIcon,
-} from '@heroicons/react/24/outline';
 import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
 import { Appear, Badge, Button, Card, Chip, EmptyState, Notice, ScoreRing, SectionTitle, Skeleton, StatTile, EASE, cx } from '../components/ui/primitives';
@@ -16,17 +12,17 @@ import { dateLabel, firstName, greeting } from '../lib/format';
 
 const TOOLS = [
   {
-    to: '/salary-predictor', title: 'Salary', toneName: 'green', icon: BanknotesIcon,
+    to: '/salary-predictor', title: 'Salary', eyebrow: 'Predict', toneName: 'green',
     text: 'Know your worth with accurate salary estimates.',
     glow: 'from-[#34c759]/40 via-[#30b0c7]/15',
   },
   {
-    to: '/resume-analyzer', title: 'Resume', toneName: 'blue', icon: DocumentTextIcon,
+    to: '/resume-analyzer', title: 'Resume', eyebrow: 'Analyze', toneName: 'blue',
     text: 'Optimize your resume with smart analysis.',
     glow: 'from-[#007aff]/40 via-[#5856d6]/15',
   },
   {
-    to: '/job-recommender', title: 'Jobs', toneName: 'purple', icon: BriefcaseIcon,
+    to: '/job-recommender', title: 'Jobs', eyebrow: 'Match', toneName: 'purple',
     text: 'Find your perfect job match using AI.',
     glow: 'from-[#af52de]/40 via-[#ff2d55]/15',
   },
@@ -37,7 +33,6 @@ const GOAL_TONES = ['blue', 'green', 'orange', 'purple'];
 function ToolCard({ tool, index }) {
   const navigate = useNavigate();
   const t = tone(tool.toneName);
-  const Icon = tool.icon;
   return (
     <motion.button
       type="button"
@@ -49,13 +44,11 @@ function ToolCard({ tool, index }) {
       whileHover={{ y: -3 }}
     >
       <div className={cx('pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-gradient-to-br to-transparent blur-2xl transition-opacity group-hover:opacity-100', tool.glow, 'opacity-90')} />
-      <span className={cx('relative flex h-11 w-11 items-center justify-center rounded-2xl', t.soft)}>
-        <Icon className={cx('h-6 w-6', t.text)} aria-hidden="true" />
-      </span>
-      <h3 className="relative mt-5 font-display text-[24px] font-semibold tracking-tight text-ink">{tool.title}</h3>
+      <p className={cx('relative text-[13px] font-semibold', t.text)}>{tool.eyebrow}</p>
+      <h3 className="relative mt-1 font-display text-[24px] font-semibold tracking-tight text-ink">{tool.title}</h3>
       <p className="relative mt-1 text-[15px] leading-[1.45] text-graphite">{tool.text}</p>
       <span className={cx('relative mt-5 inline-flex items-center gap-1 text-[14px] font-medium', t.text)}>
-        Open <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+        Open <span aria-hidden="true" className="inline-block transition-transform group-hover:translate-x-0.5">&rsaquo;</span>
       </span>
     </motion.button>
   );
@@ -71,7 +64,7 @@ function HistoryRow({ resume, index, onDelete }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.4, ease: EASE, delay: Math.min(index, 8) * 0.04 }}
-      className="grid grid-cols-[auto_1fr_auto] items-center gap-4 py-4 md:grid-cols-[36px_minmax(0,2fr)_72px_minmax(0,2.4fr)_96px_32px]"
+      className="grid grid-cols-[auto_1fr_auto] items-center gap-4 py-4 md:grid-cols-[36px_minmax(0,2fr)_72px_minmax(0,2.4fr)_96px_64px]"
     >
       <span className="flex h-9 w-9 items-center justify-center rounded-full bg-mist text-[13px] font-semibold text-graphite">{index + 1}</span>
       <div className="min-w-0">
@@ -88,10 +81,10 @@ function HistoryRow({ resume, index, onDelete }) {
       <button
         type="button"
         onClick={() => onDelete(resume.id, resume.filename)}
-        className="hidden h-8 w-8 items-center justify-center rounded-full text-silver transition hover:bg-red-soft hover:text-red-ink md:flex"
+        className="hidden rounded-full px-3 py-1 text-[13px] text-red-ink transition hover:bg-red-soft md:block"
         aria-label={`Delete ${resume.filename}`}
       >
-        <TrashIcon className="h-4 w-4" />
+        Delete
       </button>
       <button
         type="button"
@@ -205,10 +198,10 @@ function Dashboard() {
               [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[120px]" />)
             ) : (
               <>
-                <StatTile label="Total resumes" value={stats.totalResumes} toneName="blue" icon={DocumentTextIcon} />
-                <StatTile label="Average score" value={`${stats.averageScore}%`} toneName={scoreTone(stats.averageScore)} icon={ChartBarIcon} />
-                <StatTile label="This week" value={quick.thisWeekUploads} toneName="purple" icon={CalendarDaysIcon} />
-                <StatTile label="Last upload" value={<span className="text-[19px]">{stats.lastUpload || 'No uploads yet'}</span>} toneName="teal" icon={ClockIcon} />
+                <StatTile label="Total resumes" value={stats.totalResumes} toneName="blue" />
+                <StatTile label="Average score" value={`${stats.averageScore}%`} toneName={scoreTone(stats.averageScore)} />
+                <StatTile label="This week" value={quick.thisWeekUploads} toneName="purple" />
+                <StatTile label="Last upload" value={<span className="text-[19px]">{stats.lastUpload || 'No uploads yet'}</span>} toneName="teal" />
               </>
             )}
 
@@ -236,7 +229,7 @@ function Dashboard() {
                     {completion >= 100 ? 'Everything recruiters look for is filled in.' : 'A complete profile helps HR teams find you.'}
                   </p>
                   <Link to="/account" className="mt-2 inline-flex items-center gap-1 text-[14px] font-medium text-orange-ink hover:underline">
-                    {completion >= 100 ? 'View profile' : 'Complete profile'} <ArrowRightIcon className="h-3.5 w-3.5" />
+                    {completion >= 100 ? 'View profile' : 'Complete profile'} <span aria-hidden="true">&rsaquo;</span>
                   </Link>
                 </div>
               </div>
@@ -261,10 +254,7 @@ function Dashboard() {
       {/* Tips and goals */}
       <Appear delay={0.35} className="mt-5 grid gap-5 md:grid-cols-2">
         <Card className="!p-6">
-          <div className="flex items-center gap-2">
-            <SparklesIcon className="h-5 w-5 text-orange" aria-hidden="true" />
-            <h3 className="font-display text-[19px] font-semibold tracking-tight">Improvement tips</h3>
-          </div>
+          <h3 className="font-display text-[19px] font-semibold tracking-tight">Improvement tips</h3>
           {quick.improvementTips.length > 0 ? (
             <ul className="mt-4 space-y-3">
               {quick.improvementTips.map((tip) => (
@@ -279,10 +269,7 @@ function Dashboard() {
           )}
         </Card>
         <Card className="!p-6">
-          <div className="flex items-center gap-2">
-            <CheckIcon className="h-5 w-5 text-green" aria-hidden="true" />
-            <h3 className="font-display text-[19px] font-semibold tracking-tight">Your next goals</h3>
-          </div>
+          <h3 className="font-display text-[19px] font-semibold tracking-tight">Your next goals</h3>
           <ol className="mt-4 space-y-3">
             {quick.nextGoals.map((goal, idx) => {
               const t = tone(GOAL_TONES[idx % GOAL_TONES.length]);
@@ -307,7 +294,7 @@ function Dashboard() {
             <div className="flex items-center gap-3">
               <span className="hidden text-[13px] text-graphite sm:inline">Total: {resumeHistory.length} uploads</span>
               <Button variant="secondary" size="sm" onClick={fetchResumeHistory}>
-                <ArrowPathIcon className="h-4 w-4" /> Refresh
+                Refresh
               </Button>
             </div>
           )}
@@ -315,7 +302,7 @@ function Dashboard() {
         <Card className="!py-2">
           {resumeHistory.length > 0 ? (
             <>
-              <div className="hidden md:grid-cols-[36px_minmax(0,2fr)_72px_minmax(0,2.4fr)_96px_32px] gap-4 border-b border-black/[0.06] py-3 text-[12px] font-medium uppercase tracking-[0.06em] text-silver md:grid">
+              <div className="hidden md:grid-cols-[36px_minmax(0,2fr)_72px_minmax(0,2.4fr)_96px_64px] gap-4 border-b border-black/[0.06] py-3 text-[12px] font-medium uppercase tracking-[0.06em] text-silver md:grid">
                 <span />
                 <span>Resume</span>
                 <span>Score</span>
@@ -331,7 +318,6 @@ function Dashboard() {
             </>
           ) : (
             <EmptyState
-              icon={DocumentTextIcon}
               title="No resume uploads yet"
               action={<Button onClick={() => navigate('/resume-analyzer')}>Upload resume</Button>}
             >

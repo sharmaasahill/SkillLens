@@ -1,6 +1,4 @@
 import React, { useId, useState } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowUpTrayIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { Spinner, cx } from './primitives';
 
 const MAX_BYTES = 16 * 1024 * 1024;
@@ -45,19 +43,8 @@ function Dropzone({ onFile, busy = false, busyLabel = 'Uploading...', file, titl
         disabled={busy}
         onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }}
       />
-      <motion.span
-        className={cx('flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-black/5', dragging && 'ring-blue/40')}
-        animate={dragging ? { y: -4, scale: 1.06 } : { y: 0, scale: 1 }}
-      >
-        {busy ? (
-          <Spinner className="h-6 w-6 text-blue" />
-        ) : file ? (
-          <DocumentTextIcon className="h-7 w-7 text-blue" aria-hidden="true" />
-        ) : (
-          <ArrowUpTrayIcon className="h-7 w-7 text-blue transition-transform group-hover:-translate-y-0.5" aria-hidden="true" />
-        )}
-      </motion.span>
-      <p className="mt-4 font-display text-[19px] font-semibold tracking-tight text-ink">
+      {busy && <Spinner className="mb-1 h-6 w-6 text-blue" />}
+      <p className="mt-1 font-display text-[19px] font-semibold tracking-tight text-ink">
         {busy ? busyLabel : file ? file.name : title}
       </p>
       <p className="mt-1 text-[14px] text-graphite">

@@ -1,9 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import {
-  MapPinIcon, BriefcaseIcon, ChartBarIcon, CpuChipIcon, DocumentTextIcon, ArrowPathIcon,
-  ArrowTopRightOnSquareIcon, CheckCircleIcon, FireIcon, AcademicCapIcon,
-} from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
@@ -25,7 +21,7 @@ function Reasoning({ text }) {
     <ul className="space-y-2">
       {reasons.map((reason) => (
         <li key={reason} className="flex gap-2.5 text-[14px] leading-[1.5] text-ink/85">
-          <CheckCircleIcon className="mt-0.5 h-4 w-4 shrink-0 text-purple" aria-hidden="true" />
+          <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-purple" aria-hidden="true" />
           <span>
             {boldSegments(reason).map((seg, i) => (seg.bold ? <strong key={i} className="font-semibold text-ink">{seg.text}</strong> : <span key={i}>{seg.text}</span>))}
           </span>
@@ -54,8 +50,8 @@ function JobCard({ job, index }) {
           <h3 className="font-display text-[24px] font-semibold leading-tight tracking-tight text-ink">{job.position}</h3>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px] text-graphite">
             <span className="font-medium text-purple-ink">{job.company}</span>
-            <span className="flex items-center gap-1"><MapPinIcon className="h-4 w-4" aria-hidden="true" />{formatLocation(job.location)}</span>
-            <span className="flex items-center gap-1"><BriefcaseIcon className="h-4 w-4" aria-hidden="true" />{job.job_category}</span>
+            <span>{formatLocation(job.location)}</span>
+            <span>{job.job_category}</span>
             {job.experience_level && <Badge toneName="indigo">{job.experience_level}</Badge>}
           </div>
           {job.why_recommended?.length > 0 && (
@@ -72,7 +68,7 @@ function JobCard({ job, index }) {
             rel="noopener noreferrer"
             className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-full bg-action px-5 text-[15px] font-medium text-white transition-colors hover:bg-action-hover"
           >
-            Apply <ArrowTopRightOnSquareIcon className="h-4 w-4" aria-hidden="true" />
+            Apply
           </a>
         )}
       </div>
@@ -140,20 +136,14 @@ function MarketAnalysis({ analysis }) {
         </div>
       </section>
       <section>
-        <div className="mb-3 flex items-center gap-2">
-          <FireIcon className="h-5 w-5 text-orange" aria-hidden="true" />
-          <h3 className="font-display text-[19px] font-semibold tracking-tight">Trending in the market</h3>
-        </div>
+        <h3 className="mb-3 font-display text-[19px] font-semibold tracking-tight">Trending in the market</h3>
         <div className="flex flex-wrap gap-2">
           {analysis.trending_skills?.slice(0, 20).map((skill) => <Chip key={skill} toneName="orange" className="capitalize">{skill}</Chip>)}
         </div>
       </section>
       {analysis.skill_gap_analysis?.length > 0 && (
         <section className="rounded-[20px] bg-yellow-soft p-5">
-          <div className="mb-2 flex items-center gap-2">
-            <AcademicCapIcon className="h-5 w-5 text-yellow-ink" aria-hidden="true" />
-            <h3 className="font-display text-[19px] font-semibold tracking-tight">Recommended skills to learn</h3>
-          </div>
+          <h3 className="mb-2 font-display text-[19px] font-semibold tracking-tight">Recommended skills to learn</h3>
           <p className="mb-3 text-[14px] text-yellow-ink">These trending skills could boost your market value:</p>
           <div className="flex flex-wrap gap-2">
             {analysis.skill_gap_analysis.map((skill) => <Chip key={skill} className="bg-white capitalize">{skill}</Chip>)}
@@ -220,6 +210,11 @@ const JobRecommender = () => {
       setError('No skills available for analysis');
       return;
     }
+    // The recommendations response already includes the analysis for the same skills
+    if (skillsAnalysis) {
+      setShowAnalysisModal(true);
+      return;
+    }
     setAnalysisLoading(true);
     try {
       const { data } = await api.post('/api/job-market-analysis', { skills: userProfile.extracted_skills });
@@ -250,7 +245,7 @@ const JobRecommender = () => {
         subtitle="AI-powered job matching based on your resume skills."
         actions={userProfile && (
           <Button variant="outline" onClick={handleSkillsAnalysis} loading={analysisLoading}>
-            <ChartBarIcon className="h-4 w-4 text-purple" /> Market analysis
+            Market analysis
           </Button>
         )}
       />
@@ -260,16 +255,15 @@ const JobRecommender = () => {
           <Card className="mb-6">
             <div className="grid gap-6 md:grid-cols-[repeat(3,auto)_1fr] md:items-center">
               {[
-                { icon: CpuChipIcon, label: 'Skills extracted', value: userProfile.extracted_skills?.length || 0, toneName: 'blue' },
-                { icon: BriefcaseIcon, label: 'Experience', value: `${userProfile.experience_years} years`, toneName: 'green' },
-                { icon: DocumentTextIcon, label: 'Resume', value: 'Analyzed', toneName: 'purple' },
-              ].map(({ icon: Icon, label, value, toneName }) => {
+                { label: 'Skills extracted', value: userProfile.extracted_skills?.length || 0, toneName: 'blue' },
+                { label: 'Experience', value: `${userProfile.experience_years} years`, toneName: 'green' },
+                { label: 'Resume', value: 'Analyzed', toneName: 'purple' },
+              ].map(({ label, value, toneName }) => {
                 const t = tone(toneName);
                 return (
-                  <div key={label} className="flex items-center gap-3 md:pr-6">
-                    <span className={cx('flex h-11 w-11 items-center justify-center rounded-2xl', t.soft)}><Icon className={cx('h-6 w-6', t.text)} aria-hidden="true" /></span>
+                  <div key={label} className="md:pr-8">
                     <div>
-                      <p className="text-[13px] text-graphite">{label}</p>
+                      <p className={cx('text-[13px] font-medium', t.text)}>{label}</p>
                       <p className="font-display text-[21px] font-semibold tracking-tight">{value}</p>
                     </div>
                   </div>
@@ -333,7 +327,7 @@ const JobRecommender = () => {
             />
           </div>
           <Button onClick={handleGetRecommendations} loading={loading} size="lg">
-            {!loading && <ArrowPathIcon className="h-4 w-4" />} Update search
+            Update search
           </Button>
         </div>
       </Card>
@@ -348,7 +342,6 @@ const JobRecommender = () => {
       ) : needsResume ? (
         <Card>
           <EmptyState
-            icon={DocumentTextIcon}
             toneName="purple"
             title="Upload a resume to see matches"
             action={<Button onClick={() => navigate('/resume-analyzer')}>Analyze a resume</Button>}

@@ -1,22 +1,23 @@
-import os
+"""Resume parsing and ATS scoring.
+
+The ATS score is a 100-point rubric made of seven parts, so a resume that does
+everything well can reach 100 and every point lost is explained:
+
+    Contact details        10   email, phone, LinkedIn/GitHub/portfolio link
+    Standard sections      20   experience, education, skills, summary, extras
+    Skills and keywords    20   recognised skills plus industry keywords
+    Quantified impact      15   numbers that show results (%, money, counts)
+    Action verbs           15   strong verbs, minus weak filler phrases
+    Length                 10   enough detail without padding
+    ATS-safe formatting    10   nothing that trips up applicant tracking parsers
+
+All patterns are compiled once at import, so scoring a resume takes a few milliseconds.
+"""
+import logging
 import re
 from datetime import datetime
-import logging
+
 import PyPDF2
-
-# Try to import advanced libraries, but provide fallbacks
-try:
-    from pdfminer.high_level import extract_text
-    PDFMINER_AVAILABLE = True
-except ImportError:
-    PDFMINER_AVAILABLE = False
-
-try:
-    from sentence_transformers import SentenceTransformer
-    from sklearn.metrics.pairwise import cosine_similarity
-    ADVANCED_ML_AVAILABLE = True
-except ImportError:
-    ADVANCED_ML_AVAILABLE = False
 
 try:
     import pdfplumber
@@ -24,567 +25,495 @@ try:
 except ImportError:
     PDFPLUMBER_AVAILABLE = False
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load model only if available
-model = None
-if ADVANCED_ML_AVAILABLE:
-    try:
-        model = SentenceTransformer('all-MiniLM-L6-v2')
-        logger.info("Advanced ML model loaded successfully")
-    except Exception as e:
-        logger.warning(f"Could not load ML model: {str(e)}")
-        ADVANCED_ML_AVAILABLE = False
-
-# ATS-friendly formatting rules
-ATS_RULES = {
-    'file_format': ['.pdf', '.docx', '.doc'],
-    'max_file_size_mb': 5,
-    'required_sections': [
-        'education', 'experience', 'skills', 'contact', 'summary',
-        'work history', 'employment', 'professional experience', 'certifications'
-    ],
-    'avoid_elements': [
-        'tables', 'images', 'headers', 'footers', 'columns',
-        'text boxes', 'shapes', 'watermarks'
-    ],
-    'preferred_fonts': [
-        'arial', 'calibri', 'times new roman', 'georgia', 'verdana', 'poppins', 
-    ]
-}
-
-# Industry-specific keywords for better ATS matching
-INDUSTRY_KEYWORDS = {
-    'software_development': [
-        'agile', 'scrum', 'sprint', 'version control', 'git', 'ci/cd',
-        'code review', 'unit testing', 'integration testing', 'deployment',
-        'microservices', 'api', 'rest', 'graphql', 'database', 'sql', 'nosql'
-    ],
-    'data_science': [
-        'machine learning', 'deep learning', 'data analysis', 'statistics',
-        'python', 'r', 'pandas', 'numpy', 'tensorflow', 'pytorch', 'scikit-learn',
-        'data visualization', 'big data', 'hadoop', 'spark', 'sql'
-    ],
-    'cloud_devops': [
-        'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'terraform',
-        'jenkins', 'ci/cd', 'monitoring', 'logging', 'infrastructure as code',
-        'cloud architecture', 'microservices', 'serverless'
-    ]
-}
+# ---------------------------------------------------------------------------
+# Vocabulary
+# ---------------------------------------------------------------------------
 
 SKILLS = [
-    # Programming Languages
-    "python", "java", "javascript", "typescript", "c++", "c#", "go", "ruby", "php", "swift", "kotlin", "r", "sql", "bash", "rust", "scala", "perl", "matlab", "julia",
-    
-    # Web Development
-    "react", "angular", "vue", "next.js", "node.js", "express", "django", "flask", "spring", "fastapi", "laravel", "asp.net", "graphql", "rest api", "html", "css", "sass", "bootstrap", "tailwind", "jquery",
-    
-    # Data Science & ML
-    "tensorflow", "pytorch", "scikit-learn", "keras", "xgboost", "pandas", "numpy", "matplotlib", "seaborn", "plotly", "jupyter", "spark", "hadoop", "hive", "pyspark", "scipy", "statsmodels",
-    
-    # Cloud & DevOps
-    "aws", "azure", "gcp", "docker", "kubernetes", "terraform", "jenkins", "gitlab ci", "github actions", "git", "linux", "ansible", "puppet", "chef", "prometheus", "grafana", "elk stack",
-    
+    # Programming languages
+    "python", "java", "javascript", "typescript", "c++", "c#", "go", "ruby", "php", "swift", "kotlin", "r", "sql",
+    "bash", "rust", "scala", "perl", "matlab", "julia",
+    # Web development
+    "react", "angular", "vue", "next.js", "node.js", "express", "django", "flask", "spring", "fastapi", "laravel",
+    "asp.net", "graphql", "rest api", "html", "css", "sass", "bootstrap", "tailwind", "jquery",
+    # Data science and ML
+    "tensorflow", "pytorch", "scikit-learn", "keras", "xgboost", "pandas", "numpy", "matplotlib", "seaborn", "plotly",
+    "jupyter", "spark", "hadoop", "hive", "pyspark", "scipy", "statsmodels",
+    # Cloud and DevOps
+    "aws", "azure", "gcp", "docker", "kubernetes", "terraform", "jenkins", "gitlab ci", "github actions", "git",
+    "linux", "ansible", "puppet", "chef", "prometheus", "grafana", "elk stack",
     # Databases
-    "mongodb", "mysql", "postgresql", "sqlite", "redis", "cassandra", "elasticsearch", "neo4j", "dynamodb", "oracle", "sql server",
-    
-    # AI & ML Specialized
-    "nlp", "computer vision", "deep learning", "llm", "bert", "gpt", "huggingface", "mlops", "feature engineering", "reinforcement learning", "transfer learning", "gan", "cnn", "rnn", "lstm",
-    
-    # Business Intelligence
+    "mongodb", "mysql", "postgresql", "sqlite", "redis", "cassandra", "elasticsearch", "neo4j", "dynamodb", "oracle",
+    "sql server",
+    # AI and ML specialised
+    "nlp", "computer vision", "deep learning", "llm", "bert", "gpt", "huggingface", "mlops", "feature engineering",
+    "reinforcement learning", "transfer learning", "gan", "cnn", "rnn", "lstm",
+    # Business intelligence
     "power bi", "tableau", "looker", "qlik", "excel", "bigquery", "snowflake", "redshift", "databricks", "alteryx", "sas",
-    
-    # Soft Skills
-    "leadership", "communication", "problem solving", "teamwork", "critical thinking", "agile", "scrum", "collaboration", "project management", "time management", "adaptability", "creativity",
-    
+    # Soft skills
+    "leadership", "communication", "problem solving", "teamwork", "critical thinking", "agile", "scrum",
+    "collaboration", "project management", "time management", "adaptability", "creativity",
     # Security
-    "cybersecurity", "penetration testing", "security analysis", "network security", "cryptography", "siem", "soc", "vulnerability assessment",
-    
-    # Mobile Development
-    "android", "ios", "react native", "flutter", "xamarin", "mobile app development", "swift", "kotlin",
-    
+    "cybersecurity", "penetration testing", "security analysis", "network security", "cryptography", "siem", "soc",
+    "vulnerability assessment",
+    # Mobile
+    "android", "ios", "react native", "flutter", "xamarin", "mobile app development",
     # Testing
-    "unit testing", "integration testing", "end-to-end testing", "selenium", "jest", "pytest", "junit", "cypress", "test automation",
-    
-    # Marketing
-    "SEO", "SEM", "Analytics", "Data Analysis", "Data Visualization", "Data Reporting", "Data Modeling", "Data Warehousing", "Data Integration", "Data Cleansing", "Data Transformation", "Data Loading", "Data Archiving", "Data Security", "Data Governance"
+    "unit testing", "integration testing", "end-to-end testing", "selenium", "jest", "pytest", "junit", "cypress",
+    "test automation",
+    # Data and marketing
+    "seo", "sem", "analytics", "data analysis", "data visualization", "data reporting", "data modeling",
+    "data warehousing", "data integration", "data cleansing", "data transformation", "data governance",
 ]
 
-# Precompute skill embeddings only if ML is available
-skill_embeddings = None
-if ADVANCED_ML_AVAILABLE and model:
-    try:
-        skill_embeddings = model.encode(SKILLS)
-        logger.info("Skill embeddings computed successfully")
-    except Exception as e:
-        logger.warning(f"Error encoding skills: {str(e)}")
-        skill_embeddings = None
+INDUSTRY_KEYWORDS = [
+    # Software development
+    'agile', 'scrum', 'sprint', 'version control', 'git', 'ci/cd', 'code review', 'unit testing',
+    'integration testing', 'deployment', 'microservices', 'api', 'rest', 'graphql', 'database', 'sql', 'nosql',
+    # Data science
+    'machine learning', 'deep learning', 'data analysis', 'statistics', 'python', 'pandas', 'numpy', 'tensorflow',
+    'pytorch', 'scikit-learn', 'data visualization', 'big data', 'hadoop', 'spark', 'a/b testing', 'etl',
+    # Cloud and DevOps
+    'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'terraform', 'jenkins', 'monitoring', 'logging',
+    'infrastructure as code', 'cloud architecture', 'serverless',
+]
+
+# Other ways people write the same skill
+ALIASES = {
+    'node.js': ['nodejs', 'node js'],
+    'next.js': ['nextjs'],
+    'react': ['react.js', 'reactjs'],
+    'vue': ['vue.js', 'vuejs'],
+    'scikit-learn': ['sklearn', 'scikit learn'],
+    'postgresql': ['postgres'],
+    'kubernetes': ['k8s'],
+    'machine learning': ['ml engineering'],
+    'ci/cd': ['ci cd', 'continuous integration'],
+    'a/b testing': ['ab testing', 'a b testing'],
+}
+
+# Short or everyday words that only count as a skill when written the way the tool is named
+CASE_SENSITIVE = {
+    'r': r'(?<![A-Za-z0-9])R(?![A-Za-z0-9&\'.\-])',
+    'go': r'(?<![A-Za-z0-9])(?:Go(?![\-a-z])|Golang|golang)(?![A-Za-z0-9])',
+    'spring': r'\bSpring(?:\s?Boot)?\b',
+    'excel': r'\b(?:MS\s)?Excel\b',
+    'express': r'\bExpress(?:\.js)?\b',
+    'oracle': r'\bOracle\b',
+    'gan': r'\bGANs?\b',
+    'soc': r'\bSOC\b',
+    'sas': r'\bSAS\b',
+    'hive': r'\bHive\b',
+    'jest': r'\bJest\b',
+    'bert': r'\bBERT\b',
+    'chef': r'\bChef\b',
+    'puppet': r'\bPuppet\b',
+    'swift': r'\bSwift\b',
+    'rust': r'\bRust\b',
+    'julia': r'\bJulia\b',
+    'looker': r'\bLooker\b',
+    'flutter': r'\bFlutter\b',
+    'rest': r'\bREST(?:ful)?\b',
+    'api': r'\bAPIs?\b',
+    'logging': r'\blogging\b',
+    'monitoring': r'\bmonitoring\b',
+}
+
+
+def _term_pattern(term):
+    """Whole-word pattern that tolerates spaces, hyphens or nothing between words."""
+    parts = [re.escape(p) for p in re.split(r'[\s\-]+', term.strip())]
+    body = r'[\s\-]?'.join(parts)
+    return rf'(?<![a-z0-9]){body}(?![a-z0-9])'
+
+
+def _compile_terms(terms):
+    compiled = []
+    seen = set()
+    for term in terms:
+        if term in seen:
+            continue
+        seen.add(term)
+        if term in CASE_SENSITIVE:
+            compiled.append((term, re.compile(CASE_SENSITIVE[term])))
+        else:
+            variants = [term] + ALIASES.get(term, [])
+            compiled.append((term, re.compile('|'.join(_term_pattern(v) for v in variants), re.IGNORECASE)))
+    return compiled
+
+
+SKILL_PATTERNS = _compile_terms(SKILLS)
+KEYWORD_PATTERNS = _compile_terms(INDUSTRY_KEYWORDS)
+
+STRONG_VERBS = [
+    'achieved', 'accelerated', 'architected', 'automated', 'built', 'coordinated', 'created', 'cut', 'delivered',
+    'deployed', 'designed', 'developed', 'drove', 'engineered', 'enhanced', 'established', 'executed', 'generated',
+    'grew', 'implemented', 'improved', 'increased', 'launched', 'led', 'managed', 'mentored', 'migrated',
+    'negotiated', 'optimized', 'optimised', 'owned', 'reduced', 'resolved', 'saved', 'scaled', 'shipped',
+    'spearheaded', 'streamlined', 'supervised', 'transformed',
+]
+WEAK_PHRASES = [
+    'responsible for', 'worked on', 'helped with', 'participated in', 'involved in', 'assisted with',
+    'contributed to', 'duties included', 'tasked with',
+]
+VERB_PATTERNS = [(v, re.compile(rf'\b{v}\b', re.IGNORECASE)) for v in STRONG_VERBS]
+WEAK_PATTERNS = [(p, re.compile(rf'\b{p}\b', re.IGNORECASE)) for p in WEAK_PHRASES]
+
+# Section headings: a short line that starts with one of these words
+SECTION_GROUPS = [
+    ('experience', 6, ['professional experience', 'work experience', 'work history', 'employment', 'experience']),
+    ('education', 5, ['education', 'academic background', 'academics', 'qualifications']),
+    ('skills', 5, ['technical skills', 'core competencies', 'skills', 'technologies', 'tech stack']),
+    ('summary', 2, ['professional summary', 'summary', 'objective', 'profile', 'about me']),
+    ('projects', 2, ['projects', 'certifications', 'achievements', 'awards', 'publications', 'certificates']),
+]
+SECTION_PATTERNS = [
+    (name, points, re.compile(
+        r'(?im)^[ \t]*[^\w\n]{0,3}(?:' + '|'.join(re.escape(w) for w in words) + r')\b[^\n]{0,30}$'))
+    for name, points, words in SECTION_GROUPS
+]
+SECTION_ANYWHERE = [
+    (name, points, re.compile(r'(?i)\b(?:' + '|'.join(re.escape(w) for w in words) + r')\b'))
+    for name, points, words in SECTION_GROUPS
+]
+# Upper-case headings, even when the PDF glued them to neighbouring text ("SKILLSSUMMARY")
+SECTION_UPPER = [
+    (name, points, re.compile('|'.join(re.escape(w.upper()) for w in words if len(w) >= 6)))
+    for name, points, words in SECTION_GROUPS
+]
+
+EMAIL_RE = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
+PHONE_RE = re.compile(r'(?<![\w])\+?\d[\d\s().-]{7,}\d(?![\w])')
+# PDF text loses hyperlink targets, so a visible "LinkedIn" or "GitHub" label also counts
+PROFILE_LINK_RE = re.compile(r'(?i)\b(?:linkedin|github|gitlab|behance|dribbble|portfolio)\b')
+
+QUANTIFIED_PATTERNS = [
+    re.compile(r'\b\d+(?:\.\d+)?\s?%'),
+    re.compile(r'(?i)(?:[$\u20b9\u20ac\u00a3]|\brs\.?|\binr\b|\busd\b)\s?\d[\d,.]*'),
+    re.compile(r'(?i)\b\d+(?:\.\d+)?\s?(?:x|k|m|mn|million|billion|lakhs?|crores?)\b'),
+    re.compile(
+        r'(?i)\b\d{1,3}(?:,\d{3})*\+?\s+(?:users|customers|clients|people|engineers|developers|members|projects|'
+        r'applications|apps|services|countries|cities|stores|students|hours|days|weeks|downloads|requests|'
+        r'transactions|records|teams|products|reports|dashboards|models|pipelines|tickets|bugs|accounts|leads|'
+        r'partners|stakeholders|features|releases|servers|employees)\b'),
+]
+
+FORMAT_CHECKS = [
+    ('complex table structures', re.compile(r'\|\s*[-=]{3,}\s*\||\+[-=]{3,}\+|[\u250c\u251c\u2514][\u2500\u252c\u253c\u2534]+')),
+    ('embedded image references', re.compile(r'(?i)\b[\w-]+\.(?:jpe?g|png|gif|bmp|svg)\b')),
+    ('page numbers in headers or footers', re.compile(r'(?i)\bpage\s+\d+\s+of\s+\d+\b|continued on next page')),
+    ('confidential or draft notices', re.compile(r'(?i)\b(?:confidential|draft copy|do not (?:copy|distribute))\b')),
+]
+ICON_GLYPHS_RE = re.compile('[\ue000-\uf8ff\ufffd]')
+
+
+# ---------------------------------------------------------------------------
+# Text extraction
+# ---------------------------------------------------------------------------
 
 def extract_text_from_pdf(file_path):
-    """Extract text from PDF using available methods"""
-    text = ""
-    
-    # Try pdfplumber first (most reliable)
+    """Extract text from a PDF, using pdfplumber when installed and PyPDF2 otherwise."""
+    text = ''
     if PDFPLUMBER_AVAILABLE:
         try:
-            import pdfplumber
             with pdfplumber.open(file_path) as pdf:
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += page_text + "\n"
+                text = '\n'.join(page.extract_text() or '' for page in pdf.pages)
             if text.strip():
-                return text
-        except Exception as e:
-            logger.warning(f"pdfplumber failed: {str(e)}")
-    
-    # Fallback to PyPDF2
-    try:
-        with open(file_path, 'rb') as file:
-            pdf_reader = PyPDF2.PdfReader(file)
-            
-            if pdf_reader.is_encrypted:
-                raise ValueError("PDF is encrypted and cannot be read")
-            
-            for page in pdf_reader.pages:
-                try:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += page_text + "\n"
-                except Exception as e:
-                    logger.warning(f"Error extracting text from page: {str(e)}")
-                    continue
-            
-            if not text.strip():
-                raise ValueError("No text could be extracted from the PDF")
-            
-            return text
-    except Exception as e:
-        logger.error(f"Error in extract_text_from_pdf: {str(e)}")
-        raise
+                return _normalise(text)
+        except Exception as exc:
+            logger.warning('pdfplumber failed: %s', exc)
 
-def check_ats_compatibility(text):
-    """Check resume for ATS compatibility"""
-    ats_score = 0
-    issues = []
-    found_elements = []
-    
-    # Check for required sections
-    found_sections = []
-    for section in ATS_RULES['required_sections']:
-        if section.lower() in text.lower():
-            found_sections.append(section)
-            ats_score += 20 / len(ATS_RULES['required_sections'])
-    
-    if len(found_sections) < 3:
-        issues.append(f"Missing important sections. Found: {', '.join(found_sections)}")
-    
-    # Check for industry keywords
-    keyword_matches = 0
-    for industry, keywords in INDUSTRY_KEYWORDS.items():
-        for keyword in keywords:
-            if keyword.lower() in text.lower():
-                keyword_matches += 1
-    
-    ats_score += min(keyword_matches * 2, 30)  # Max 30 points for keywords
-    
-    # Check for formatting issues with more specific detection
-    text_lower = text.lower()
-    problematic_elements = []
-    
-    # Check for problematic tables (only flag complex table structures)
-    table_indicators = [
-        r'\|\s*[-=]+\s*\|',  # Complex table borders
-        r'\+[-=]+\+',        # ASCII table borders
-        r'┌[─┬┐]+',         # Unicode table borders
-        r'├[─┼┤]+',         # Unicode table borders
-        r'└[─┴┘]+'          # Unicode table borders
-    ]
-    
-    has_complex_tables = any(re.search(pattern, text) for pattern in table_indicators)
-    if has_complex_tables:
-        problematic_elements.append('complex table structures')
-    
-    # Check for images (look for image file extensions)
-    if any(ext in text_lower for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']):
-        problematic_elements.append('images')
-    
-    # Check for problematic headers/footers
-    header_footer_patterns = [
-        r'page\s+\d+\s+of\s+\d+',  # Page numbers
-        r'confidential',            # Confidentiality notices
-        r'draft\s+copy',           # Draft notices
-        r'do\s+not\s+copy',        # Copyright notices
-        r'©\s+\d{4}',             # Copyright symbols
-        r'page\s+\d+',             # Simple page numbers
-        r'continued\s+on\s+next\s+page'  # Continuation notices
-    ]
-    
-    has_problematic_headers = any(re.search(pattern, text_lower) for pattern in header_footer_patterns)
-    if has_problematic_headers:
-        problematic_elements.append('headers/footers with page numbers or notices')
-    
-    # Check for columns (look for column indicators)
-    if any(indicator in text_lower for indicator in ['column', 'col.', 'col ']):
-        problematic_elements.append('columns')
-    
-    # Check for text boxes (look for box indicators)
-    if any(indicator in text_lower for indicator in ['box', 'textbox', 'text box']):
-        problematic_elements.append('text boxes')
-    
-    # Check for shapes (look for shape indicators)
-    if any(indicator in text_lower for indicator in ['shape', 'rectangle', 'circle', 'square']):
-        problematic_elements.append('shapes')
-    
-    # Check for watermarks (look for watermark indicators)
-    if any(indicator in text_lower for indicator in ['watermark', 'draft', 'confidential']):
-        problematic_elements.append('watermarks')
-    
-    if problematic_elements:
-        issues.append(f"Contains elements that might not parse well in ATS: {', '.join(problematic_elements)}")
-        ats_score -= min(len(problematic_elements) * 5, 20)  # Deduct up to 20 points for problematic elements
-    
-    # Check for contact information
-    contact_patterns = [
-        r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',  # email
-        r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b',  # phone
-        r'\b(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w-]+\b'  # LinkedIn
-    ]
-    
-    contact_info_found = any(re.search(pattern, text) for pattern in contact_patterns)
-    if contact_info_found:
-        ats_score += 20
-    else:
-        issues.append("Missing contact information")
-    
-    # Check for proper formatting
-    if len(text.split()) < 100:
-        issues.append("Resume is too short (less than 100 words)")
-        ats_score -= 10
-    
-    # Check for proper spacing and structure
-    # Count the number of section headers (common section titles)
-    section_headers = ['education', 'experience', 'skills', 'work history', 'employment', 
-                      'professional experience', 'summary', 'certifications']
-    section_count = sum(1 for header in section_headers if header in text_lower)
-    
-    # Count different types of spacing
-    double_breaks = text.count('\n\n')
-    single_breaks = text.count('\n')
-    total_breaks = double_breaks + single_breaks
-    
-    # Calculate average spacing between sections
-    avg_spacing = total_breaks / (section_count + 1) if section_count > 0 else 0
-    
-    # Only flag spacing issues if there are multiple sections and very little spacing
-    if section_count >= 3 and avg_spacing < 1.5:
-        issues.append("Tip: Add a blank line between sections for better readability")
-        ats_score -= 1  # Minimal penalty for spacing issues
-    
-    return {
-        'score': min(max(ats_score, 0), 100),
-        'issues': issues,
-        'found_sections': found_sections,
-        'keyword_matches': keyword_matches,
-        'problematic_elements': problematic_elements if problematic_elements else []
-    }
+    with open(file_path, 'rb') as handle:
+        reader = PyPDF2.PdfReader(handle)
+        if reader.is_encrypted:
+            raise ValueError('PDF is encrypted and cannot be read')
+        pages = []
+        for page in reader.pages:
+            try:
+                pages.append(page.extract_text() or '')
+            except Exception as exc:
+                logger.warning('Error extracting text from page: %s', exc)
+        text = '\n'.join(pages)
+    if not text.strip():
+        raise ValueError('No text could be extracted from the PDF')
+    return _normalise(text)
+
+
+LETTER_SPACED_RE = re.compile(r'(?<![A-Za-z])(?:[A-Za-z] ){3,}[A-Za-z](?![A-Za-z])')
+
+
+def _normalise(text):
+    text = text.replace('\r\n', '\n').replace('\r', '\n').replace('\u00a0', ' ')
+    text = re.sub(r'[ \t]+', ' ', text)
+    # Designer resumes often letter-space headings ("E X P E R I E N C E"); join them back into words
+    return LETTER_SPACED_RE.sub(lambda m: m.group().replace(' ', ''), text)
+
+
+# ---------------------------------------------------------------------------
+# Analysis
+# ---------------------------------------------------------------------------
+
+def _match_terms(text, patterns):
+    return [term for term, pattern in patterns if pattern.search(text)]
+
 
 def extract_skills_simple(text):
-    """Simple skill extraction using text matching"""
-    found_skills = []
-    text_lower = text.lower()
-    
-    for skill in SKILLS:
-        # Check for exact match
-        if skill.lower() in text_lower:
-            found_skills.append(skill)
-        # Check for common variations
-        skill_variations = [
-            skill.lower(),
-            skill.lower().replace('-', ' '),
-            skill.lower().replace(' ', '-'),
-            skill.lower().replace(' ', '')
-        ]
-        if any(variation in text_lower for variation in skill_variations):
-            if skill not in found_skills:
-                found_skills.append(skill)
-    
-    return found_skills
+    """Skills from the known vocabulary, matched as whole words."""
+    return _match_terms(text, SKILL_PATTERNS)
 
-def extract_skills_advanced(text):
-    """Advanced skill extraction using ML if available"""
-    if not ADVANCED_ML_AVAILABLE or not model or skill_embeddings is None:
-        return extract_skills_simple(text)
-    
-    try:
-        # Get all skills and industry keywords
-        all_skills = SKILLS + [keyword for keywords in INDUSTRY_KEYWORDS.values() for keyword in keywords]
-        
-        # Encode skills and resume text
-        resume_sentences = [s.strip() for s in text.split('.') if len(s.strip()) > 0]
-        resume_embeddings = model.encode(resume_sentences)
 
-        # Find matching skills using cosine similarity
-        matched_skills = set()
-        for i, skill in enumerate(all_skills):
-            if i < len(skill_embeddings):
-                skill_embedding = skill_embeddings[i]
-                for resume_embedding in resume_embeddings:
-                    similarity = cosine_similarity([skill_embedding], [resume_embedding])[0][0]
-                    if similarity > 0.60:  # Lowered threshold to catch more potential skills
-                        matched_skills.add(skill)
-        
-        # Additional check for direct text matching
-        text_lower = text.lower()
-        for skill in all_skills:
-            # Check for exact match
-            if skill.lower() in text_lower:
-                matched_skills.add(skill)
-            # Check for common variations
-            skill_variations = [
-                skill.lower(),
-                skill.lower().replace('-', ' '),
-                skill.lower().replace(' ', '-'),
-                skill.lower().replace(' ', '')
-            ]
-            if any(variation in text_lower for variation in skill_variations):
-                matched_skills.add(skill)
-        
-        return list(matched_skills)
-        
-    except Exception as e:
-        logger.warning(f"Advanced skill extraction failed, falling back to simple: {str(e)}")
-        return extract_skills_simple(text)
+def analyze_action_verbs(text):
+    strong = [verb for verb, pattern in VERB_PATTERNS if pattern.search(text)]
+    weak = [phrase for phrase, pattern in WEAK_PATTERNS if pattern.search(text)]
+    return {'strong': strong, 'weak': weak}
+
+
+def _count_quantified(text):
+    spans = []
+    for pattern in QUANTIFIED_PATTERNS:
+        spans.extend(m.span() for m in pattern.finditer(text))
+    spans.sort()
+    count, last_end = 0, -1
+    for start, end in spans:
+        if start >= last_end:  # overlapping matches count once
+            count += 1
+            last_end = end
+    return count
+
+
+def _find_sections(text):
+    has_structure = text.count('\n') >= 5
+    found, points = [], 0
+    for (name, value, heading), (_, _, anywhere), (_, _, upper) in zip(SECTION_PATTERNS, SECTION_ANYWHERE, SECTION_UPPER):
+        # Prefer real headings; fall back to any mention when the PDF lost its line breaks
+        if heading.search(text) or upper.search(text) or (not has_structure and anywhere.search(text)):
+            found.append(name)
+            points += value
+    return found, points
+
+
+def _length_points(words):
+    if 300 <= words <= 1000:
+        return 10
+    if 200 <= words < 300 or 1000 < words <= 1300:
+        return 6
+    if 120 <= words < 200:
+        return 3
+    return 0
+
+
+def check_ats_compatibility(text, skills=None):
+    """Score a resume out of 100 and explain every missing point."""
+    skills = extract_skills_simple(text) if skills is None else skills
+    issues = []
+    breakdown = []
+
+    def part(key, label, score, maximum, detail):
+        score = max(0, min(maximum, round(score, 1)))
+        breakdown.append({'key': key, 'label': label, 'score': score, 'max': maximum, 'detail': detail})
+        return score
+
+    # Contact details (10)
+    has_email = bool(EMAIL_RE.search(text))
+    has_phone = any(10 <= len(re.sub(r'\D', '', m.group())) <= 13 for m in PHONE_RE.finditer(text))
+    has_link = bool(PROFILE_LINK_RE.search(text))
+    missing = [label for ok, label in ((has_email, 'email'), (has_phone, 'phone number'), (has_link, 'LinkedIn or portfolio link')) if not ok]
+    if not has_email or not has_phone:
+        issues.append(f"Missing contact information: add your {' and '.join(missing[:2])}")
+    elif not has_link:
+        issues.append('Add a LinkedIn, GitHub or portfolio link so recruiters can learn more')
+    contact = part('contact', 'Contact details', 4 * has_email + 3 * has_phone + 3 * has_link, 10,
+                   'Complete' if not missing else f"Missing {', '.join(missing)}")
+
+    # Sections (20)
+    found_sections, section_points = _find_sections(text)
+    missing_core = [s for s in ('experience', 'education', 'skills') if s not in found_sections]
+    if missing_core:
+        issues.append(f"Missing important sections: {', '.join(missing_core)}")
+    elif 'summary' not in found_sections:
+        issues.append('Add a short summary at the top to frame your experience')
+    sections = part('sections', 'Standard sections', section_points, 20,
+                    f"{len(found_sections)} of {len(SECTION_GROUPS)} found")
+
+    # Skills and keywords (20)
+    keywords = _match_terms(text, KEYWORD_PATTERNS)
+    if len(skills) < 8:
+        issues.append(f'Only {len(skills)} recognised skills. List the tools and technologies you use')
+    if len(keywords) < 5:
+        issues.append(f'Only {len(keywords)} industry keywords. Mirror the wording of job descriptions you target')
+    skill_score = part('skills', 'Skills and keywords', min(12, len(skills)) + min(8, len(keywords)), 20,
+                       f'{len(skills)} skills, {len(keywords)} industry keywords')
+
+    # Quantified impact (15)
+    quantified = _count_quantified(text)
+    if quantified < 3:
+        issues.append(f'Only {quantified} quantified results. Add numbers: percentages, money saved, users served')
+    impact = part('impact', 'Quantified impact', quantified * 3, 15, f'{quantified} measurable results')
+
+    # Action verbs (15)
+    verbs = analyze_action_verbs(text)
+    if verbs['weak']:
+        issues.append(f"Replace weak phrases such as \"{verbs['weak'][0]}\" with strong action verbs")
+    elif len(verbs['strong']) < 6:
+        issues.append('Start more bullet points with strong action verbs like led, built or reduced')
+    verb_score = part('verbs', 'Action verbs', len(verbs['strong']) * 1.5 - len(verbs['weak']) * 2, 15,
+                      f"{len(verbs['strong'])} strong, {len(verbs['weak'])} weak")
+
+    # Length (10)
+    words = len(text.split())
+    if words < 200:
+        issues.append(f'Resume is short ({words} words). Add detail about your experience and results')
+    elif words > 1300:
+        issues.append(f'Resume is long ({words} words). Trim it to what matters for the role')
+    length = part('length', 'Length', _length_points(words), 10, f'{words} words')
+
+    # ATS-safe formatting (10)
+    problematic = [label for label, pattern in FORMAT_CHECKS if pattern.search(text)]
+    glyphs = len(ICON_GLYPHS_RE.findall(text))
+    if glyphs > 3:
+        problematic.append('icon fonts or symbols that do not convert to text')
+    if problematic:
+        issues.append(f"Contains elements that might not parse well in ATS: {', '.join(problematic)}")
+    if words < 100:
+        # Too little text to judge formatting, so these points are not given away for free
+        formatting = part('formatting', 'ATS-safe formatting', 0, 10, 'Not enough content to assess')
+    else:
+        formatting = part('formatting', 'ATS-safe formatting', 10 - 4 * len(problematic), 10,
+                          'Clean' if not problematic else f'{len(problematic)} issue(s)')
+
+    total = contact + sections + skill_score + impact + verb_score + length + formatting
+    return {
+        'score': round(min(100, max(0, total)), 1),
+        'max_score': 100,
+        'breakdown': breakdown,
+        'issues': issues,
+        'found_sections': found_sections,
+        'keyword_matches': len(keywords),
+        'keywords': keywords,
+        'quantified_achievements': quantified,
+        'action_verbs': verbs,
+        'word_count': words,
+        'problematic_elements': problematic,
+    }
+
+
+def analyze_text(text):
+    """Skills and ATS analysis for already-extracted resume text."""
+    if not text or not text.strip():
+        raise ValueError('No text could be extracted from the resume')
+    text = _normalise(text)
+    skills = extract_skills_simple(text)
+    return {'skills': skills, 'text': text, 'ats_analysis': check_ats_compatibility(text, skills)}
+
 
 def extract_skills_from_resume(file_path):
-    """Extract skills from resume using semantic similarity"""
+    """Extract text from a PDF resume, then find skills and score it."""
     try:
-        # Extract text from PDF
-        text = extract_text_from_pdf(file_path)
-        
-        if not text.strip():
-            raise ValueError("No text could be extracted from the resume")
-        
-        # Extract skills (use advanced if available, otherwise simple)
-        if ADVANCED_ML_AVAILABLE:
-            skills = extract_skills_advanced(text)
-            logger.info("Used advanced skill extraction")
-        else:
-            skills = extract_skills_simple(text)
-            logger.info("Used simple skill extraction")
-        
-        # Get ATS compatibility score
-        ats_analysis = check_ats_compatibility(text)
-        
-        return {
-            'skills': skills,
-            'text': text,
-            'ats_analysis': ats_analysis
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in extract_skills_from_resume: {str(e)}")
-        raise ValueError(f"Failed to analyze resume: {str(e)}")
+        return analyze_text(extract_text_from_pdf(file_path))
+    except Exception as exc:
+        logger.error('Error in extract_skills_from_resume: %s', exc)
+        raise ValueError(f'Failed to analyze resume: {exc}')
+
 
 class ResumeAnalyzer:
-    """Resume analysis class for extracting skills and performing ATS analysis"""
-    
+    """Resume analysis with experience, education and contact extraction."""
+
     def __init__(self):
-        """Initialize the resume analyzer"""
         self.logger = logging.getLogger(__name__)
-        
+
     def analyze_resume(self, file_path):
-        """
-        Analyze a resume file and extract comprehensive information
-        
-        Args:
-            file_path (str): Path to the resume file
-            
-        Returns:
-            dict: Analysis results containing skills, experience, and other data
-        """
         try:
-            # Extract text from PDF
             text = extract_text_from_pdf(file_path)
-            
-            if not text.strip():
-                raise ValueError("No text could be extracted from the resume")
-            
-            # Extract skills using the existing function
-            skills_data = extract_skills_from_resume(file_path)
-            
-            # Extract experience information
+            data = analyze_text(text)
             experience_summary = self._extract_experience_info(text)
-            
-            # Extract education information
-            education_info = self._extract_education_info(text)
-            
-            # Extract contact information
             contact_info = self._extract_contact_info(text)
-            
-            # Create comprehensive analysis
-            analysis_result = {
-                'extracted_skills': skills_data.get('skills', []),
+            return {
+                'extracted_skills': data['skills'],
                 'experience_summary': experience_summary,
-                'education_info': education_info,
+                'education_info': self._extract_education_info(text),
                 'contact_info': contact_info,
-                'ats_analysis': skills_data.get('ats_analysis', {}),
+                'ats_analysis': data['ats_analysis'],
                 'raw_text': text,
                 'analysis_summary': {
-                    'total_skills_found': len(skills_data.get('skills', [])),
+                    'total_skills_found': len(data['skills']),
                     'text_length': len(text),
-                    'ats_score': skills_data.get('ats_analysis', {}).get('score', 0),
+                    'ats_score': data['ats_analysis']['score'],
                     'has_contact_info': bool(contact_info.get('email') or contact_info.get('phone')),
-                    'estimated_experience': experience_summary.get('total_years', 0)
-                }
+                    'estimated_experience': experience_summary.get('total_years', 0),
+                },
             }
-            
-            return analysis_result
-            
-        except Exception as e:
-            self.logger.error(f"Error analyzing resume: {str(e)}")
-            raise ValueError(f"Failed to analyze resume: {str(e)}")
-    
+        except Exception as exc:
+            self.logger.error('Error analyzing resume: %s', exc)
+            raise ValueError(f'Failed to analyze resume: {exc}')
+
     def _extract_experience_info(self, text):
-        """Extract experience information from resume text"""
-        experience_info = {
-            'total_years': 0,
-            'companies': [],
-            'positions': [],
-            'experience_level': 'Entry'
-        }
-        
+        """Years of experience and experience level from resume text."""
+        info = {'total_years': 0, 'companies': [], 'positions': [], 'experience_level': 'Entry'}
         try:
-            # Look for years of experience patterns
-            experience_patterns = [
+            patterns = [
                 r'(\d+)\+?\s*years?\s*(?:of\s*)?experience',
                 r'experience[:\s]*(\d+)\+?\s*years?',
                 r'(\d+)\+?\s*years?\s*(?:in|of)',
                 r'over\s*(\d+)\s*years?',
-                r'more\s*than\s*(\d+)\s*years?'
+                r'more\s*than\s*(\d+)\s*years?',
             ]
-            
-            for pattern in experience_patterns:
-                matches = re.findall(pattern, text.lower())
+            lower = text.lower()
+            for pattern in patterns:
+                matches = [int(m) for m in re.findall(pattern, lower) if int(m) <= 50]
                 if matches:
-                    years = max([int(match) for match in matches])
-                    experience_info['total_years'] = years
+                    info['total_years'] = max(matches)
                     break
-            
-            # Determine experience level based on years
-            years = experience_info['total_years']
-            if years == 0:
-                experience_info['experience_level'] = 'Entry'
-            elif years <= 2:
-                experience_info['experience_level'] = 'Junior'
-            elif years <= 5:
-                experience_info['experience_level'] = 'Mid-level'
-            elif years <= 10:
-                experience_info['experience_level'] = 'Senior'
-            else:
-                experience_info['experience_level'] = 'Executive'
-            
-            # Extract company names (basic pattern matching)
+
+            years = info['total_years']
+            info['experience_level'] = (
+                'Entry' if years == 0 else 'Junior' if years <= 2 else 'Mid-level' if years <= 5
+                else 'Senior' if years <= 10 else 'Executive'
+            )
+
             company_patterns = [
                 r'(?:worked?\s*(?:at|for)|employed\s*(?:at|by))\s+([A-Z][A-Za-z\s&]+(?:Inc|LLC|Corp|Company|Ltd)?)',
-                r'([A-Z][A-Za-z\s&]+(?:Inc|LLC|Corp|Company|Ltd))\s*[-–—]\s*\d{4}',
-                r'\b([A-Z][A-Za-z\s&]+(?:Inc|LLC|Corp|Company|Ltd))\b'
+                r'\b([A-Z][A-Za-z\s&]+(?:Inc|LLC|Corp|Company|Ltd))\b',
             ]
-            
             companies = set()
             for pattern in company_patterns:
-                matches = re.findall(pattern, text)
-                companies.update([match.strip() for match in matches if len(match.strip()) > 2])
-            
-            experience_info['companies'] = list(companies)[:5]  # Limit to 5 companies
-            
-        except Exception as e:
-            self.logger.warning(f"Error extracting experience info: {str(e)}")
-        
-        return experience_info
-    
+                companies.update(m.strip() for m in re.findall(pattern, text) if len(m.strip()) > 2)
+            info['companies'] = list(companies)[:5]
+        except Exception as exc:
+            self.logger.warning('Error extracting experience info: %s', exc)
+        return info
+
     def _extract_education_info(self, text):
-        """Extract education information from resume text"""
-        education_info = {
-            'degrees': [],
-            'institutions': [],
-            'graduation_years': []
-        }
-        
+        info = {'degrees': [], 'institutions': [], 'graduation_years': []}
         try:
-            # Common degree patterns
             degree_patterns = [
                 r'\b(?:bachelor|master|phd|doctorate|diploma|certificate|associate)s?\s*(?:of\s*)?(?:science|arts|engineering|business|technology)?\b',
                 r'\b(?:bs|ba|ms|ma|mba|phd|btech|mtech)\b',
-                r'\b(?:b\.s\.|b\.a\.|m\.s\.|m\.a\.|ph\.d\.)\b'
             ]
-            
             degrees = set()
             for pattern in degree_patterns:
-                matches = re.findall(pattern, text.lower())
-                degrees.update(matches)
-            
-            education_info['degrees'] = list(degrees)
-            
-            # Extract graduation years
-            year_patterns = [
-                r'(?:graduated|graduation|class\s*of)\s*(\d{4})',
-                r'(\d{4})\s*[-–—]\s*(?:present|current|\d{4})',
-                r'\b(19\d{2}|20\d{2})\b'
-            ]
-            
-            years = set()
-            for pattern in year_patterns:
-                matches = re.findall(pattern, text)
-                for year in matches:
-                    year_int = int(year)
-                    if 1950 <= year_int <= datetime.now().year:
-                        years.add(year_int)
-            
-            education_info['graduation_years'] = sorted(list(years))
-            
-        except Exception as e:
-            self.logger.warning(f"Error extracting education info: {str(e)}")
-        
-        return education_info
-    
+                degrees.update(re.findall(pattern, text.lower()))
+            info['degrees'] = sorted(degrees)
+
+            years = {int(y) for y in re.findall(r'\b(19\d{2}|20\d{2})\b', text) if 1950 <= int(y) <= datetime.now().year}
+            info['graduation_years'] = sorted(years)
+        except Exception as exc:
+            self.logger.warning('Error extracting education info: %s', exc)
+        return info
+
     def _extract_contact_info(self, text):
-        """Extract contact information from resume text"""
-        contact_info = {
-            'email': None,
-            'phone': None,
-            'linkedin': None,
-            'location': None
-        }
-        
+        info = {'email': None, 'phone': None, 'linkedin': None, 'location': None}
         try:
-            # Email pattern
-            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-            email_matches = re.findall(email_pattern, text)
-            if email_matches:
-                contact_info['email'] = email_matches[0]
-            
-            # Phone pattern
-            phone_pattern = r'(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})'
-            phone_matches = re.findall(phone_pattern, text)
-            if phone_matches:
-                contact_info['phone'] = f"({phone_matches[0][0]}) {phone_matches[0][1]}-{phone_matches[0][2]}"
-            
-            # LinkedIn pattern
-            linkedin_pattern = r'(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w-]+'
-            linkedin_matches = re.findall(linkedin_pattern, text.lower())
-            if linkedin_matches:
-                contact_info['linkedin'] = linkedin_matches[0]
-            
-            # Basic location pattern (city, state)
-            location_pattern = r'\b([A-Z][a-z]+),\s*([A-Z]{2})\b'
-            location_matches = re.findall(location_pattern, text)
-            if location_matches:
-                contact_info['location'] = f"{location_matches[0][0]}, {location_matches[0][1]}"
-                
-        except Exception as e:
-            self.logger.warning(f"Error extracting contact info: {str(e)}")
-        
-        return contact_info
+            email = EMAIL_RE.search(text)
+            info['email'] = email.group() if email else None
+            phone = next((m.group().strip() for m in PHONE_RE.finditer(text)
+                          if 10 <= len(re.sub(r'\D', '', m.group())) <= 13), None)
+            info['phone'] = phone
+            linkedin = re.search(r'(?i)(?:https?://)?(?:www\.)?linkedin\.com/in/[\w-]+', text)
+            info['linkedin'] = linkedin.group().lower() if linkedin else None
+            location = re.search(r'\b([A-Z][a-z]+),\s*([A-Z]{2})\b', text)
+            info['location'] = f'{location.group(1)}, {location.group(2)}' if location else None
+        except Exception as exc:
+            self.logger.warning('Error extracting contact info: %s', exc)
+        return info

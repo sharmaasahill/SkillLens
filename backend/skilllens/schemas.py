@@ -33,6 +33,8 @@ class RegisterRequest(_Schema):
 class LoginRequest(_Schema):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
+    # Which sign-in the user chose. Candidates and HR accounts can only use their own.
+    account_type: Literal['candidate', 'hr'] = 'candidate'
 
     @field_validator('email')
     @classmethod

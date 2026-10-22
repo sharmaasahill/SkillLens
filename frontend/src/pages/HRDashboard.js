@@ -1,10 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import {
-  UsersIcon, DocumentTextIcon, DocumentDuplicateIcon, ChartBarIcon, IdentificationIcon, MagnifyingGlassIcon,
-  AdjustmentsHorizontalIcon, ArrowDownTrayIcon, ArrowPathIcon, BriefcaseIcon, BuildingOfficeIcon, ClockIcon,
-  MapPinIcon, Squares2X2Icon, TableCellsIcon, ChevronLeftIcon, ChevronRightIcon,
-} from '@heroicons/react/24/outline';
 import api from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
 import {
@@ -66,10 +61,10 @@ function CandidateCard({ user, selected, onToggle, onView, onDownload, index }) 
       </div>
 
       <div className="mt-5 space-y-2 text-[14px] text-ink/85">
-        {user.current_work && <p className="flex items-center gap-2"><BriefcaseIcon className="h-4 w-4 text-silver" />{user.current_work}</p>}
-        {user.current_company && <p className="flex items-center gap-2"><BuildingOfficeIcon className="h-4 w-4 text-silver" />{user.current_company}</p>}
-        {user.total_experience ? <p className="flex items-center gap-2"><ClockIcon className="h-4 w-4 text-silver" />{user.total_experience} years</p> : null}
-        {user.current_location && <p className="flex items-center gap-2"><MapPinIcon className="h-4 w-4 text-silver" />{user.current_location}</p>}
+        {user.current_work && <p>{user.current_work}</p>}
+        {user.current_company && <p className="text-graphite">{user.current_company}</p>}
+        {user.total_experience ? <p className="text-graphite">{user.total_experience} years experience</p> : null}
+        {user.current_location && <p className="text-graphite">{user.current_location}</p>}
       </div>
 
       {user.all_skills?.length > 0 && (
@@ -98,7 +93,7 @@ function CandidateCard({ user, selected, onToggle, onView, onDownload, index }) 
         <Button size="sm" className="flex-1" onClick={() => onView(user)}>View details</Button>
         {user.profile_resume_filename && (
           <Button size="sm" variant="secondary" onClick={() => onDownload(user.id)}>
-            <ArrowDownTrayIcon className="h-4 w-4" /> Resume
+            Resume
           </Button>
         )}
         {user.linkedin_url && (
@@ -301,9 +296,9 @@ function AnalyticsPanel({ analytics, stats }) {
   return (
     <div className="space-y-8">
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatTile label="Total candidates" value={analytics.total_candidates || 0} toneName="teal" icon={UsersIcon} />
-        <StatTile label="Average score" value={`${Math.round(analytics.average_score || 0)}%`} toneName={scoreTone(analytics.average_score || 0)} icon={ChartBarIcon} />
-        <StatTile label="Active profiles" value={stats.users_with_profiles || 0} toneName="orange" icon={IdentificationIcon} />
+        <StatTile label="Total candidates" value={analytics.total_candidates || 0} toneName="teal" />
+        <StatTile label="Average score" value={`${Math.round(analytics.average_score || 0)}%`} toneName={scoreTone(analytics.average_score || 0)} />
+        <StatTile label="Active profiles" value={stats.users_with_profiles || 0} toneName="orange" />
       </div>
       <div className="grid gap-8 md:grid-cols-2">
         <DistributionList title="Top job roles" entries={Object.entries(analytics.job_role_distribution || {}).slice(0, 10)} toneFor={(_, i) => ['teal', 'blue', 'indigo', 'purple', 'pink'][i % 5]} />
@@ -355,6 +350,7 @@ const HRDashboard = () => {
 
   useEffect(() => {
     fetchDropdownData();
+    fetchSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -384,15 +380,10 @@ const HRDashboard = () => {
       params.append('page', pageToLoad);
       params.append('per_page', PER_PAGE);
 
-      const [usersResponse, statsResponse, analyticsResponse] = await Promise.all([
-        api.get(`/hr/all-users?${params.toString()}`),
-        api.get('/hr/stats'),
-        api.get('/hr/analytics'),
-      ]);
+      // Only the candidate list changes with paging, search and filters
+      const usersResponse = await api.get(`/hr/all-users?${params.toString()}`);
       setUsers(usersResponse.data.users);
       setPagination({ total: usersResponse.data.total_users, pages: usersResponse.data.pages });
-      setStats(statsResponse.data);
-      setAnalytics(analyticsResponse.data);
       setError('');
     } catch (err) {
       if (err.response?.status === 403) setError('Access denied. HR privileges required.');
@@ -400,6 +391,17 @@ const HRDashboard = () => {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  // Totals and analytics cover every candidate, so they load once and on Refresh
+  const fetchSummary = async () => {
+    try {
+      const [statsResponse, analyticsResponse] = await Promise.all([api.get('/hr/stats'), api.get('/hr/analytics')]);
+      setStats(statsResponse.data);
+      setAnalytics(analyticsResponse.data);
+    } catch (err) {
+      if (err.response?.status !== 401) setError('Failed to load HR data');
     }
   };
 
@@ -497,8 +499,8 @@ const HRDashboard = () => {
         subtitle="Search, filter and compare every candidate profile in one place."
         actions={(
           <>
-            <Button variant="outline" onClick={() => setShowAnalytics(true)}><ChartBarIcon className="h-4 w-4 text-teal" /> Analytics</Button>
-            <Button variant="dark" onClick={exportToCSV}><ArrowDownTrayIcon className="h-4 w-4" /> Export CSV</Button>
+            <Button variant="outline" onClick={() => setShowAnalytics(true)}>Analytics</Button>
+            <Button variant="dark" onClick={exportToCSV}>Export CSV</Button>
           </>
         )}
       />
@@ -506,13 +508,13 @@ const HRDashboard = () => {
       {error && <Notice className="mb-6">{error}</Notice>}
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-        {loading ? [0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-[112px]" />) : (
+        {loading && !stats.total_users ? [0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-[112px]" />) : (
           <>
-            <StatTile label="Total users" value={stats.total_users || 0} toneName="teal" icon={UsersIcon} />
-            <StatTile label="With resume" value={stats.users_with_resume || 0} toneName="green" icon={DocumentTextIcon} />
-            <StatTile label="Total resumes" value={stats.total_resumes || 0} toneName="purple" icon={DocumentDuplicateIcon} />
-            <StatTile label="Average score" value={`${stats.average_score || 0}%`} toneName={scoreTone(stats.average_score || 0)} icon={ChartBarIcon} />
-            <StatTile label="Complete profiles" value={stats.users_with_profiles || 0} toneName="orange" icon={IdentificationIcon} />
+            <StatTile label="Total users" value={stats.total_users || 0} toneName="teal" />
+            <StatTile label="With resume" value={stats.users_with_resume || 0} toneName="green" />
+            <StatTile label="Total resumes" value={stats.total_resumes || 0} toneName="purple" />
+            <StatTile label="Average score" value={`${stats.average_score || 0}%`} toneName={scoreTone(stats.average_score || 0)} />
+            <StatTile label="Complete profiles" value={stats.users_with_profiles || 0} toneName="orange" />
           </>
         )}
       </div>
@@ -521,14 +523,13 @@ const HRDashboard = () => {
       <Card className="mt-6 !p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
           <div className="relative flex-1">
-            <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-silver" aria-hidden="true" />
             <input
               type="search"
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
               placeholder="Search by name, email, position..."
               aria-label="Search candidates"
-              className="block w-full rounded-full border border-hairline bg-mist/60 py-2.5 pl-11 pr-4 text-[15px] placeholder:text-silver focus:border-action focus:bg-white focus:outline-none focus:ring-4 focus:ring-action/15"
+              className="block w-full rounded-full border border-hairline bg-mist/60 px-5 py-2.5 text-[15px] placeholder:text-silver focus:border-action focus:bg-white focus:outline-none focus:ring-4 focus:ring-action/15"
             />
           </div>
           <Segmented
@@ -552,7 +553,7 @@ const HRDashboard = () => {
               className="w-40"
             />
             <Button variant={showAdvancedFilters ? 'dark' : 'secondary'} onClick={() => setShowAdvancedFilters((v) => !v)} aria-expanded={showAdvancedFilters}>
-              <AdjustmentsHorizontalIcon className="h-4 w-4" /> Filters
+              Filters
               {activeFilterCount > 0 && <span className="rounded-full bg-teal px-1.5 text-[11px] text-white">{activeFilterCount}</span>}
             </Button>
           </div>
@@ -591,14 +592,14 @@ const HRDashboard = () => {
         <div className="flex flex-wrap items-center gap-2">
           {selectedUsers.length > 0 && <Button size="sm" variant="ghost" onClick={clearSelection}>Clear selection</Button>}
           <Button size="sm" variant="secondary" onClick={selectAllUsers}>Select all</Button>
-          <Button size="sm" variant="secondary" onClick={() => fetchHRData(page)}><ArrowPathIcon className="h-4 w-4" /> Refresh</Button>
+          <Button size="sm" variant="secondary" onClick={() => { fetchHRData(page); fetchSummary(); }}>Refresh</Button>
           <Segmented
             label="View mode"
             value={viewMode}
             onChange={setViewMode}
             options={[
-              { value: 'grid', label: <span className="flex items-center gap-1"><Squares2X2Icon className="h-4 w-4" />Grid</span> },
-              { value: 'table', label: <span className="flex items-center gap-1"><TableCellsIcon className="h-4 w-4" />Table</span> },
+              { value: 'grid', label: 'Grid' },
+              { value: 'table', label: 'Table' },
             ]}
           />
         </div>
@@ -609,7 +610,7 @@ const HRDashboard = () => {
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-80" />)}</div>
         ) : filteredUsers.length === 0 ? (
           <Card>
-            <EmptyState icon={UsersIcon} toneName="teal" title="No users found">Try adjusting your search or filter criteria.</EmptyState>
+            <EmptyState title="No users found">Try adjusting your search or filter criteria.</EmptyState>
           </Card>
         ) : viewMode === 'grid' ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -634,9 +635,9 @@ const HRDashboard = () => {
         <nav className="mt-10 flex items-center justify-center gap-2" aria-label="Candidate pages">
           <button
             type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-ink hover:bg-mist disabled:opacity-30" aria-label="Previous page"
+            className="h-9 rounded-full px-3 text-[14px] text-ink hover:bg-mist disabled:opacity-30"
           >
-            <ChevronLeftIcon className="h-5 w-5" />
+            Previous
           </button>
           {Array.from({ length: pagination.pages }, (_, i) => i + 1)
             .filter((n) => n === 1 || n === pagination.pages || Math.abs(n - page) <= 1)
@@ -655,9 +656,9 @@ const HRDashboard = () => {
             ))}
           <button
             type="button" onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))} disabled={page >= pagination.pages}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-ink hover:bg-mist disabled:opacity-30" aria-label="Next page"
+            className="h-9 rounded-full px-3 text-[14px] text-ink hover:bg-mist disabled:opacity-30"
           >
-            <ChevronRightIcon className="h-5 w-5" />
+            Next
           </button>
           <span className="ml-3 text-[13px] text-graphite">Page {page} of {pagination.pages}</span>
         </nav>
