@@ -4,10 +4,10 @@ import { CountUp, Reveal } from './motion';
 import { Wordmark } from './GlobalNav';
 
 const NUMBERS = [
-  { value: 6704, label: 'salary records behind every estimate' },
-  { value: 193, label: 'job titles the models understand' },
-  { value: 2197, label: 'job listings to match against' },
-  { value: 74, label: 'locations across India and remote' },
+  { value: 6704, label: 'salary records behind every estimate', color: 'text-green' },
+  { value: 193, label: 'job titles the models understand', color: 'text-blue' },
+  { value: 2197, label: 'job listings to match against', color: 'text-purple' },
+  { value: 74, label: 'locations across India and remote', color: 'text-orange' },
 ];
 
 export function Numbers() {
@@ -16,7 +16,7 @@ export function Numbers() {
       <div className="mx-auto grid max-w-[1080px] gap-x-10 gap-y-14 sm:grid-cols-2 lg:grid-cols-4">
         {NUMBERS.map((n, i) => (
           <Reveal key={n.label} delay={i * 0.08}>
-            <p className="font-display text-[56px] font-semibold leading-none tracking-tighter2 text-ink md:text-[64px]">
+            <p className={`font-display text-[56px] font-semibold leading-none tracking-tighter2 md:text-[64px] ${n.color}`}>
               <CountUp value={n.value} />
             </p>
             <p className="mt-3 max-w-[22ch] text-[17px] leading-[1.4] text-graphite">{n.label}</p>
@@ -32,7 +32,7 @@ export function CallToAction({ signedIn }) {
     <section className="px-6 pb-[16vh] pt-[6vh] text-center" aria-labelledby="cta-title">
       <Reveal>
         <h2 id="cta-title" className="mx-auto max-w-[14ch] font-display text-[48px] font-semibold leading-[1.05] tracking-tighter2 text-ink md:text-[80px]">
-          Know your worth. Then ask for it.
+          Know your worth. <span className="bg-[linear-gradient(90deg,#ff9500_0%,#ff2d55_35%,#af52de_68%,#007aff_100%)] bg-clip-text text-transparent">Then ask for it.</span>
         </h2>
       </Reveal>
       <Reveal delay={0.12}>

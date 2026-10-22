@@ -8,8 +8,16 @@ function ProtectedRoute({ children, hrOnly = false }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900" role="status">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent" />
+      <div className="flex min-h-screen items-center justify-center bg-[#fbfbfd]" role="status">
+        <div className="flex gap-2" aria-hidden="true">
+          {['#34c759', '#007aff', '#af52de'].map((color, i) => (
+            <span
+              key={color}
+              className="h-3 w-3 animate-bounce rounded-full"
+              style={{ background: color, animationDelay: `${i * 0.12}s` }}
+            />
+          ))}
+        </div>
         <span className="sr-only">Loading</span>
       </div>
     );

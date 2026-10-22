@@ -1,23 +1,168 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  MagnifyingGlassIcon, 
-  MapPinIcon, 
-  BriefcaseIcon, 
-  ExclamationTriangleIcon,
-  InformationCircleIcon,
-  XMarkIcon,
-  ChartBarIcon,
-  ArrowLeftIcon,
-  DocumentTextIcon,
-  UserIcon,
-  CpuChipIcon
+import React, { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  MapPinIcon, BriefcaseIcon, ChartBarIcon, CpuChipIcon, DocumentTextIcon, ArrowPathIcon,
+  ArrowTopRightOnSquareIcon, CheckCircleIcon, FireIcon, AcademicCapIcon,
 } from '@heroicons/react/24/outline';
-import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/solid';
 import { useNavigate } from 'react-router-dom';
-import ThemeToggle from '../components/ThemeToggle';
 import api, { errorMessage } from '../api';
+import AppShell, { PageHeader } from '../components/ui/AppShell';
+import { Badge, Button, Card, Chip, EmptyState, Meter, Notice, ScoreRing, Segmented, Skeleton, TextField, EASE, cx } from '../components/ui/primitives';
+import { Modal } from '../components/ui/overlays';
+import { matchTone, tone } from '../components/ui/tones';
+import { boldSegments, decodeEntities } from '../lib/format';
 
+const CATEGORY_TONES = ['purple', 'blue', 'teal', 'green', 'orange', 'pink', 'indigo'];
+
+const formatLocation = (location) => {
+  if (!location) return 'Location not specified';
+  return location.length > 30 ? `${location.substring(0, 30)}...` : location;
+};
+
+function Reasoning({ text }) {
+  const reasons = String(text || '').split(' • ').filter(Boolean);
+  return (
+    <ul className="space-y-2">
+      {reasons.map((reason) => (
+        <li key={reason} className="flex gap-2.5 text-[14px] leading-[1.5] text-ink/85">
+          <CheckCircleIcon className="mt-0.5 h-4 w-4 shrink-0 text-purple" aria-hidden="true" />
+          <span>
+            {boldSegments(reason).map((seg, i) => (seg.bold ? <strong key={i} className="font-semibold text-ink">{seg.text}</strong> : <span key={i}>{seg.text}</span>))}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function JobCard({ job, index }) {
+  const [expanded, setExpanded] = useState(false);
+  const overall = job.overall_score;
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.55, ease: EASE, delay: Math.min(index, 10) * 0.06 }}
+      className="overflow-hidden rounded-[24px] bg-white ring-1 ring-black/[0.05] transition-shadow hover:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.25)]"
+    >
+      <div className="grid gap-6 p-6 md:grid-cols-[auto_1fr_auto] md:items-start md:p-8">
+        <ScoreRing value={overall * 100} size={92} stroke={8} toneName={matchTone(overall)} label="match">
+          <span className="font-display text-[24px] font-semibold leading-none tabular-nums">{(overall * 100).toFixed(0)}%</span>
+        </ScoreRing>
+
+        <div className="min-w-0">
+          <h3 className="font-display text-[24px] font-semibold leading-tight tracking-tight text-ink">{job.position}</h3>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px] text-graphite">
+            <span className="font-medium text-purple-ink">{job.company}</span>
+            <span className="flex items-center gap-1"><MapPinIcon className="h-4 w-4" aria-hidden="true" />{formatLocation(job.location)}</span>
+            <span className="flex items-center gap-1"><BriefcaseIcon className="h-4 w-4" aria-hidden="true" />{job.job_category}</span>
+            {job.experience_level && <Badge toneName="indigo">{job.experience_level}</Badge>}
+          </div>
+          {job.why_recommended?.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {job.why_recommended.map((highlight) => <Chip key={highlight} toneName="green" className="!text-[12px]">{highlight}</Chip>)}
+            </div>
+          )}
+        </div>
+
+        {job.job_url && (
+          <a
+            href={job.job_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-full bg-action px-5 text-[15px] font-medium text-white transition-colors hover:bg-action-hover"
+          >
+            Apply <ArrowTopRightOnSquareIcon className="h-4 w-4" aria-hidden="true" />
+          </a>
+        )}
+      </div>
+
+      <div className="grid gap-6 border-t border-black/[0.06] bg-[#fbfbfd] p-6 md:grid-cols-[1.4fr_1fr] md:p-8">
+        <div>
+          <p className="mb-3 text-[13px] font-semibold text-purple-ink">Why this job fits you</p>
+          <Reasoning text={job.recommendation_reasoning} />
+          <p className="mb-2 mt-6 text-[13px] font-semibold text-ink">Your matching skills</p>
+          <div className="flex flex-wrap gap-1.5">
+            {job.matched_skills?.slice(0, 8).map((skill) => <Chip key={skill} toneName="blue" className="!text-[12px]">{skill}</Chip>)}
+            {job.matched_skills?.length > 8 && <Chip className="!text-[12px]">+{job.matched_skills.length - 8} more</Chip>}
+          </div>
+        </div>
+        <div className="space-y-4">
+          {[
+            ['Skills match', job.skill_match_score],
+            ['Experience match', job.experience_match_score],
+            ['Overall score', job.overall_score],
+          ].map(([label, value], i) => (
+            <div key={label}>
+              <div className="mb-1.5 flex justify-between text-[14px]">
+                <span className="text-graphite">{label}</span>
+                <span className={cx('font-semibold tabular-nums', tone(matchTone(value)).text)}>{(value * 100).toFixed(0)}%</span>
+              </div>
+              <Meter value={value * 100} toneName={matchTone(value)} delay={0.1 + i * 0.1} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {job.job_description && (
+        <div className="border-t border-black/[0.06] px-6 py-5 md:px-8">
+          <p className={cx('text-[14px] leading-[1.6] text-graphite', !expanded && 'line-clamp-2')}>{decodeEntities(job.job_description)}</p>
+          <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-2 text-[13px] text-action-link hover:underline">
+            {expanded ? 'Show less' : 'Read job description'}
+          </button>
+        </div>
+      )}
+    </motion.article>
+  );
+}
+
+function MarketAnalysis({ analysis }) {
+  // Most-demanded first; bars are relative to the top skill so small percentages stay readable
+  const demand = Object.entries(analysis.user_skills_demand || {})
+    .sort(([, a], [, b]) => b.demand_percentage - a.demand_percentage)
+    .slice(0, 10);
+  const top = Math.max(1, ...demand.map(([, d]) => d.demand_percentage));
+  return (
+    <div className="space-y-8">
+      <section>
+        <h3 className="mb-4 font-display text-[19px] font-semibold tracking-tight">Your skills, by market demand</h3>
+        <div className="space-y-4">
+          {demand.map(([skill, data], i) => (
+            <div key={skill}>
+              <div className="mb-1.5 flex items-baseline justify-between gap-4 text-[14px]">
+                <span className="font-medium text-ink">{skill}</span>
+                <span className="font-semibold text-blue-ink tabular-nums">{data.demand_percentage}%</span>
+              </div>
+              <Meter value={(data.demand_percentage / top) * 100} toneName={CATEGORY_TONES[i % CATEGORY_TONES.length]} delay={i * 0.05} />
+              <p className="mt-1 text-[12px] text-silver">Found in {data.job_count} of {analysis.total_jobs_analyzed || 'all'} jobs. Typical level: {data.avg_experience_level}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section>
+        <div className="mb-3 flex items-center gap-2">
+          <FireIcon className="h-5 w-5 text-orange" aria-hidden="true" />
+          <h3 className="font-display text-[19px] font-semibold tracking-tight">Trending in the market</h3>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {analysis.trending_skills?.slice(0, 20).map((skill) => <Chip key={skill} toneName="orange" className="capitalize">{skill}</Chip>)}
+        </div>
+      </section>
+      {analysis.skill_gap_analysis?.length > 0 && (
+        <section className="rounded-[20px] bg-yellow-soft p-5">
+          <div className="mb-2 flex items-center gap-2">
+            <AcademicCapIcon className="h-5 w-5 text-yellow-ink" aria-hidden="true" />
+            <h3 className="font-display text-[19px] font-semibold tracking-tight">Recommended skills to learn</h3>
+          </div>
+          <p className="mb-3 text-[14px] text-yellow-ink">These trending skills could boost your market value:</p>
+          <div className="flex flex-wrap gap-2">
+            {analysis.skill_gap_analysis.map((skill) => <Chip key={skill} className="bg-white capitalize">{skill}</Chip>)}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
 
 const JobRecommender = () => {
   const navigate = useNavigate();
@@ -27,17 +172,12 @@ const JobRecommender = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [skillsAnalysis, setSkillsAnalysis] = useState(null);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
-  const [filters, setFilters] = useState({
-    experienceYears: '',
-    preferredLocations: [],
-    preferredCategories: [],
-    topK: 10
-  });
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [filters, setFilters] = useState({ experienceYears: '', preferredLocations: [], preferredCategories: [], topK: 10 });
   const [availableCategories, setAvailableCategories] = useState([]);
 
   useEffect(() => {
     loadAvailableOptions();
-    // Auto-load recommendations on component mount
     handleGetRecommendations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -47,34 +187,28 @@ const JobRecommender = () => {
       const { data } = await api.get('/api/job-categories');
       setAvailableCategories(Array.isArray(data.categories) ? data.categories : []);
     } catch (err) {
-      console.error('Error loading options:', err);
       setAvailableCategories([]);
     }
   };
 
   const handleGetRecommendations = async () => {
     if (loading) return;
-
     setLoading(true);
     setError('');
-
     try {
       const { data } = await api.post('/api/recommend-jobs', {
-        experience_years: parseInt(filters.experienceYears) || 0,
+        experience_years: parseInt(filters.experienceYears, 10) || 0,
         preferred_locations: filters.preferredLocations,
         preferred_categories: filters.preferredCategories,
-        top_k: filters.topK
+        top_k: filters.topK,
       });
-
       setRecommendations(data.recommendations || []);
       setUserProfile(data.user_profile || null);
       setSkillsAnalysis(data.skills_analysis || null);
-
       if (data.recommendations && data.recommendations.length === 0) {
         setError('No job recommendations found. Try adjusting your filters or uploading a more detailed resume.');
       }
     } catch (err) {
-      console.error('Error getting recommendations:', err);
       setError(errorMessage(err, 'Failed to connect to server. Please try again.'));
     } finally {
       setLoading(false);
@@ -86,484 +220,158 @@ const JobRecommender = () => {
       setError('No skills available for analysis');
       return;
     }
-
+    setAnalysisLoading(true);
     try {
-      const { data } = await api.post('/api/job-market-analysis', {
-        skills: userProfile.extracted_skills
-      });
+      const { data } = await api.post('/api/job-market-analysis', { skills: userProfile.extracted_skills });
       setSkillsAnalysis(data.analysis || null);
       setShowAnalysisModal(true);
     } catch (err) {
-      console.error('Error analyzing skills:', err);
       setError(errorMessage(err, 'Failed to analyze skills'));
+    } finally {
+      setAnalysisLoading(false);
     }
   };
 
-  const formatLocation = (location) => {
-    if (!location) return 'Location not specified';
-    return location.length > 30 ? `${location.substring(0, 30)}...` : location;
-  };
+  const toggleCategory = (category) => setFilters((prev) => ({
+    ...prev,
+    preferredCategories: prev.preferredCategories.includes(category)
+      ? prev.preferredCategories.filter((c) => c !== category)
+      : [...prev.preferredCategories, category],
+  }));
 
-  const getScoreColor = (score) => {
-    if (score >= 0.8) return 'text-green-600';
-    if (score >= 0.6) return 'text-yellow-600';
-    return 'text-red-600';
-  };
+  const needsResume = !loading && !userProfile && /resume/i.test(error);
 
-  const getScoreBadgeColor = (score) => {
-    if (score >= 0.8) return 'bg-green-100 text-green-800';
-    if (score >= 0.6) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
-  };
+  return (
+    <AppShell>
+      <PageHeader
+        eyebrow="Jobs"
+        toneName="purple"
+        title="Roles that fit the skills you already have."
+        subtitle="AI-powered job matching based on your resume skills."
+        actions={userProfile && (
+          <Button variant="outline" onClick={handleSkillsAnalysis} loading={analysisLoading}>
+            <ChartBarIcon className="h-4 w-4 text-purple" /> Market analysis
+          </Button>
+        )}
+      />
 
-    return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header with Back Button and Theme Toggle */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-200"
-            >
-              <ArrowLeftIcon className="h-5 w-5 mr-2" />
-              Back to Home
-            </button>
-            <div className="h-8 w-px bg-gray-300 dark:bg-gray-600"></div>
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
-                Job Recommendations
-              </h1>
-              <p className="text-lg text-gray-600 dark:text-gray-300 mt-2">
-                AI-powered job matching based on your resume skills
+      {userProfile && (
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE }}>
+          <Card className="mb-6">
+            <div className="grid gap-6 md:grid-cols-[repeat(3,auto)_1fr] md:items-center">
+              {[
+                { icon: CpuChipIcon, label: 'Skills extracted', value: userProfile.extracted_skills?.length || 0, toneName: 'blue' },
+                { icon: BriefcaseIcon, label: 'Experience', value: `${userProfile.experience_years} years`, toneName: 'green' },
+                { icon: DocumentTextIcon, label: 'Resume', value: 'Analyzed', toneName: 'purple' },
+              ].map(({ icon: Icon, label, value, toneName }) => {
+                const t = tone(toneName);
+                return (
+                  <div key={label} className="flex items-center gap-3 md:pr-6">
+                    <span className={cx('flex h-11 w-11 items-center justify-center rounded-2xl', t.soft)}><Icon className={cx('h-6 w-6', t.text)} aria-hidden="true" /></span>
+                    <div>
+                      <p className="text-[13px] text-graphite">{label}</p>
+                      <p className="font-display text-[21px] font-semibold tracking-tight">{value}</p>
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="truncate text-[13px] text-silver md:text-right" title={userProfile.resume_analysis?.resume_filename}>
+                From {userProfile.resume_analysis?.resume_filename}
               </p>
             </div>
-          </div>
-          <ThemeToggle />
-        </div>
-
-        {/* User Profile Section */}
-        {userProfile && (
-                  <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8 border border-gray-200 dark:border-gray-700 transition-colors duration-300"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <UserIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Your Profile Analysis</h2>
-                  <p className="text-gray-600 dark:text-gray-300">Extracted from: {userProfile.resume_analysis?.resume_filename}</p>
-                </div>
-              </div>
-              <button
-                onClick={handleSkillsAnalysis}
-                className="flex items-center px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
-              >
-                <ChartBarIcon className="h-4 w-4 mr-2" />
-                Market Analysis
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg transition-colors duration-300">
-                <div className="flex items-center space-x-2 mb-2">
-                  <CpuChipIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  <span className="font-medium text-gray-900 dark:text-white">Skills Extracted</span>
-                </div>
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{userProfile.extracted_skills?.length || 0}</p>
-              </div>
-
-              <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg transition-colors duration-300">
-                <div className="flex items-center space-x-2 mb-2">
-                  <BriefcaseIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
-                  <span className="font-medium text-gray-900 dark:text-white">Experience</span>
-                </div>
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">{userProfile.experience_years} years</p>
-              </div>
-
-              <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg transition-colors duration-300">
-                <div className="flex items-center space-x-2 mb-2">
-                  <DocumentTextIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                  <span className="font-medium text-gray-900 dark:text-white">Resume Status</span>
-                </div>
-                <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Analyzed & Ready</p>
-              </div>
-            </div>
-
-            {/* Skills Display */}
-            <div className="mt-6">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Your Skills</h3>
-              <div className="flex flex-wrap gap-2">
-                {userProfile.extracted_skills?.slice(0, 15).map((skill, index) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-sm font-medium transition-colors duration-300"
-                  >
-                    {skill}
-                  </span>
-                ))}
-                {userProfile.extracted_skills?.length > 15 && (
-                  <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full text-sm transition-colors duration-300">
-                    +{userProfile.extracted_skills.length - 15} more
-                  </span>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Filters Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8 border border-gray-200 dark:border-gray-700 transition-colors duration-300"
-        >
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-            <MagnifyingGlassIcon className="h-6 w-6 mr-2 text-blue-600 dark:text-blue-400" />
-            Refine Your Search
-          </h2>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Experience Years
-              </label>
-              <input
-                type="number"
-                value={filters.experienceYears}
-                onChange={(e) => setFilters(prev => ({ ...prev, experienceYears: e.target.value }))}
-                placeholder="Your experience"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-300"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Preferred Categories
-              </label>
-              <select
-                multiple
-                value={filters.preferredCategories}
-                onChange={(e) => {
-                  const selected = Array.from(e.target.selectedOptions, option => option.value);
-                  setFilters(prev => ({ ...prev, preferredCategories: selected }));
-                }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-300"
-              >
-                {(availableCategories || []).map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Number of Results
-              </label>
-              <select
-                value={filters.topK}
-                onChange={(e) => setFilters(prev => ({ ...prev, topK: parseInt(e.target.value) }))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-300"
-              >
-                <option value={5}>5 Jobs</option>
-                <option value={10}>10 Jobs</option>
-                <option value={15}>15 Jobs</option>
-                <option value={20}>20 Jobs</option>
-              </select>
-            </div>
-
-            <div className="flex items-end">
-              <button
-                onClick={handleGetRecommendations}
-                disabled={loading}
-                className="w-full bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center"
-              >
-                {loading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                ) : (
-                  <>
-                    <MagnifyingGlassIcon className="h-4 w-4 mr-2" />
-                    Update Search
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Error Message */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6 transition-colors duration-300"
-          >
-            <div className="flex items-center">
-              <ExclamationTriangleIcon className="h-5 w-5 text-red-500 dark:text-red-400 mr-2" />
-              <p className="text-red-700 dark:text-red-300">{error}</p>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Loading State */}
-        {loading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex justify-center items-center py-12"
-          >
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
-              <p className="text-gray-600 dark:text-gray-300">Analyzing your resume and finding perfect job matches...</p>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Job Recommendations */}
-        {!loading && recommendations.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Found {recommendations.length} Perfect Matches
-              </h2>
-              <div className="text-sm text-gray-600 dark:text-gray-300">
-                Sorted by relevance score
-              </div>
-            </div>
-
-            <div className="grid gap-6">
-              {recommendations.map((job, index) => (
-                <motion.div
-                  key={job.job_id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl dark:hover:shadow-2xl transition-all duration-300 overflow-hidden"
-                >
-                  {/* Job Header */}
-                  <div className="p-6 border-b border-gray-100">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="text-xl font-bold text-gray-900">{job.position}</h3>
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getScoreBadgeColor(job.overall_score)}`}>
-                            {(job.overall_score * 100).toFixed(0)}% Match
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center space-x-4 text-gray-600 mb-3">
-                          <span className="font-medium text-blue-600">{job.company}</span>
-                          <span className="flex items-center">
-                            <MapPinIcon className="h-4 w-4 mr-1" />
-                            {formatLocation(job.location)}
-                          </span>
-                          <span className="flex items-center">
-                            <BriefcaseIcon className="h-4 w-4 mr-1" />
-                            {job.job_category}
-                          </span>
-                        </div>
-
-                        {/* Key Highlights */}
-                        {job.why_recommended && job.why_recommended.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {(job.why_recommended || []).map((highlight, idx) => (
-                              <span key={idx} className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
-                                {highlight}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {job.job_url && (
-                        <a
-                          href={job.job_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-                        >
-                          Apply Now
-                          <ArrowTopRightOnSquareIcon className="h-4 w-4 ml-2" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Detailed Reasoning */}
-                  <div className="p-6 bg-blue-50">
-                    <h4 className="font-semibold text-gray-900 mb-2 flex items-center">
-                      <InformationCircleIcon className="h-5 w-5 mr-2 text-blue-600" />
-                      Why This Job is Perfect for You
-                    </h4>
-                    <div 
-                      className="text-gray-700 leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: job.recommendation_reasoning.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
-                    />
-                  </div>
-
-                  {/* Skills and Scores */}
-                  <div className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Matched Skills */}
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-3">Your Matching Skills</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {job.matched_skills?.slice(0, 8).map((skill, idx) => (
-                            <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
-                              {skill}
-                            </span>
-                          ))}
-                          {job.matched_skills?.length > 8 && (
-                            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-sm">
-                              +{job.matched_skills.length - 8} more
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Match Scores */}
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-3">Match Analysis</h4>
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Skills Match:</span>
-                            <span className={`font-semibold ${getScoreColor(job.skill_match_score)}`}>
-                              {(job.skill_match_score * 100).toFixed(0)}%
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Experience Match:</span>
-                            <span className={`font-semibold ${getScoreColor(job.experience_match_score)}`}>
-                              {(job.experience_match_score * 100).toFixed(0)}%
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Overall Score:</span>
-                            <span className={`font-semibold ${getScoreColor(job.overall_score)}`}>
-                              {(job.overall_score * 100).toFixed(0)}%
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Job Description */}
-                    <div className="mt-6">
-                      <h4 className="font-semibold text-gray-900 mb-2">Job Description</h4>
-                      <p className="text-gray-700 text-sm leading-relaxed">{job.job_description}</p>
-                    </div>
-                  </div>
-                </motion.div>
+            <div className="mt-6 flex flex-wrap gap-2 border-t border-black/[0.06] pt-5">
+              {userProfile.extracted_skills?.slice(0, 15).map((skill, i) => (
+                <Chip key={skill} toneName={CATEGORY_TONES[i % CATEGORY_TONES.length]}>{skill}</Chip>
               ))}
+              {userProfile.extracted_skills?.length > 15 && <Chip>+{userProfile.extracted_skills.length - 15} more</Chip>}
             </div>
-          </motion.div>
-        )}
+          </Card>
+        </motion.div>
+      )}
 
-        {/* Market Analysis Modal */}
-        <AnimatePresence>
-          {showAnalysisModal && skillsAnalysis && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-              onClick={() => setShowAnalysisModal(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                  <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-                    <ChartBarIcon className="h-7 w-7 mr-3 text-blue-600" />
-                    Skills Market Analysis
-                  </h2>
+      {/* Filters */}
+      <Card className="mb-8 !p-6">
+        <div className="grid gap-6 lg:grid-cols-[180px_1fr_auto_auto] lg:items-end">
+          <TextField
+            label="Experience (years)"
+            type="number"
+            min="0"
+            value={filters.experienceYears}
+            onChange={(e) => setFilters((prev) => ({ ...prev, experienceYears: e.target.value }))}
+            placeholder="From resume"
+          />
+          <div>
+            <p className="mb-1.5 text-[13px] font-medium text-ink">Preferred categories</p>
+            <div className="flex flex-wrap gap-2">
+              {availableCategories.map((category, i) => {
+                const active = filters.preferredCategories.includes(category);
+                const t = tone(CATEGORY_TONES[i % CATEGORY_TONES.length]);
+                return (
                   <button
-                    onClick={() => setShowAnalysisModal(false)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    key={category}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => toggleCategory(category)}
+                    className={cx(
+                      'rounded-full border px-3.5 py-1.5 text-[13px] transition-colors',
+                      active ? `${t.soft} ${t.text} border-transparent` : 'border-hairline text-graphite hover:border-silver hover:text-ink'
+                    )}
                   >
-                    <XMarkIcon className="h-6 w-6" />
+                    {category}
                   </button>
-                </div>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1.5 text-[13px] font-medium text-ink">Results</p>
+            <Segmented
+              label="Number of results"
+              value={filters.topK}
+              onChange={(v) => setFilters((prev) => ({ ...prev, topK: v }))}
+              options={[5, 10, 15, 20].map((n) => ({ value: n, label: String(n) }))}
+            />
+          </div>
+          <Button onClick={handleGetRecommendations} loading={loading} size="lg">
+            {!loading && <ArrowPathIcon className="h-4 w-4" />} Update search
+          </Button>
+        </div>
+      </Card>
 
-                <div className="p-6">
-                  {/* Skills Demand */}
-                  <div className="mb-8">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Skills Market Demand</h3>
-                    <div className="grid gap-4">
-                      {Object.entries(skillsAnalysis.user_skills_demand || {}).slice(0, 10).map(([skill, data]) => (
-                        <div key={skill} className="bg-gray-50 p-4 rounded-lg">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="font-medium text-gray-900">{skill}</span>
-                            <span className="text-blue-600 font-semibold">{data.demand_percentage}%</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-blue-600 h-2 rounded-full"
-                              style={{ width: `${Math.min(data.demand_percentage, 100)}%` }}
-                            ></div>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-1">
-                            Found in {data.job_count} jobs • Typical level: {data.avg_experience_level}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+      {error && !needsResume && <Notice className="mb-6">{error}</Notice>}
 
-                  {/* Trending Skills */}
-                  <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Trending Skills in Market</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {skillsAnalysis.trending_skills?.slice(0, 20).map((skill, index) => (
-                        <span
-                          key={index}
-                          className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+      {loading ? (
+        <div className="space-y-5">
+          <p className="text-[15px] text-graphite">Analyzing your resume and finding perfect job matches...</p>
+          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-64" />)}
+        </div>
+      ) : needsResume ? (
+        <Card>
+          <EmptyState
+            icon={DocumentTextIcon}
+            toneName="purple"
+            title="Upload a resume to see matches"
+            action={<Button onClick={() => navigate('/resume-analyzer')}>Analyze a resume</Button>}
+          >
+            {error}
+          </EmptyState>
+        </Card>
+      ) : recommendations.length > 0 ? (
+        <>
+          <div className="mb-5 flex items-baseline justify-between">
+            <h2 className="font-display text-[24px] font-semibold tracking-tight">{recommendations.length} matches</h2>
+            <p className="text-[13px] text-graphite">Sorted by relevance score</p>
+          </div>
+          <div className="space-y-5">
+            {recommendations.map((job, index) => <JobCard key={job.job_id} job={job} index={index} />)}
+          </div>
+        </>
+      ) : null}
 
-                  {/* Skill Gaps */}
-                  {skillsAnalysis.skill_gap_analysis?.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Recommended Skills to Learn</h3>
-                      <div className="bg-yellow-50 p-4 rounded-lg">
-                        <p className="text-yellow-800 mb-3">
-                          These trending skills could boost your market value:
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {(skillsAnalysis.skill_gap_analysis || []).map((skill, index) => (
-                            <span
-                              key={index}
-                              className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
+      <Modal open={showAnalysisModal && Boolean(skillsAnalysis)} onClose={() => setShowAnalysisModal(false)} title="Skills market analysis">
+        {skillsAnalysis && <MarketAnalysis analysis={skillsAnalysis} />}
+      </Modal>
+    </AppShell>
   );
 };
 

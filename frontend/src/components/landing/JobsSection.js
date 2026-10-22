@@ -14,11 +14,21 @@ const MATCHES = [
   { role: 'Junior Full Stack Developer', company: 'VR Consultancy', place: 'Mumbai', score: 76, skills: ['SQL', 'React', 'AWS'] },
 ];
 
+const CARD_TONES = [
+  { bg: 'bg-purple-soft', text: 'text-purple-ink' },
+  { bg: 'bg-blue-soft', text: 'text-blue-ink' },
+  { bg: 'bg-green-soft', text: 'text-green-ink' },
+  { bg: 'bg-orange-soft', text: 'text-orange-ink' },
+  { bg: 'bg-pink-soft', text: 'text-pink-ink' },
+  { bg: 'bg-teal-soft', text: 'text-teal-ink' },
+];
+
 function MatchCard({ job, index }) {
+  const t = CARD_TONES[index % CARD_TONES.length];
   return (
-    <article className="flex h-[360px] w-[300px] shrink-0 flex-col justify-between rounded-[28px] bg-mist p-8 md:h-[420px] md:w-[360px]">
+    <article className={`flex h-[360px] w-[300px] shrink-0 flex-col justify-between rounded-[28px] p-8 md:h-[420px] md:w-[360px] ${t.bg}`}>
       <div>
-        <p className="text-[12px] font-medium uppercase tracking-[0.08em] text-silver">Match {index + 1}</p>
+        <p className={`text-[12px] font-medium uppercase tracking-[0.08em] ${t.text}`}>Match {index + 1}</p>
         <h3 className="mt-3 font-display text-[28px] font-semibold leading-[1.1] tracking-tight text-ink">{job.role}</h3>
         <p className="mt-2 text-[17px] text-graphite">{job.company}</p>
         <p className="text-[14px] text-silver">{job.place}</p>
@@ -30,7 +40,7 @@ function MatchCard({ job, index }) {
           ))}
         </div>
         <div className="mt-6 flex items-baseline gap-2">
-          <span className="font-display text-[48px] font-semibold leading-none tracking-tight text-ink">{job.score}</span>
+          <span className={`font-display text-[48px] font-semibold leading-none tracking-tight ${t.text}`}>{job.score}</span>
           <span className="text-[17px] text-graphite">% match</span>
         </div>
       </div>
@@ -55,7 +65,7 @@ function JobsSection() {
       <div className={reduce ? '' : 'sticky top-0 flex h-screen flex-col justify-center overflow-hidden'}>
         <div className="mx-auto w-full max-w-[1080px] px-6">
           <Reveal>
-            <p className="text-[17px] font-semibold text-graphite md:text-[21px]">Jobs</p>
+            <p className="text-[17px] font-semibold text-purple-ink md:text-[21px]">Jobs</p>
             <h2 id="jobs-title" className="mt-2 max-w-[18ch] font-display text-[40px] font-semibold leading-[1.08] tracking-tighter2 text-ink md:text-[56px]">
               Roles that fit the skills you already have.
             </h2>
@@ -83,7 +93,7 @@ function JobsSection() {
 
         {!reduce && (
           <div className="mx-auto mt-10 h-[3px] w-[120px] overflow-hidden rounded-full bg-[#e8e8ed]" aria-hidden="true">
-            <motion.div className="h-full origin-left bg-ink" style={{ scaleX: progressScale }} />
+            <motion.div className="h-full origin-left bg-[linear-gradient(90deg,#af52de,#007aff)]" style={{ scaleX: progressScale }} />
           </div>
         )}
       </div>

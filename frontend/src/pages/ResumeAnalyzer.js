@@ -1,872 +1,363 @@
 import React, { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon, InformationCircleIcon, SparklesIcon,
+  DocumentTextIcon, BoltIcon, BuildingOffice2Icon, KeyIcon, ClipboardDocumentCheckIcon, LightBulbIcon,
+} from '@heroicons/react/24/outline';
 import api, { errorMessage } from '../api';
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import AppShell, { PageHeader } from '../components/ui/AppShell';
+import { Appear, Badge, Button, Card, Chip, Notice, ScoreRing, SectionTitle, Skeleton, cx } from '../components/ui/primitives';
+import Dropzone, { pdfError } from '../components/ui/Dropzone';
+import { scoreTone, tone } from '../components/ui/tones';
+import {
+  analyzeActionVerbs, buildActionItems, buildRecommendations, calculateReadabilityScore,
+  flattenSkills, getIndustrySpecificAdvice, getScoreLabel, wordCount,
+} from '../lib/resumeInsights';
+
+const SKILL_TONES = ['blue', 'purple', 'teal', 'green', 'indigo', 'pink', 'orange'];
+const PRIORITY_TONE = { High: 'red', Medium: 'orange', Low: 'blue' };
+const REC_STYLE = {
+  critical: { toneName: 'red', icon: XCircleIcon },
+  warning: { toneName: 'orange', icon: ExclamationTriangleIcon },
+  success: { toneName: 'green', icon: CheckCircleIcon },
+  info: { toneName: 'blue', icon: InformationCircleIcon },
+};
+
+function QualityTile({ value, label, hint, toneName, delay }) {
+  const t = tone(toneName);
+  return (
+    <Appear delay={delay}>
+      <div className={cx('h-full rounded-[20px] p-5', t.soft)}>
+        <p className={cx('font-display text-[36px] font-semibold leading-none tracking-tight tabular-nums', t.text)}>{value}</p>
+        <p className="mt-2 text-[14px] font-medium text-ink">{label}</p>
+        <p className="mt-0.5 text-[12px] text-graphite">{hint}</p>
+      </div>
+    </Appear>
+  );
+}
+
+function Results({ analysis, fileName }) {
+  const ats = analysis.ats_analysis;
+  const score = ats?.score ?? 0;
+  const skills = flattenSkills(analysis.skills);
+  const words = wordCount(analysis.text);
+  const sections = ats?.found_sections?.length || 0;
+  const keywords = ats?.keyword_matches || 0;
+  const readability = calculateReadabilityScore(analysis.text);
+  const verbs = analyzeActionVerbs(analysis.text);
+  const industry = getIndustrySpecificAdvice(analysis.skills);
+  const actionItems = buildActionItems(analysis);
+  const done = actionItems.filter((i) => i.completed);
+  const pending = actionItems.filter((i) => !i.completed);
+  const recommendations = buildRecommendations(analysis);
+
+  return (
+    <div className="space-y-6">
+      {/* Score */}
+      {ats && (
+        <Appear>
+          <Card className="relative overflow-hidden">
+            <div className={cx('pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full opacity-60 blur-3xl', tone(scoreTone(score)).bg)} style={{ opacity: 0.12 }} />
+            <div className="relative grid gap-8 md:grid-cols-[auto_1fr] md:items-center">
+              <ScoreRing value={score} size={168} stroke={12} toneName={scoreTone(score)} label="out of 100">
+                <span className="font-display text-[48px] font-semibold leading-none tracking-tight tabular-nums">{Math.round(score)}</span>
+              </ScoreRing>
+              <div>
+                <p className="flex items-center gap-2 text-[14px] text-graphite">
+                  <DocumentTextIcon className="h-4 w-4" aria-hidden="true" /> {fileName}
+                </p>
+                <h2 className="mt-2 font-display text-[32px] font-semibold tracking-tight">ATS compatibility: {getScoreLabel(score)}</h2>
+                <div className="mt-6 grid gap-6 sm:grid-cols-2">
+                  <div>
+                    <p className="mb-2 text-[13px] font-semibold text-green-ink">Strengths</p>
+                    <ul className="space-y-2 text-[14px] text-ink">
+                      {ats.found_sections?.length > 0 && (
+                        <li className="flex gap-2"><CheckCircleIcon className="h-5 w-5 shrink-0 text-green" />Found {ats.found_sections.length} required sections: {ats.found_sections.join(', ')}</li>
+                      )}
+                      {ats.keyword_matches > 10 && (
+                        <li className="flex gap-2"><CheckCircleIcon className="h-5 w-5 shrink-0 text-green" />Contains {ats.keyword_matches} industry keywords</li>
+                      )}
+                      {ats.problematic_elements?.length === 0 && (
+                        <li className="flex gap-2"><CheckCircleIcon className="h-5 w-5 shrink-0 text-green" />No problematic formatting elements detected</li>
+                      )}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="mb-2 text-[13px] font-semibold text-red-ink">Areas for improvement</p>
+                    {ats.issues?.length > 0 ? (
+                      <ul className="space-y-2 text-[14px] text-ink">
+                        {ats.issues.map((issue) => (
+                          <li key={issue} className="flex gap-2"><ExclamationTriangleIcon className="h-5 w-5 shrink-0 text-orange" />{issue}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[14px] text-green-ink">No major issues detected!</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </Appear>
+      )}
+
+      {/* Quality metrics */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <QualityTile delay={0.05} toneName="blue" value={words} label="Total words"
+          hint={words < 200 ? 'Consider adding more detail' : words > 800 ? 'Consider being more concise' : 'Good length'} />
+        <QualityTile delay={0.1} toneName="green" value={sections} label="Sections detected"
+          hint={sections >= 4 ? 'Well structured' : 'Add more sections'} />
+        <QualityTile delay={0.15} toneName="purple" value={keywords} label="Industry keywords"
+          hint={keywords >= 15 ? 'Excellent keyword usage' : keywords >= 5 ? 'Good keyword usage' : 'Add more keywords'} />
+        <QualityTile delay={0.2} toneName="orange" value={readability} label="Readability score"
+          hint={readability >= 80 ? 'Very readable' : readability >= 60 ? 'Good readability' : 'Improve clarity'} />
+      </div>
+
+      {/* Skills */}
+      {analysis.skills && (
+        <Appear delay={0.1}>
+          <Card>
+            <SectionTitle eyebrow={`${skills.length} detected`} toneName="blue" title="Skills analysis" />
+            {Array.isArray(analysis.skills) ? (
+              <div className="flex flex-wrap gap-2">
+                {analysis.skills.map((skill, i) => (
+                  <motion.span key={skill} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i, 30) * 0.02 }}>
+                    <Chip toneName={SKILL_TONES[i % SKILL_TONES.length]}>{skill}</Chip>
+                  </motion.span>
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                {Object.entries(analysis.skills).map(([category, list], ci) => (
+                  <div key={category} className="rounded-2xl bg-mist p-4">
+                    <p className="mb-3 text-[14px] font-semibold">{category}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {list.map((skill) => <Chip key={skill} toneName={SKILL_TONES[ci % SKILL_TONES.length]}>{skill}</Chip>)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="mt-5 rounded-2xl bg-blue-soft px-4 py-3 text-[14px] text-blue-ink">
+              <strong>Tip:</strong> Total of {skills.length} skills detected. Consider highlighting your most relevant skills for the positions you're targeting.
+            </p>
+          </Card>
+        </Appear>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Action verbs */}
+        <Appear delay={0.1}>
+          <Card className="h-full">
+            <div className="mb-5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BoltIcon className="h-5 w-5 text-yellow-ink" aria-hidden="true" />
+                <h2 className="font-display text-[21px] font-semibold tracking-tight">Action verbs</h2>
+              </div>
+              <Badge toneName={scoreTone(verbs.score)}>{verbs.score}/100</Badge>
+            </div>
+            {verbs.strong.length > 0 && (
+              <div className="mb-5">
+                <p className="mb-2 text-[13px] font-medium text-green-ink">Strong action verbs found</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {verbs.strong.slice(0, 8).map((verb) => <Chip key={verb} toneName="green">{verb}</Chip>)}
+                  {verbs.strong.length > 8 && <Chip>+{verbs.strong.length - 8} more</Chip>}
+                </div>
+              </div>
+            )}
+            {verbs.weak.length > 0 && (
+              <div>
+                <p className="mb-2 text-[13px] font-medium text-red-ink">Weak phrases to replace</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {verbs.weak.slice(0, 5).map((phrase) => <Chip key={phrase} toneName="red">{phrase}</Chip>)}
+                </div>
+              </div>
+            )}
+            {verbs.strong.length === 0 && verbs.weak.length === 0 && (
+              <p className="text-[14px] text-graphite">Add more action verbs to strengthen your resume!</p>
+            )}
+          </Card>
+        </Appear>
+
+        {/* Industry */}
+        <Appear delay={0.15}>
+          <Card className="h-full">
+            <div className="mb-5 flex items-center gap-2">
+              <BuildingOffice2Icon className="h-5 w-5 text-indigo" aria-hidden="true" />
+              <h2 className="font-display text-[21px] font-semibold tracking-tight">Industry</h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-display text-[19px] font-semibold text-indigo-ink">{industry.industry}</p>
+              <Badge toneName={industry.confidence === 'High' ? 'green' : industry.confidence === 'Medium' ? 'orange' : 'gray'}>
+                {industry.confidence} confidence
+              </Badge>
+            </div>
+            <p className="mt-3 text-[14px] leading-[1.55] text-graphite">{industry.advice}</p>
+            <div className="mt-5 flex items-center gap-2">
+              <KeyIcon className="h-4 w-4 text-purple" aria-hidden="true" />
+              <p className="text-[13px] font-medium">Recommended keywords</p>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {industry.keywords.map((k) => <Chip key={k} toneName="purple">{k}</Chip>)}
+            </div>
+            <p className="mt-3 text-[12px] text-silver">Consider including these industry-relevant terms naturally in your resume.</p>
+          </Card>
+        </Appear>
+      </div>
+
+      {/* Checklist */}
+      <Appear delay={0.1}>
+        <Card>
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ClipboardDocumentCheckIcon className="h-5 w-5 text-green" aria-hidden="true" />
+              <h2 className="font-display text-[21px] font-semibold tracking-tight">Action items</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="h-2 w-40 overflow-hidden rounded-full bg-[#e8e8ed]">
+                <motion.div className="h-full rounded-full bg-green" initial={{ width: 0 }} animate={{ width: `${(done.length / actionItems.length) * 100}%` }} transition={{ duration: 1 }} />
+              </div>
+              <span className="text-[13px] text-graphite tabular-nums">{done.length}/{actionItems.length} completed</span>
+            </div>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            <div>
+              <p className="mb-3 text-[13px] font-semibold text-red-ink">To do ({pending.length} remaining)</p>
+              <ul className="space-y-2">
+                {pending.map((item) => {
+                  const t = tone(PRIORITY_TONE[item.priority]);
+                  return (
+                    <li key={item.task} className="flex items-center gap-3 rounded-2xl bg-mist px-4 py-3">
+                      <span className={cx('h-2.5 w-2.5 shrink-0 rounded-full', t.bg)} aria-hidden="true" />
+                      <span className="flex-1 text-[14px] text-ink">{item.task}</span>
+                      <Badge toneName={PRIORITY_TONE[item.priority]}>{item.priority}</Badge>
+                    </li>
+                  );
+                })}
+                {pending.length === 0 && <li className="text-[14px] text-green-ink">All action items completed!</li>}
+              </ul>
+            </div>
+            <div>
+              <p className="mb-3 text-[13px] font-semibold text-green-ink">Completed ({done.length}/{actionItems.length})</p>
+              <ul className="space-y-2">
+                {done.map((item) => (
+                  <li key={item.task} className="flex items-center gap-3 rounded-2xl bg-green-soft px-4 py-3">
+                    <CheckCircleIcon className="h-5 w-5 shrink-0 text-green" aria-hidden="true" />
+                    <span className="text-[14px] text-ink">{item.task}</span>
+                  </li>
+                ))}
+                {done.length === 0 && <li className="text-[14px] text-graphite">No items completed yet</li>}
+              </ul>
+            </div>
+          </div>
+        </Card>
+      </Appear>
+
+      {/* Recommendations */}
+      <Appear delay={0.1}>
+        <Card>
+          <div className="mb-6 flex items-center gap-2">
+            <LightBulbIcon className="h-5 w-5 text-yellow-ink" aria-hidden="true" />
+            <h2 className="font-display text-[21px] font-semibold tracking-tight">Smart recommendations</h2>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {recommendations.map((rec, i) => {
+              const style = REC_STYLE[rec.type] || REC_STYLE.info;
+              const t = tone(style.toneName);
+              const Icon = style.icon;
+              return (
+                <motion.div
+                  key={rec.title}
+                  className={cx('flex gap-3 rounded-2xl p-4', t.soft)}
+                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.05 }}
+                >
+                  <Icon className={cx('h-5 w-5 shrink-0', t.text)} aria-hidden="true" />
+                  <div>
+                    <p className={cx('text-[15px] font-semibold', t.text)}>{rec.title}</p>
+                    <p className="mt-0.5 text-[14px] leading-[1.5] text-ink/80">{rec.message}</p>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </Card>
+      </Appear>
+    </div>
+  );
+}
 
 function ResumeAnalyzer() {
-    const [file, setFile] = useState(null);
-    const [uploading, setUploading] = useState(false);
-    const [error, setError] = useState('');
-    const [analysis, setAnalysis] = useState(null);
-    const [uploadedFileName, setUploadedFileName] = useState('');
-    const navigate = useNavigate();
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const [analysis, setAnalysis] = useState(null);
+  const [uploadedFileName, setUploadedFileName] = useState('');
 
-    const handleFileChange = (event) => {
-        const selectedFile = event.target.files[0];
-        if (selectedFile) {
-            if (selectedFile.type !== 'application/pdf') {
-                setError('Please upload a PDF file');
-                setFile(null);
-                return;
-            }
-            if (selectedFile.size > 16 * 1024 * 1024) {
-                setError('File size should be less than 16MB');
-                setFile(null);
-                return;
-            }
-            setFile(selectedFile);
-            setError('');
-        }
-    };
+  const pick = (picked) => {
+    const problem = pdfError(picked);
+    if (problem) { setError(problem); setFile(null); return; }
+    setFile(picked);
+    setError('');
+  };
 
-    const handleUpload = async () => {
-        if (!file) {
-            setError('Please select a file first');
-            return;
-        }
+  const handleUpload = async () => {
+    if (!file) { setError('Please select a file first'); return; }
+    setUploading(true);
+    setError('');
+    setAnalysis(null);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const response = await api.post('/upload-resume', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setAnalysis(response.data);
+      setUploadedFileName(response.data.filename || file.name);
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to upload resume'));
+    } finally {
+      setUploading(false);
+      setFile(null);
+    }
+  };
 
-        setUploading(true);
-        setError('');
-        setAnalysis(null);
+  return (
+    <AppShell>
+      <PageHeader
+        eyebrow="Resume"
+        toneName="blue"
+        title="Read like a recruiter. Scored like a machine."
+        subtitle="Upload a PDF. SkillLens pulls out your skills, checks the sections an applicant tracking system looks for, and tells you exactly what to fix."
+      />
 
-        const formData = new FormData();
-        formData.append('file', file);
+      <Card className="!p-5 md:!p-6">
+        <Dropzone onFile={pick} file={file} busy={uploading} busyLabel="Analyzing resume..." />
+        {error && <Notice className="mt-4">{error}</Notice>}
+        <div className="mt-5 flex flex-col items-center justify-between gap-3 sm:flex-row">
+          <p className="flex items-center gap-2 text-[13px] text-graphite">
+            <SparklesIcon className="h-4 w-4 text-purple" aria-hidden="true" />
+            Each analysis is saved to your history on the overview page.
+          </p>
+          <Button size="lg" onClick={handleUpload} disabled={!file || uploading} loading={uploading}>
+            {uploading ? 'Analyzing...' : 'Upload and analyze'}
+          </Button>
+        </div>
+      </Card>
 
-        try {
-            const response = await api.post(`/upload-resume`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
-
-            setAnalysis(response.data);
-            setUploadedFileName(response.data.filename || file.name);
-        } catch (err) {
-            console.error('Upload error:', err);
-            setError(errorMessage(err, 'Failed to upload resume'));
-        } finally {
-            setUploading(false);
-            setFile(null);
-            // Reset file input
-            document.getElementById('resume-upload').value = '';
-        }
-    };
-
-    const getScoreColor = (score) => {
-        if (score >= 80) return 'text-green-600 bg-green-100';
-        if (score >= 60) return 'text-yellow-600 bg-yellow-100';
-        return 'text-red-600 bg-red-100';
-    };
-
-    const getScoreLabel = (score) => {
-        if (score >= 80) return 'Excellent';
-        if (score >= 60) return 'Good';
-        if (score >= 40) return 'Fair';
-        return 'Needs Improvement';
-    };
-
-    // Advanced Analysis Functions
-    const calculateReadabilityScore = (text) => {
-        if (!text) return 0;
-        const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-        const words = text.split(/\s+/).filter(w => w.length > 0);
-        const avgWordsPerSentence = words.length / sentences.length;
-        
-        // Simple readability score (lower is better)
-        if (avgWordsPerSentence <= 15) return 85;
-        if (avgWordsPerSentence <= 20) return 70;
-        if (avgWordsPerSentence <= 25) return 55;
-        return 40;
-    };
-
-
-
-    const analyzeActionVerbs = (text) => {
-        if (!text) return { strong: [], weak: [], score: 0 };
-        
-        const strongVerbs = [
-            'achieved', 'developed', 'created', 'implemented', 'improved', 'increased',
-            'generated', 'managed', 'led', 'supervised', 'coordinated', 'optimized',
-            'streamlined', 'enhanced', 'delivered', 'executed', 'established', 'built',
-            'designed', 'launched', 'spearheaded', 'transformed', 'accelerated'
-        ];
-        
-        const weakVerbs = [
-            'responsible for', 'worked on', 'helped with', 'participated in',
-            'involved in', 'assisted with', 'contributed to'
-        ];
-        
-        const foundStrong = [];
-        const foundWeak = [];
-        
-        strongVerbs.forEach(verb => {
-            if (text.toLowerCase().includes(verb)) {
-                foundStrong.push(verb);
-            }
-        });
-        
-        weakVerbs.forEach(verb => {
-            if (text.toLowerCase().includes(verb)) {
-                foundWeak.push(verb);
-            }
-        });
-        
-        const score = Math.min(100, (foundStrong.length * 10) - (foundWeak.length * 5));
-        
-        return { strong: foundStrong, weak: foundWeak, score: Math.max(0, score) };
-    };
-
-    const getIndustrySpecificAdvice = (skills) => {
-        const skillsList = Array.isArray(skills) ? skills : Object.values(skills || {}).flat();
-        const skillsText = skillsList.join(' ').toLowerCase();
-        
-        // Software Development & Engineering
-        if (skillsText.match(/\b(python|javascript|java|react|angular|vue|node|express|django|flask|spring|git|github|api|database|sql|nosql|mongodb|postgresql|docker|kubernetes|microservices|agile|scrum|frontend|backend|fullstack|full-stack|software|programming|coding|development)\b/)) {
-            return {
-                industry: 'Software Development & Engineering',
-                confidence: 'High',
-                advice: 'Showcase your technical projects, include GitHub profile, mention specific frameworks and programming languages, highlight problem-solving abilities.',
-                keywords: ['software development', 'programming', 'coding', 'git', 'api development', 'database design', 'full-stack', 'agile methodology', 'code review', 'debugging', 'testing', 'deployment']
-            };
-        }
-        
-        // Data Science & Analytics
-        else if (skillsText.match(/\b(data|analytics|machine learning|ml|ai|artificial intelligence|python|r|sql|tableau|power bi|pandas|numpy|tensorflow|pytorch|scikit|statistics|modeling|visualization|big data|hadoop|spark|etl)\b/)) {
-            return {
-                industry: 'Data Science & Analytics',
-                confidence: 'High',
-                advice: 'Emphasize quantifiable business impact of your analyses, highlight data visualization skills, mention statistical methods and machine learning techniques.',
-                keywords: ['data analysis', 'machine learning', 'statistical modeling', 'data visualization', 'predictive analytics', 'business intelligence', 'data mining', 'big data', 'statistical analysis', 'data-driven insights']
-            };
-        }
-        
-        // Cloud & DevOps
-        else if (skillsText.match(/\b(aws|azure|gcp|google cloud|cloud|devops|docker|kubernetes|terraform|jenkins|ci\/cd|ansible|monitoring|infrastructure|serverless|microservices)\b/)) {
-            return {
-                industry: 'Cloud & DevOps Engineering',
-                confidence: 'High',
-                advice: 'Highlight cloud certifications, automation achievements, infrastructure optimization, and cost savings from cloud migrations.',
-                keywords: ['cloud architecture', 'devops', 'automation', 'infrastructure as code', 'ci/cd', 'monitoring', 'scalability', 'cloud migration', 'containerization', 'orchestration']
-            };
-        }
-        
-        // Cybersecurity
-        else if (skillsText.match(/\b(security|cybersecurity|penetration testing|ethical hacking|firewall|encryption|vulnerability|compliance|risk assessment|incident response|siem|soc)\b/)) {
-            return {
-                industry: 'Cybersecurity',
-                confidence: 'High',
-                advice: 'Emphasize security certifications, incident response experience, compliance knowledge, and risk mitigation achievements.',
-                keywords: ['information security', 'threat assessment', 'vulnerability management', 'incident response', 'security compliance', 'risk management', 'penetration testing', 'security audit']
-            };
-        }
-        
-        // Digital Marketing
-        else if (skillsText.match(/\b(marketing|seo|sem|social media|digital marketing|content marketing|email marketing|ppc|google ads|facebook ads|analytics|conversion|campaigns|brand)\b/)) {
-            return {
-                industry: 'Digital Marketing',
-                confidence: 'High',
-                advice: 'Include specific campaign results, ROI improvements, conversion rates, and digital platform expertise.',
-                keywords: ['digital marketing', 'campaign management', 'roi optimization', 'conversion rate', 'brand awareness', 'lead generation', 'content strategy', 'social media marketing', 'email marketing']
-            };
-        }
-        
-        // Product Management
-        else if (skillsText.match(/\b(product management|product manager|roadmap|user experience|ux|ui|product strategy|stakeholder|agile|scrum|user research|product development)\b/)) {
-            return {
-                industry: 'Product Management',
-                confidence: 'High',
-                advice: 'Highlight product launches, user adoption metrics, cross-functional collaboration, and strategic product decisions.',
-                keywords: ['product strategy', 'product roadmap', 'user experience', 'stakeholder management', 'product development', 'market analysis', 'user research', 'product metrics']
-            };
-        }
-        
-        // Finance & Accounting
-        else if (skillsText.match(/\b(finance|accounting|financial analysis|budgeting|forecasting|excel|financial modeling|investment|risk management|compliance|audit|cpa|cfa)\b/)) {
-            return {
-                industry: 'Finance & Accounting',
-                confidence: 'High',
-                advice: 'Emphasize financial certifications, cost savings achieved, budget management experience, and analytical skills.',
-                keywords: ['financial analysis', 'budget management', 'financial modeling', 'risk assessment', 'investment analysis', 'cost reduction', 'financial reporting', 'compliance']
-            };
-        }
-        
-        // Sales & Business Development
-        else if (skillsText.match(/\b(sales|business development|account management|relationship building|crm|salesforce|lead generation|negotiation|revenue|quota|targets)\b/)) {
-            return {
-                industry: 'Sales & Business Development',
-                confidence: 'High',
-                advice: 'Highlight revenue achievements, quota performance, client relationship building, and business growth contributions.',
-                keywords: ['sales performance', 'revenue generation', 'client relationship', 'business development', 'account management', 'lead generation', 'negotiation', 'quota achievement']
-            };
-        }
-        
-        // Healthcare & Medical
-        else if (skillsText.match(/\b(healthcare|medical|nursing|clinical|patient care|healthcare administration|medical records|hipaa|electronic health records|ehr)\b/)) {
-            return {
-                industry: 'Healthcare & Medical',
-                confidence: 'Medium',
-                advice: 'Emphasize patient care experience, medical certifications, compliance knowledge, and healthcare technology proficiency.',
-                keywords: ['patient care', 'clinical experience', 'medical knowledge', 'healthcare compliance', 'patient safety', 'medical documentation', 'healthcare technology']
-            };
-        }
-        
-        // Education & Training
-        else if (skillsText.match(/\b(education|teaching|training|curriculum|learning|instruction|classroom management|educational technology|assessment)\b/)) {
-            return {
-                industry: 'Education & Training',
-                confidence: 'Medium',
-                advice: 'Highlight student outcomes, curriculum development, educational technology integration, and professional development.',
-                keywords: ['curriculum development', 'instructional design', 'student assessment', 'educational technology', 'classroom management', 'learning outcomes', 'professional development']
-            };
-        }
-        
-        // Default fallback
-        else {
-            return {
-                industry: 'General Professional',
-                confidence: 'Low',
-                advice: 'Focus on leadership experience, cross-functional collaboration, problem-solving abilities, and quantifiable achievements.',
-                keywords: ['leadership', 'collaboration', 'problem-solving', 'communication', 'project management', 'teamwork', 'analytical thinking', 'strategic planning']
-            };
-        }
-    };
-
-    return (
-        <motion.div
-            className="min-h-screen p-6 sm:p-10 bg-gradient-to-br from-green-50 via-blue-50 to-purple-100 dark:bg-gray-900 text-gray-800 dark:text-white"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-        >
-            {/* Back Button */}
-            <div className="flex justify-end mb-4">
-                <button
-                    onClick={() => navigate('/dashboard')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow font-medium"
-                >
-                    Back to Home
-                </button>
-            </div>
-
-            <div className="max-w-6xl mx-auto bg-white/60 dark:bg-gray-800/40 backdrop-blur-lg p-8 rounded-2xl shadow-xl">
-                <h1 className="text-3xl font-bold mb-6 text-center">Resume Analyzer</h1>
-
-                {/* Upload Section */}
-                <div className="mb-8">
-                    <div className="flex items-center justify-center w-full">
-                        <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                <svg className="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-                                    <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-                                </svg>
-                                <p className="mb-2 text-sm text-gray-500">
-                                    <span className="font-semibold">Click to upload</span> or drag and drop
-                                </p>
-                                <p className="text-xs text-gray-500">PDF only (MAX. 16MB)</p>
-                            </div>
-                    <input
-                                id="resume-upload"
-                        type="file"
-                                className="hidden"
-                        accept=".pdf"
-                        onChange={handleFileChange}
-                                disabled={uploading}
-                            />
-                        </label>
-                    </div>
-
-                    {error && (
-                        <div className="mt-2 text-red-500 text-sm">{error}</div>
-                    )}
-
-                    <div className="mt-4 flex justify-center">
-                    <button
-                        onClick={handleUpload}
-                            disabled={!file || uploading}
-                            className={`px-6 py-3 rounded-md text-white font-medium ${
-                                !file || uploading
-                                    ? 'bg-gray-400 cursor-not-allowed'
-                                    : 'bg-blue-600 hover:bg-blue-700'
-                            }`}
-                        >
-                            {uploading ? 'Analyzing Resume...' : 'Upload and Analyze'}
-                    </button>
-                    </div>
-                </div>
-
-                {/* Advanced Analysis Results */}
-                {analysis && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="space-y-8"
-                    >
-                        {/* Uploaded File Info */}
-                        {uploadedFileName && (
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-4 shadow-lg border-l-4 border-blue-500">
-                                <div className="flex items-center gap-3">
-                                    <div>
-                                        <h3 className="font-semibold text-gray-900 dark:text-white">Analyzing Resume:</h3>
-                                        <p className="text-sm text-gray-600 dark:text-gray-300">{uploadedFileName}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        {/* ATS Compatibility Score */}
-                        {analysis.ats_analysis && (
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-6 shadow-lg">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-                                        ATS Compatibility Score
-                                    </h2>
-                                    <div className={`px-4 py-2 rounded-full font-bold text-lg ${getScoreColor(analysis.ats_analysis.score)}`}>
-                                        {Math.round(analysis.ats_analysis.score)}/100 - {getScoreLabel(analysis.ats_analysis.score)}
-                                    </div>
-                                </div>
-                                
-                                {/* Score Breakdown */}
-                                <div className="grid md:grid-cols-2 gap-6">
-                                    <div>
-                                        <h3 className="text-lg font-medium mb-3">Strengths</h3>
-                                        <ul className="space-y-2">
-                                            {analysis.ats_analysis.found_sections?.length > 0 && (
-                                                <li className="flex items-center text-green-600">
-                                                    <span className="mr-2">•</span>
-                                                    Found {analysis.ats_analysis.found_sections.length} required sections: {analysis.ats_analysis.found_sections.join(', ')}
-                                                </li>
-                                            )}
-                                            {analysis.ats_analysis.keyword_matches > 10 && (
-                                                <li className="flex items-center text-green-600">
-                                                    <span className="mr-2">•</span>
-                                                    Contains {analysis.ats_analysis.keyword_matches} industry keywords
-                                                </li>
-                                            )}
-                                            {analysis.ats_analysis.problematic_elements?.length === 0 && (
-                                                <li className="flex items-center text-green-600">
-                                                    <span className="mr-2">•</span>
-                                                    No problematic formatting elements detected
-                                                </li>
-                                            )}
-                                        </ul>
-                                    </div>
-                                    
-                                    <div>
-                                        <h3 className="text-lg font-medium mb-3">Areas for Improvement</h3>
-                                        {analysis.ats_analysis.issues?.length > 0 ? (
-                                            <ul className="space-y-2">
-                                                {analysis.ats_analysis.issues.map((issue, index) => (
-                                                    <li key={index} className="flex items-start text-red-600">
-                                                        <span className="mr-2 mt-1">•</span>
-                                                        <span className="text-sm">{issue}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        ) : (
-                                            <p className="text-green-600">No major issues detected!</p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Skills Analysis */}
-                        {analysis.skills && (
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-6 shadow-lg">
-                                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
-                                    Skills Analysis
-                                </h2>
-                                
-                                {/* Handle both old format (array) and new format (categorized object) */}
-                                {Array.isArray(analysis.skills) ? (
-                                    // Old format - simple array
-                                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                        <h3 className="text-lg font-medium text-gray-800 dark:text-white mb-3">
-                                            Detected Skills
-                                        </h3>
-                                        <div className="flex flex-wrap gap-2">
-                                            {analysis.skills.map((skill, index) => (
-                                                <span
-                                                    key={index}
-                                                    className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm rounded-full border border-blue-200 dark:border-blue-700"
-                                                >
-                                                    {skill}
-                                                </span>
-                                            ))}
-                                        </div>
-                                        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                                            <p className="text-sm text-blue-800 dark:text-blue-200">
-                                                <strong>Tip:</strong> Total of {analysis.skills.length} skills detected. 
-                                                Consider highlighting your most relevant skills for the positions you're targeting.
-                                            </p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    // New format - categorized object
-                                    <>
-                                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            {Object.entries(analysis.skills).map(([category, skillList]) => (
-                                                <div key={category} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                                    <h3 className="text-lg font-medium text-gray-800 dark:text-white mb-3">
-                                                        {category}
-                                                    </h3>
-                        <div className="flex flex-wrap gap-2">
-                                                        {skillList.map((skill, index) => (
-                                <span
-                                                                key={index}
-                                                                className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm rounded-full border border-blue-200 dark:border-blue-700"
-                                >
-                                    {skill}
-                                </span>
-                            ))}
-                        </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                                            <p className="text-sm text-blue-800 dark:text-blue-200">
-                                                <strong>Tip:</strong> Total of {Object.values(analysis.skills).flat().length} skills detected. 
-                                                Consider highlighting your most relevant skills for the positions you're targeting.
-                                            </p>
-                                        </div>
-                                    </>
-                                )}
-                    </div>
-                )}
-
-                        {/* Resume Quality Analysis */}
-                        <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-6 shadow-lg">
-                            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
-                                Resume Quality Analysis
-                            </h2>
-                            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                    <div className="text-3xl font-bold text-blue-600">
-                                        {analysis.text ? Math.round(analysis.text.split(/\s+/).length) : 0}
-                                    </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-300">Total Words</div>
-                                    <div className="text-xs text-gray-500 mt-1">
-                                        {analysis.text && analysis.text.split(/\s+/).length < 200 ? 'Consider adding more detail' : 
-                                         analysis.text && analysis.text.split(/\s+/).length > 800 ? 'Consider being more concise' : 
-                                         'Good length'}
-                                    </div>
-                                </div>
-                                
-                                <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                    <div className="text-3xl font-bold text-green-600">
-                                        {analysis.ats_analysis?.found_sections?.length || 0}
-                                    </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-300">Sections Detected</div>
-                                    <div className="text-xs text-gray-500 mt-1">
-                                        {(analysis.ats_analysis?.found_sections?.length || 0) >= 4 ? 'Well structured' : 'Add more sections'}
-                                    </div>
-                                </div>
-                                
-                                <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                    <div className="text-3xl font-bold text-purple-600">
-                                        {analysis.ats_analysis?.keyword_matches || 0}
-                                    </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-300">Industry Keywords</div>
-                                    <div className="text-xs text-gray-500 mt-1">
-                                        {(analysis.ats_analysis?.keyword_matches || 0) >= 15 ? 'Excellent keyword usage' : 
-                                         (analysis.ats_analysis?.keyword_matches || 0) >= 5 ? 'Good keyword usage' : 'Add more keywords'}
-                                    </div>
-                                </div>
-                                
-                                <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                    <div className="text-3xl font-bold text-orange-600">
-                                        {calculateReadabilityScore(analysis.text)}
-                                    </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-300">Readability Score</div>
-                                    <div className="text-xs text-gray-500 mt-1">
-                                        {calculateReadabilityScore(analysis.text) >= 80 ? 'Very readable' : 
-                                         calculateReadabilityScore(analysis.text) >= 60 ? 'Good readability' : 'Improve clarity'}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Advanced Content Analysis */}
-                        <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-6 shadow-lg">
-                            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
-                                Advanced Content Analysis
-                            </h2>
-                            {/* Action Verbs Analysis */}
-                            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                <h3 className="text-lg font-medium text-gray-800 dark:text-white mb-3 flex items-center gap-2">
-                                    Action Verbs Analysis
-                                    <span className={`px-2 py-1 rounded text-xs ${getScoreColor(analyzeActionVerbs(analysis.text).score)}`}>
-                                        {analyzeActionVerbs(analysis.text).score}/100
-                                    </span>
-                                </h3>
-                                {(() => {
-                                    const verbAnalysis = analyzeActionVerbs(analysis.text);
-                                    return (
-                                        <div className="space-y-3">
-                                            {verbAnalysis.strong.length > 0 && (
-                                                <div>
-                                                    <p className="text-sm font-medium text-green-600 mb-2">Strong Action Verbs Found:</p>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {verbAnalysis.strong.slice(0, 8).map((verb, index) => (
-                                                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                                                                {verb}
-                                                            </span>
-                                                        ))}
-                                                        {verbAnalysis.strong.length > 8 && (
-                                                            <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
-                                                                +{verbAnalysis.strong.length - 8} more
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {verbAnalysis.weak.length > 0 && (
-                                                <div>
-                                                    <p className="text-sm font-medium text-red-600 mb-2">Weak Phrases to Replace:</p>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {verbAnalysis.weak.slice(0, 5).map((phrase, index) => (
-                                                            <span key={index} className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">
-                                                                {phrase}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {verbAnalysis.strong.length === 0 && verbAnalysis.weak.length === 0 && (
-                                                <p className="text-sm text-gray-600">Add more action verbs to strengthen your resume!</p>
-                                            )}
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-
-                        {/* Industry-Specific Analysis */}
-                        {(() => {
-                            const industryAnalysis = getIndustrySpecificAdvice(analysis.skills);
-                            return (
-                                <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-6 shadow-lg">
-                                    <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
-                                        Industry-Specific Analysis
-                                    </h2>
-                                    <div className="grid md:grid-cols-2 gap-6">
-                                        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                            <h3 className="text-lg font-medium text-gray-800 dark:text-white mb-3 flex items-center gap-2">
-                                                Detected Industry: 
-                                                <span className="text-blue-600">{industryAnalysis.industry}</span>
-                                                <span className={`px-2 py-1 rounded text-xs ${
-                                                    industryAnalysis.confidence === 'High' ? 'bg-green-100 text-green-800' :
-                                                    industryAnalysis.confidence === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                                                    'bg-gray-100 text-gray-800'
-                                                }`}>
-                                                    {industryAnalysis.confidence} Confidence
-                                                </span>
-                                            </h3>
-                                            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                                                {industryAnalysis.advice}
-                                            </p>
-                                        </div>
-                                        
-                                        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                            <h3 className="text-lg font-medium text-gray-800 dark:text-white mb-3">
-                                                Recommended Keywords
-                                            </h3>
-                                            <div className="flex flex-wrap gap-2">
-                                                {industryAnalysis.keywords.map((keyword, index) => (
-                                                    <span key={index} className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded">
-                                                        {keyword}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                            <p className="text-xs text-gray-500 mt-2">
-                                                Consider including these industry-relevant terms naturally in your resume
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-
-                        {/* Action Items Checklist */}
-                        <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-6 shadow-lg">
-                            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
-                                Action Items Checklist
-                            </h2>
-                            <div className="grid md:grid-cols-2 gap-6">
-                                {(() => {
-                                    const wordCount = analysis.text ? analysis.text.split(/\s+/).length : 0;
-                                    const skillCount = Array.isArray(analysis.skills) ? analysis.skills.length : Object.values(analysis.skills || {}).flat().length;
-                                    const atsScore = analysis.ats_analysis?.score || 0;
-                                    const verbAnalysis = analyzeActionVerbs(analysis.text);
-                                    
-                                    const actionItems = [
-                                        {
-                                            task: "Add contact information",
-                                            completed: !analysis.ats_analysis?.issues?.some(issue => issue.toLowerCase().includes('contact')),
-                                            priority: "High"
-                                        },
-                                        {
-                                            task: "Use strong action verbs",
-                                            completed: verbAnalysis.strong.length >= 5,
-                                            priority: "Medium"
-                                        },
-                                        {
-                                            task: "Optimize for ATS (70+ score)",
-                                            completed: atsScore >= 70,
-                                            priority: "High"
-                                        },
-                                        {
-                                            task: "Add more skills (10+ recommended)",
-                                            completed: skillCount >= 10,
-                                            priority: "Medium"
-                                        },
-                                        {
-                                            task: "Ensure proper length (200-600 words)",
-                                            completed: wordCount >= 200 && wordCount <= 600,
-                                            priority: "Medium"
-                                        },
-                                        {
-                                            task: "Include standard sections",
-                                            completed: (analysis.ats_analysis?.found_sections?.length || 0) >= 4,
-                                            priority: "High"
-                                        },
-                                        {
-                                            task: "Remove weak phrases",
-                                            completed: verbAnalysis.weak.length === 0,
-                                            priority: "Low"
-                                        }
-                                    ];
-
-                                    const completedItems = actionItems.filter(item => item.completed);
-                                    const pendingItems = actionItems.filter(item => !item.completed);
-
-                                    return (
-                                        <>
-                                            <div>
-                                                <h3 className="text-lg font-medium text-green-800 dark:text-green-200 mb-3">
-                                                    Completed ({completedItems.length}/{actionItems.length})
-                                                </h3>
-                                                <div className="space-y-2">
-                                                    {completedItems.map((item, index) => (
-                                                        <div key={index} className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/30 rounded">
-                                                            <span className="text-sm text-green-800 dark:text-green-200">{item.task}</span>
-                                                        </div>
-                                                    ))}
-                                                    {completedItems.length === 0 && (
-                                                        <p className="text-sm text-gray-500">No items completed yet</p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            
-                                            <div>
-                                                <h3 className="text-lg font-medium text-red-800 dark:text-red-200 mb-3">
-                                                    To Do ({pendingItems.length} remaining)
-                                                </h3>
-                                                <div className="space-y-2">
-                                                    {pendingItems.map((item, index) => (
-                                                        <div key={index} className={`flex items-center gap-2 p-2 rounded ${
-                                                            item.priority === 'High' ? 'bg-red-50 dark:bg-red-900/30' :
-                                                            item.priority === 'Medium' ? 'bg-yellow-50 dark:bg-yellow-900/30' :
-                                                            'bg-blue-50 dark:bg-blue-900/30'
-                                                        }`}>
-                                                            <span className={`px-2 py-1 rounded text-xs ${
-                                                                item.priority === 'High' ? 'bg-red-100 text-red-800' :
-                                                                item.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                                                                'bg-blue-100 text-blue-800'
-                                                            }`}>
-                                                                {item.priority}
-                                                            </span>
-                                                            <span className="text-sm text-gray-800 dark:text-gray-200">{item.task}</span>
-                                                        </div>
-                                                    ))}
-                                                    {pendingItems.length === 0 && (
-                                                        <div className="text-center p-4">
-                                                            <p className="text-sm text-green-600 mt-2">All action items completed!</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-
-                        {/* Recommendations */}
-                        <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-6 shadow-lg">
-                            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
-                                Smart Recommendations
-                            </h2>
-                            <div className="space-y-4">
-                                {(() => {
-                                    const skillCount = Array.isArray(analysis.skills) 
-                                        ? analysis.skills.length 
-                                        : Object.values(analysis.skills || {}).flat().length;
-                                    const wordCount = analysis.text ? analysis.text.split(/\s+/).length : 0;
-                                    const atsScore = analysis.ats_analysis?.score || 0;
-                                    const foundSections = analysis.ats_analysis?.found_sections?.length || 0;
-                                    const keywordMatches = analysis.ats_analysis?.keyword_matches || 0;
-                                    
-                                    const recommendations = [];
-                                    
-                                    // ATS Score Analysis
-                                    if (atsScore < 40) {
-                                        recommendations.push({
-                                            type: 'critical',
-                                            title: 'Critical ATS Issues',
-                                            message: 'Your resume needs significant optimization for ATS systems. Focus on the issues listed above immediately.',
-                                        });
-                                    } else if (atsScore < 70) {
-                                        recommendations.push({
-                                            type: 'warning',
-                                            title: 'ATS Optimization Needed',
-                                            message: 'Your resume could benefit from better ATS optimization. Address the specific issues mentioned above.',
-                                        });
-                                    }
-                                    
-                                    // Skills Analysis
-                                    if (skillCount < 5) {
-                                        recommendations.push({
-                                            type: 'warning',
-                                            title: 'Limited Skills Detected',
-                                            message: `Only ${skillCount} skills were detected. Consider adding more relevant technical and soft skills to strengthen your profile.`,
-                                        });
-                                    } else if (skillCount > 30) {
-                                        recommendations.push({
-                                            type: 'info',
-                                            title: 'Skill Prioritization',
-                                            message: `You have ${skillCount} skills listed. Consider prioritizing the most relevant skills for your target positions.`,
-                                        });
-                                    }
-                                    
-                                    // Content Length Analysis
-                                    if (wordCount < 150) {
-                                        recommendations.push({
-                                            type: 'critical',
-                                            title: 'Content Too Brief',
-                                            message: `Your resume has only ${wordCount} words. Add more details about your experience, achievements, and qualifications.`,
-                                        });
-                                    } else if (wordCount > 1000) {
-                                        recommendations.push({
-                                            type: 'info',
-                                            title: 'Consider Conciseness',
-                                            message: `Your resume has ${wordCount} words. Consider making it more concise while keeping key information.`,
-                                        });
-                                    }
-                                    
-                                    // Section Structure Analysis
-                                    if (foundSections < 3) {
-                                        recommendations.push({
-                                            type: 'warning',
-                                            title: 'Missing Key Sections',
-                                            message: `Only ${foundSections} standard sections detected. Consider adding sections like Experience, Education, Skills, and Summary.`,
-                                        });
-                                    }
-                                    
-                                    // Keyword Analysis
-                                    if (keywordMatches < 5) {
-                                        recommendations.push({
-                                            type: 'warning',
-                                            title: 'Low Industry Keywords',
-                                            message: `Only ${keywordMatches} industry keywords found. Research job descriptions and include relevant keywords naturally.`,
-                                        });
-                                    } else if (keywordMatches > 20) {
-                                        recommendations.push({
-                                            type: 'success',
-                                            title: 'Great Keyword Usage',
-                                            message: `Excellent! ${keywordMatches} industry keywords detected. This should help with ATS systems.`,
-                                        });
-                                    }
-                                    
-                                    // Contact Information Check
-                                    const hasContactIssues = analysis.ats_analysis?.issues?.some(issue => 
-                                        issue.toLowerCase().includes('contact')
-                                    );
-                                    if (hasContactIssues) {
-                                        recommendations.push({
-                                            type: 'critical',
-                                            title: 'Missing Contact Information',
-                                            message: 'Ensure your resume includes email, phone number, and LinkedIn profile for better accessibility.',
-                                        });
-                                    }
-                                    
-                                    // Format Issues
-                                    const hasFormatIssues = analysis.ats_analysis?.problematic_elements?.length > 0;
-                                    if (hasFormatIssues) {
-                                        recommendations.push({
-                                            type: 'warning',
-                                            title: 'Formatting Improvements',
-                                            message: `Detected: ${analysis.ats_analysis.problematic_elements.join(', ')}. Use simple formatting for better ATS compatibility.`,
-                                        });
-                                    }
-                                    
-
-                                    
-                                    // Success Messages
-                                    if (atsScore >= 80 && skillCount >= 10 && wordCount >= 200 && foundSections >= 4) {
-                                        recommendations.push({
-                                            type: 'success',
-                                            title: 'Excellent Resume!',
-                                            message: 'Your resume is well-optimized with good structure, relevant skills, and ATS compatibility. You\'re ready to apply!',
-                                        });
-                                    } else if (atsScore >= 70 && skillCount >= 5) {
-                                        recommendations.push({
-                                            type: 'success',
-                                            title: 'Good Foundation',
-                                            message: 'Your resume has a solid foundation. Address the minor issues above to make it even better.',
-                                        });
-                                    }
-                                    
-                                    // Specific Improvement Suggestions
-                                    if (recommendations.length === 0 || recommendations.every(r => r.type === 'success')) {
-                                        recommendations.push({
-                                            type: 'info',
-                                            title: 'Additional Tips',
-                                            message: 'Consider using stronger action verbs, adding quantified achievements, and tailoring your resume for specific job applications.',
-                                        });
-                                    }
-                                    
-                                    return recommendations;
-                                })().map((rec, index) => (
-                                    <div key={index} className={`p-4 rounded-lg border-l-4 ${
-                                        rec.type === 'critical' ? 'bg-red-50 dark:bg-red-900/30 border-red-400' :
-                                        rec.type === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-400' :
-                                        rec.type === 'success' ? 'bg-green-50 dark:bg-green-900/30 border-green-400' :
-                                        'bg-blue-50 dark:bg-blue-900/30 border-blue-400'
-                                    }`}>
-                                        <h3 className={`font-medium flex items-center gap-2 ${
-                                            rec.type === 'critical' ? 'text-red-800 dark:text-red-200' :
-                                            rec.type === 'warning' ? 'text-yellow-800 dark:text-yellow-200' :
-                                            rec.type === 'success' ? 'text-green-800 dark:text-green-200' :
-                                            'text-blue-800 dark:text-blue-200'
-                                        }`}>
-                                            {rec.title}
-                                        </h3>
-                                        <p className={`text-sm mt-1 ${
-                                            rec.type === 'critical' ? 'text-red-700 dark:text-red-300' :
-                                            rec.type === 'warning' ? 'text-yellow-700 dark:text-yellow-300' :
-                                            rec.type === 'success' ? 'text-green-700 dark:text-green-300' :
-                                            'text-blue-700 dark:text-blue-300'
-                                        }`}>
-                                            {rec.message}
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                    </div>
-                    </motion.div>
-                )}
-            </div>
-        </motion.div>
-    );
+      <div className="mt-8">
+        <AnimatePresence mode="wait">
+          {uploading ? (
+            <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+              <Skeleton className="h-56" />
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28" />)}</div>
+            </motion.div>
+          ) : analysis ? (
+            <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <Results analysis={analysis} fileName={uploadedFileName} />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+      </div>
+    </AppShell>
+  );
 }
 
 export default ResumeAnalyzer;

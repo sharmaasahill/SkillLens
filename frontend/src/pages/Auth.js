@@ -57,8 +57,9 @@ function Auth() {
         </Link>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-6 pb-20">
-        <div className="w-full max-w-[400px]">
+      <main className="relative flex flex-1 items-center justify-center overflow-hidden px-6 pb-20">
+        <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-[38%] h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[conic-gradient(from_200deg,#ff9500,#ff2d55,#af52de,#007aff,#30b0c7,#34c759,#ff9500)] opacity-[0.14] blur-[90px]" />
+        <div className="relative w-full max-w-[400px] rounded-[28px] bg-white/80 p-8 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.25)] ring-1 ring-black/[0.05] backdrop-blur-xl sm:p-10">
           <h1 className="text-center font-display text-[40px] font-semibold leading-[1.1] tracking-tight">
             {isLogin ? 'Sign in to SkillLens' : 'Create your account'}
           </h1>

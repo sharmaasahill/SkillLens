@@ -120,7 +120,7 @@ function ResumeSection() {
           {/* Score and checks */}
           <div>
             <Reveal>
-              <p className="text-[17px] font-semibold text-graphite md:text-[21px]">Resume</p>
+              <p className="text-[17px] font-semibold text-blue-ink md:text-[21px]">Resume</p>
               <h2 id="resume-title" className="mt-2 font-display text-[40px] font-semibold leading-[1.08] tracking-tighter2 text-ink md:text-[56px]">
                 Read like a recruiter. Scored like a machine.
               </h2>

@@ -45,7 +45,7 @@ function ScreenUI({ progress }) {
           <span
             key={item}
             className={`rounded-[0.6cqw] px-[0.8cqw] py-[0.45cqw] text-[1.1cqw] ${
-              item === 'Salary' ? 'bg-white font-medium shadow-[0_0.1cqw_0.3cqw_rgba(0,0,0,0.08)]' : 'text-graphite'
+              item === 'Salary' ? 'bg-white font-medium text-green-ink shadow-[0_0.1cqw_0.3cqw_rgba(0,0,0,0.08)]' : 'text-graphite'
             }`}
           >
             {item}
@@ -61,8 +61,8 @@ function ScreenUI({ progress }) {
         </div>
 
         <div className="flex gap-[0.8cqw]">
-          {[PROFILE.role, `${PROFILE.years} years`, PROFILE.education].map((chip) => (
-            <span key={chip} className="rounded-full border border-black/[0.08] bg-white px-[1cqw] py-[0.35cqw] text-[1cqw] text-graphite">
+          {[PROFILE.role, `${PROFILE.years} years`, PROFILE.education].map((chip, i) => (
+            <span key={chip} className={`rounded-full px-[1cqw] py-[0.35cqw] text-[1cqw] ${['bg-purple-soft text-purple-ink', 'bg-orange-soft text-orange-ink', 'bg-blue-soft text-blue-ink'][i]}`}>
               {chip}
             </span>
           ))}
@@ -80,12 +80,12 @@ function ScreenUI({ progress }) {
               <motion.svg viewBox="0 0 100 60" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" style={{ clipPath: curveClip }}>
                 <defs>
                   <linearGradient id="screen-area" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#0071e3" stopOpacity="0.16" />
-                    <stop offset="100%" stopColor="#0071e3" stopOpacity="0" />
+                    <stop offset="0%" stopColor="#34c759" stopOpacity="0.22" />
+                    <stop offset="100%" stopColor="#30b0c7" stopOpacity="0" />
                   </linearGradient>
                 </defs>
                 <path d={AREA} fill="url(#screen-area)" />
-                <path d={CURVE} fill="none" stroke="#0071e3" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
+                <path d={CURVE} fill="none" stroke="#34c759" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
                 <motion.line
                   x1={MARKER_X} x2={MARKER_X} y1="6" y2="60" stroke="#1d1d1f" strokeWidth="0.6"
                   strokeDasharray="3 3" vectorEffect="non-scaling-stroke" style={{ opacity: markerOpacity }}
@@ -101,7 +101,7 @@ function ScreenUI({ progress }) {
 
             <div className="mt-[1.4cqw]">
               <div className="relative h-[0.7cqw] overflow-hidden rounded-full bg-[#e8e8ed]">
-                <motion.div className="absolute inset-y-0 left-[18%] right-[22%] origin-left rounded-full bg-action" style={{ scaleX: rangeScale }} />
+                <motion.div className="absolute inset-y-0 left-[18%] right-[22%] origin-left rounded-full bg-[linear-gradient(90deg,#30b0c7,#34c759)]" style={{ scaleX: rangeScale }} />
               </div>
               <div className="mt-[0.6cqw] flex justify-between text-[0.95cqw] text-silver tabular-nums">
                 <span>${RANGE[0].toLocaleString('en-US')}</span>
@@ -115,14 +115,14 @@ function ScreenUI({ progress }) {
           <section className="flex flex-col rounded-[1.2cqw] bg-white p-[2cqw] shadow-[0_0.2cqw_1.2cqw_rgba(0,0,0,0.06)]">
             <span className="text-[1.05cqw] text-graphite">What moved the number</span>
             <div className="mt-[1.4cqw] flex flex-col gap-[1.3cqw]">
-              {FACTORS.map((f) => (
+              {FACTORS.map((f, i) => (
                 <div key={f.name} className="flex flex-col gap-[0.45cqw]">
                   <div className="flex justify-between text-[1.05cqw]">
                     <span>{f.name}</span>
                     <span className="text-graphite tabular-nums">{f.value.toFixed(1)}%</span>
                   </div>
                   <div className="h-[0.5cqw] rounded-full bg-[#e8e8ed]">
-                    <motion.div className="h-full origin-left rounded-full bg-ink" style={{ width: `${Math.max(f.value, 4)}%`, scaleX: factorScale }} />
+                    <motion.div className={`h-full origin-left rounded-full ${['bg-green', 'bg-teal', 'bg-blue'][i]}`} style={{ width: `${Math.max(f.value, 4)}%`, scaleX: factorScale }} />
                   </div>
                 </div>
               ))}
@@ -135,7 +135,7 @@ function ScreenUI({ progress }) {
               </div>
               <div className="mt-[0.6cqw] flex justify-between text-[1.05cqw]">
                 <span className="text-graphite">Difference</span>
-                <span className="font-medium tabular-nums">{(((ESTIMATE - BASIC) / BASIC) * 100).toFixed(1)}%</span>
+                <span className="font-medium text-orange-ink tabular-nums">{(((ESTIMATE - BASIC) / BASIC) * 100).toFixed(1)}%</span>
               </div>
             </motion.div>
           </section>

@@ -27,6 +27,8 @@ function Hero({ signedIn }) {
   const screenOpacity = useTransform(p, [0.3, 0.38], [0, 1]);
   const screenProgress = useTransform(p, [0.4, 0.72], [0, 1]);
   const shadowOpacity = useTransform(p, [0.02, 0.38], [0.4, 1]);
+  const glowOpacity = useTransform(p, [0.3, 0.45, 0.8], [0, 0.9, 0.6]);
+  const glowScale = useTransform(p, [0.3, 0.6], [0.8, 1.05]);
 
   const captionOpacity = useTransform(p, [0.7, 0.84], reduce ? [1, 1] : [0, 1]);
   const captionY = useTransform(p, [0.7, 0.84], reduce ? [0, 0] : [16, 0]);
@@ -54,7 +56,7 @@ function Hero({ signedIn }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.2, ease: EASE, delay: 0.25 }}
           >
-            Know what your skills are worth.
+            Know what your skills are <span className="bg-[linear-gradient(90deg,#ff9500_0%,#ff2d55_35%,#af52de_68%,#007aff_100%)] bg-clip-text text-transparent">worth.</span>
           </motion.h1>
           <motion.div
             className="mt-7 flex items-center justify-center gap-6 text-[17px]"
@@ -81,6 +83,11 @@ function Hero({ signedIn }) {
           style={{ y: reduce ? 0 : laptopY, scale: reduce ? 1 : laptopScale }}
           aria-hidden="true"
         >
+          {/* Colour bloom behind the display as it wakes up */}
+          <motion.div
+            className="pointer-events-none absolute inset-x-[12%] top-[4%] bottom-[30%] -z-10 rounded-[50%] bg-[conic-gradient(from_180deg_at_50%_50%,#ff9500,#ff2d55,#af52de,#007aff,#30b0c7,#34c759,#ff9500)] blur-[70px]"
+            style={{ opacity: reduce ? 0.5 : glowOpacity, scale: reduce ? 1 : glowScale }}
+          />
           <Laptop lidAngle={reduce ? 0 : lidAngle} screenOpacity={reduce ? 1 : screenOpacity}>
             <ScreenUI progress={reduce ? still : screenProgress} />
           </Laptop>

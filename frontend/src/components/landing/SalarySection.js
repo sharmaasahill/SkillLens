@@ -42,7 +42,7 @@ function SalarySection() {
     <section id="salary" className="scroll-mt-12 px-6 py-[14vh]" aria-labelledby="salary-title">
       <div className="mx-auto max-w-[980px]">
         <Reveal>
-          <p className="text-[17px] font-semibold text-graphite md:text-[21px]">Salary</p>
+          <p className="text-[17px] font-semibold text-green-ink md:text-[21px]">Salary</p>
           <h2 id="salary-title" className="mt-2 max-w-[16ch] font-display text-[40px] font-semibold leading-[1.08] tracking-tighter2 text-ink md:text-[64px]">
             Two models. One honest range.
           </h2>
@@ -61,17 +61,17 @@ function SalarySection() {
             <p className="mt-1 text-[17px] text-graphite">Data Scientist, 5 years, Master's degree</p>
             <div className="mt-10 space-y-9">
               <ModelBar label="Basic model" detail="Random Forest" value={BASIC} tone="bg-[#a1a1a6]" delay={0} />
-              <ModelBar label="Advanced model" detail="Weighted ensemble of three" value={ADVANCED} tone="bg-action" delay={0.15} />
+              <ModelBar label="Advanced model" detail="Weighted ensemble of three" value={ADVANCED} tone="bg-[linear-gradient(90deg,#30b0c7,#34c759)]" delay={0.15} />
             </div>
             <p className="mt-10 border-t border-hairline pt-6 text-[17px] leading-[1.5] text-graphite">
-              Here the models disagree by <span className="font-semibold text-ink">{Math.abs(difference).toFixed(1)}%</span>.
+              Here the models disagree by <span className="font-semibold text-orange-ink">{Math.abs(difference).toFixed(1)}%</span>.
               That gap is worth knowing before you negotiate.
             </p>
           </Reveal>
 
-          <Reveal className="flex flex-col justify-between rounded-[28px] bg-mist p-8 md:p-12" delay={0.1} amount={0.3}>
+          <Reveal className="relative flex flex-col justify-between overflow-hidden rounded-[28px] bg-green-soft p-8 md:p-12" delay={0.1} amount={0.3}>
             <div>
-              <p className="text-[14px] font-medium uppercase tracking-[0.08em] text-silver">Likely range</p>
+              <p className="text-[14px] font-medium uppercase tracking-[0.08em] text-green-ink">Likely range</p>
               <p className="mt-4 font-display text-[40px] font-semibold leading-none tracking-tight text-ink md:text-[48px]">
                 <CountUp value={RANGE[0]} format={money} />
               </p>
@@ -84,7 +84,7 @@ function SalarySection() {
               <div>
                 <p className="text-[14px] text-graphite">Model confidence</p>
                 <p className="font-display text-[32px] font-semibold tracking-tight text-ink">
-                  <CountUp value={97.9} format={(n) => `${n.toFixed(1)}%`} />
+                  <span className="text-green-ink"><CountUp value={97.9} format={(n) => `${n.toFixed(1)}%`} /></span>
                 </p>
               </div>
               <div className="text-right">

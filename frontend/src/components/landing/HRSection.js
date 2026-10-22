@@ -4,11 +4,12 @@ import { EASE, Reveal } from './motion';
 
 const FILTERS = ['Data Analyst', 'Pune', '3 to 5 years', 'Python', 'Score 70+', 'Has resume'];
 const SCORE_BUCKETS = [
-  { label: '0-40', value: 18 },
-  { label: '41-60', value: 46 },
-  { label: '61-80', value: 100 },
-  { label: '81-100', value: 64 },
+  { label: '0-40', value: 18, color: '#ff3b30' },
+  { label: '41-60', value: 46, color: '#ff9500' },
+  { label: '61-80', value: 100, color: '#ffcc00' },
+  { label: '81-100', value: 64, color: '#34c759' },
 ];
+const FILTER_TONES = ['bg-teal-soft text-teal-ink', 'bg-blue-soft text-blue-ink', 'bg-purple-soft text-purple-ink', 'bg-green-soft text-green-ink', 'bg-orange-soft text-orange-ink', 'bg-pink-soft text-pink-ink'];
 
 function Tile({ children, className = '', delay = 0 }) {
   return (
@@ -40,7 +41,7 @@ function HRSection() {
     <section id="hr" className="scroll-mt-12 bg-mist px-6 py-[14vh]" aria-labelledby="hr-title">
       <div className="mx-auto max-w-[1080px]">
         <Reveal className="text-center">
-          <p className="text-[17px] font-semibold text-graphite md:text-[21px]">For HR teams</p>
+          <p className="text-[17px] font-semibold text-teal-ink md:text-[21px]">For HR teams</p>
           <h2 id="hr-title" className="mx-auto mt-2 max-w-[18ch] font-display text-[40px] font-semibold leading-[1.08] tracking-tighter2 text-ink md:text-[64px]">
             Find the right candidate in seconds.
           </h2>
@@ -51,7 +52,7 @@ function HRSection() {
             <TileTitle eyebrow="Search" title="Filter by role, place, experience, skills and score." />
             <div className="mt-10 flex flex-wrap gap-3">
               {FILTERS.map((f, i) => (
-                <motion.span key={f} {...pop(i)} className="rounded-full border border-hairline px-4 py-2 text-[15px] text-ink">
+                <motion.span key={f} {...pop(i)} className={`rounded-full px-4 py-2 text-[15px] ${FILTER_TONES[i % FILTER_TONES.length]}`}>
                   {f}
                 </motion.span>
               ))}
@@ -71,8 +72,8 @@ function HRSection() {
               {SCORE_BUCKETS.map((b, i) => (
                 <div key={b.label} className="flex h-full flex-1 flex-col justify-end gap-2">
                   <motion.div
-                    className="w-full origin-bottom rounded-[10px] bg-ink"
-                    style={{ height: `${b.value}%`, opacity: 0.25 + (b.value / 100) * 0.75 }}
+                    className="w-full origin-bottom rounded-[10px]"
+                    style={{ height: `${b.value}%`, background: b.color }}
                     initial={reduce ? false : { scaleY: 0 }}
                     whileInView={{ scaleY: 1 }}
                     viewport={{ once: true, amount: 0.8 }}
