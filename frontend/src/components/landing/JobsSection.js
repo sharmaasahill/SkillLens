@@ -4,14 +4,14 @@ import { Reveal, useElementWidth } from './motion';
 
 const SKILLS = ['Python', 'SQL', 'React', 'AWS', 'Machine Learning'];
 
-// Real matches from the job recommender for the skills above
+// Real matches from the job recommender for the skills above (4 years of experience)
 const MATCHES = [
-  { role: 'Python Developer', company: 'vInnovate Technologies', place: 'Remote', score: 83, skills: ['Python', 'SQL', 'React'] },
-  { role: 'Machine Learning Engineer', company: 'ClanX', place: 'Bengaluru', score: 79, skills: ['SQL', 'Machine Learning', 'AWS'] },
-  { role: 'React JS Developer', company: 'Tatwa Technologies', place: 'Bhubaneswar', score: 79, skills: ['SQL', 'React', 'AWS'] },
-  { role: 'Ab Initio Developer', company: 'Barclays', place: 'Pune', score: 79, skills: ['SQL', 'Machine Learning', 'AWS'] },
-  { role: 'Junior Python Developer', company: 'Flipr Innovation Labs', place: 'Remote', score: 76, skills: ['SQL', 'Machine Learning', 'AWS'] },
-  { role: 'Junior Full Stack Developer', company: 'VR Consultancy', place: 'Mumbai', score: 76, skills: ['SQL', 'React', 'AWS'] },
+  { role: 'Data Scientist', company: 'Uplers', place: 'Hyderabad', score: 85, skills: ['Machine Learning', 'AWS', 'Python'] },
+  { role: 'Fullstack Engineer', company: 'Kansal Corporate Solutions', place: 'Bengaluru', score: 71, skills: ['React', 'AWS', 'Python'] },
+  { role: 'Full Stack Engineer', company: 'Axtria', place: 'Noida', score: 70, skills: ['React', 'Python', 'AWS'] },
+  { role: 'Data Scientist', company: 'Crescendo Global', place: 'Bengaluru', score: 69, skills: ['Machine Learning', 'SQL', 'Python'] },
+  { role: 'Python Developer', company: 'Reycruit', place: 'Hyderabad', score: 69, skills: ['AWS', 'SQL', 'Python'] },
+  { role: 'AI Engineer', company: 'Version 1', place: 'Bengaluru', score: 67, skills: ['Python', 'Machine Learning', 'AWS'] },
 ];
 
 const CARD_TONES = [
@@ -74,7 +74,7 @@ function JobsSection() {
               {SKILLS.map((s, i) => (
                 <span key={s} className="text-ink">{s}{i < SKILLS.length - 1 ? ', ' : ''}</span>
               ))}
-              {' '}against 2,197 listings.
+              {' '}against 97,316 Indian postings.
             </p>
           </Reveal>
         </div>

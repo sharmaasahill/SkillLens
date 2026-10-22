@@ -1,6 +1,6 @@
 # SkillLens
 
-> An AI-powered full-stack career platform that predicts salaries, analyzes resumes for ATS compatibility, and gives HR teams a searchable view of candidates.
+> A full-stack career platform for India: salary estimates in lakhs per annum, ATS resume scoring and job matching, all built on 97,000+ Indian job postings from 2025, plus a searchable candidate view for HR teams.
 
 ![React](https://img.shields.io/badge/frontend-React-blue?style=flat&logo=react)
 ![Flask](https://img.shields.io/badge/backend-Flask-green?style=flat&logo=flask)
@@ -11,9 +11,9 @@
 
 ## Features
 
-- **Salary Predictor** - Estimates salary from age, gender, education, job title and experience using a Random Forest model trained on `Salary_Data.csv`.
-- **Advanced Salary Predictor** - Ensemble model (Random Forest + Gradient Boosting + Ridge) with feature engineering, confidence scores and a side-by-side comparison with the basic model.
-- **Resume Analyzer** - Extracts skills from PDF resumes, calculates an ATS compatibility score, and gives section, keyword, action-verb and formatting feedback.
+- **Salary Predictor (India)** - Estimates annual CTC in INR from job title, years of experience, city, work mode and skills. Trained on 31,566 salaries disclosed in Naukri.com postings. Shows how much each input moved the estimate.
+- **Advanced estimate** - Blends the linear model with gradient-boosted trees and adds a likely range and a wide range from quantile models, side by side with the quick estimate.
+- **Resume Analyzer** - Extracts skills from PDF resumes (including Indian-market skills such as Tally, GST, SAP), reads Indian degrees and CGPA, calculates an ATS score, and flags personal details recruiters do not need.
 
 ### How the ATS score works
 
@@ -33,7 +33,34 @@ After changing the scoring rules, rescore stored resumes with `flask --app app r
 - **Professional Profile** - Users maintain a profile (work, education, skills, links) with a profile resume and change history.
 - **HR Dashboard** - HR users can search and filter candidates by role, location, company, experience, skills and score, view analytics, and download resumes.
 - **Secure auth** - httpOnly cookie sessions with short-lived access tokens, silent refresh, CSRF protection, rate-limited login and separate User and HR roles.
-- **Job Recommender** - Matches skills from your latest resume against a Glassdoor job listings dataset by skill overlap, with experience fit, match reasoning and a skills-gap analysis.
+- **Job Recommender** - Matches skills from your latest resume against 97,316 Indian postings. Skills match as whole tags, weighted by rarity, and each posting's own experience range is used. Filters by city and field, shows disclosed pay, and suggests skills that similar roles ask for. Optionally adds live openings from Adzuna or Careerjet.
+
+### Data and accuracy
+
+| | |
+| --- | --- |
+| Source | [Indian Job Market Dataset 2025](https://www.kaggle.com/datasets/shivamshrivastava21/indian-job-market-dataset-2025-2026) by Shivam Shrivastava (Kaggle), Naukri.com postings collected September to October 2025 |
+| Licence | CC BY-NC-SA 4.0: non-commercial use only, with attribution; derived data carries the same licence |
+| Postings | 97,316 after removing duplicates and non-INR salaries, 18,595 companies, 196 cities with 20+ postings |
+| Salary training rows | 31,566 postings with a believable disclosed salary (Rs 60,000 to Rs 1.5 Cr a year, range no wider than 4x) |
+| Accuracy | Tested on 20% of companies held out from training: median error 22.5%, 54% of estimates within 25% of the posted salary (R² 0.71 on log salary) |
+
+Posted salaries are what employers advertise, not what people are paid, and most postings (66%) do not disclose pay. Treat estimates as a starting point for negotiation.
+
+To rebuild the data and retrain (downloads the 83 MB raw file into `backend/data/raw`, about two minutes):
+
+```bash
+flask --app app build-india-data
+```
+
+### Optional live job listings
+
+Add a free key to `backend/.env` and the Job Recommender also shows current openings. Only search keywords (your top three skills) and a city are sent, never resume text.
+
+| Provider | Cost | Notes |
+| --- | --- | --- |
+| [Adzuna](https://developer.adzuna.com/) (`ADZUNA_APP_ID`, `ADZUNA_APP_KEY`) | Free key | Permitted for personal and academic use; commercial use needs a licence after a 14-day trial |
+| [Careerjet](https://www.careerjet.com/partners/api/) (`CAREERJET_API_KEY`) | Free publisher key | Each listing links to the employer's page |
 - Clean white, Apple-inspired UI with scroll animations, built with Tailwind CSS and Framer Motion. Fully responsive.
 
 ---
@@ -55,8 +82,8 @@ After changing the scoring rules, rescore stored resumes with `flask --app app r
 - pytest
 
 **ML**
-- scikit-learn (RandomForestRegressor, GradientBoostingRegressor, Ridge, VotingRegressor, TfidfVectorizer)
-- pandas, numpy, joblib
+- scikit-learn (Ridge, HistGradientBoostingRegressor with quantile loss, TfidfVectorizer, TruncatedSVD)
+- scipy sparse matrices for job matching, pandas, numpy, joblib
 
 ---
 
@@ -111,7 +138,7 @@ npm start
 
 ```bash
 cd backend
-pytest                         # API, auth, storage, HR queries, ML wrappers
+pytest                         # API, auth, storage, HR queries, salary and job models
 
 cd frontend
 npm test -- --watchAll=false   # API client, auth flow, route guards
@@ -139,6 +166,7 @@ All settings come from environment files that are excluded from git. Copy the `.
 | `FLASK_DEBUG` | `true` for local development only |
 | `FLASK_HOST`, `FLASK_PORT` | Bind address, defaults to `127.0.0.1:5000` |
 | `HR_EMAIL`, `HR_PASSWORD`, `HR_NAME` | HR account created by `create_hr_user.py` |
+| `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `CAREERJET_API_KEY` | Optional live job listings (see above) |
 
 **frontend/.env**
 
@@ -195,15 +223,16 @@ SkillLens/
     tests/                  pytest suite
     .env.example            Backend settings template
     instance/               SQLite database (created at runtime, not in git)
+    data/
+      india_jobs.csv.gz     Cleaned Naukri.com 2025 postings (CC BY-NC-SA 4.0)
+      raw/                  Raw download (not in git)
     models/
       database.py           SQLAlchemy models
-      salary_predictor.py   Basic salary model
-      advanced_salary_predictor.py
+      india_data.py         Download, clean and load the Indian dataset
+      salary_model.py       Indian salary models (training and prediction)
+      india_salary_model.pkl  Trained salary model
       resume_analyzer.py    Resume parsing and ATS scoring
       job_recommender.py    Skill-based job matching
-      Salary_Data.csv       Salary training data
-      glassdoor_all_jobs.csv  Job listings for recommendations
-      *.pkl                 Trained models and encoders
     uploaded_resumes/       Uploaded PDFs (created at runtime, not in git)
   frontend/
     .env.example            Frontend settings template
@@ -225,11 +254,11 @@ SkillLens/
 
 ## License
 
-This project is licensed under the MIT License.
+The code is licensed under the MIT License. The bundled dataset (`backend/data/india_jobs.csv.gz`) and the model trained on it (`backend/models/india_salary_model.pkl`) are derived from data licensed CC BY-NC-SA 4.0, so they may only be used non-commercially, with attribution, under the same licence.
 
 ---
 
 ## Acknowledgements
 
-- Salary dataset from Kaggle
+- [Indian Job Market Dataset 2025](https://www.kaggle.com/datasets/shivamshrivastava21/indian-job-market-dataset-2025-2026) by Shivam Shrivastava, licensed CC BY-NC-SA 4.0. Mirrored for download by [JasobantaParida/Indian-Job-Market-Intelligence](https://github.com/JasobantaParida/Indian-Job-Market-Intelligence).
 - React, Tailwind CSS and Flask

@@ -3,10 +3,10 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
-import { Badge, Button, Card, Chip, EmptyState, Meter, Notice, ScoreRing, Segmented, Skeleton, TextField, EASE, cx } from '../components/ui/primitives';
+import { Badge, Button, Card, Chip, EmptyState, Meter, Notice, ScoreRing, Segmented, SelectField, Skeleton, TextField, EASE, cx } from '../components/ui/primitives';
 import { Modal } from '../components/ui/overlays';
 import { matchTone, tone } from '../components/ui/tones';
-import { boldSegments, decodeEntities } from '../lib/format';
+import { boldSegments, decodeEntities, lpa } from '../lib/format';
 
 const CATEGORY_TONES = ['purple', 'blue', 'teal', 'green', 'orange', 'pink', 'indigo'];
 
@@ -53,7 +53,13 @@ function JobCard({ job, index }) {
             <span>{formatLocation(job.location)}</span>
             <span>{job.job_category}</span>
             {job.experience_level && <Badge toneName="indigo">{job.experience_level}</Badge>}
+            {job.work_mode && job.work_mode !== 'On-site' && <Badge toneName="teal">{job.work_mode}</Badge>}
           </div>
+          {job.salary && (
+            <p className="mt-2 text-[15px] font-medium text-green-ink tabular-nums">
+              {lpa(job.salary.min)} to {lpa(job.salary.max)} <span className="font-normal text-silver">disclosed</span>
+            </p>
+          )}
           {job.why_recommended?.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
               {job.why_recommended.map((highlight) => <Chip key={highlight} toneName="green" className="!text-[12px]">{highlight}</Chip>)}
@@ -66,9 +72,9 @@ function JobCard({ job, index }) {
             href={job.job_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-full bg-action px-5 text-[15px] font-medium text-white transition-colors hover:bg-action-hover"
+            className="inline-flex h-10 items-center justify-center gap-2 self-start whitespace-nowrap rounded-full bg-action px-5 text-[15px] font-medium text-white transition-colors hover:bg-action-hover"
           >
-            Apply
+            {job.job_url_label || 'Apply'}
           </a>
         )}
       </div>
@@ -82,6 +88,14 @@ function JobCard({ job, index }) {
             {job.matched_skills?.slice(0, 8).map((skill) => <Chip key={skill} toneName="blue" className="!text-[12px]">{skill}</Chip>)}
             {job.matched_skills?.length > 8 && <Chip className="!text-[12px]">+{job.matched_skills.length - 8} more</Chip>}
           </div>
+          {job.missing_skills?.length > 0 && (
+            <>
+              <p className="mb-2 mt-5 text-[13px] font-semibold text-ink">Skills to add for this role</p>
+              <div className="flex flex-wrap gap-1.5">
+                {job.missing_skills.map((skill) => <Chip key={skill} toneName="orange" className="!text-[12px]">{skill}</Chip>)}
+              </div>
+            </>
+          )}
         </div>
         <div className="space-y-4">
           {[
@@ -112,6 +126,49 @@ function JobCard({ job, index }) {
   );
 }
 
+/** Current openings from a live job-search API, shown only when an API key is configured. */
+function LiveJobs({ jobs, sources }) {
+  if (!sources?.length) return null;
+  return (
+    <section className="mt-10" aria-labelledby="live-jobs-title">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="live-jobs-title" className="font-display text-[24px] font-semibold tracking-tight">Live openings</h2>
+        <p className="text-[13px] text-silver">
+          Jobs by{' '}
+          {sources.map((name, i) => (
+            <React.Fragment key={name}>
+              {i > 0 && ' and '}
+              <a href={name === 'adzuna' ? 'https://www.adzuna.in/' : 'https://www.careerjet.co.in/'} target="_blank" rel="noopener noreferrer" className="text-action-link hover:underline">
+                {name === 'adzuna' ? 'Adzuna' : 'Careerjet'}
+              </a>
+            </React.Fragment>
+          ))}
+        </p>
+      </div>
+      {jobs.length === 0 ? (
+        <Card><p className="text-[15px] text-graphite">No live openings found for your top skills right now.</p></Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {jobs.map((job) => (
+            <a key={job.id} href={job.job_url} target="_blank" rel="noopener noreferrer"
+              className="group rounded-[20px] bg-white p-6 ring-1 ring-black/[0.05] transition-shadow hover:shadow-[0_20px_50px_-24px_rgba(0,0,0,0.25)]">
+              <p className="text-[12px] font-medium text-silver">{job.source}{job.posted ? ` · ${job.posted}` : ''}</p>
+              <h3 className="mt-1 font-display text-[19px] font-semibold leading-snug tracking-tight text-ink group-hover:text-action-link">{job.position}</h3>
+              <p className="mt-1 text-[14px] text-graphite">{[job.company, job.location].filter(Boolean).join(' · ')}</p>
+              {job.salary && <p className="mt-2 text-[14px] font-medium text-green-ink tabular-nums">{lpa(job.salary.min)} to {lpa(job.salary.max)}</p>}
+              {job.matched_skills?.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {job.matched_skills.slice(0, 5).map((skill) => <Chip key={skill} toneName="blue" className="!text-[12px]">{skill}</Chip>)}
+                </div>
+              )}
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function MarketAnalysis({ analysis }) {
   // Most-demanded first; bars are relative to the top skill so small percentages stay readable
   const demand = Object.entries(analysis.user_skills_demand || {})
@@ -130,13 +187,15 @@ function MarketAnalysis({ analysis }) {
                 <span className="font-semibold text-blue-ink tabular-nums">{data.demand_percentage}%</span>
               </div>
               <Meter value={(data.demand_percentage / top) * 100} toneName={CATEGORY_TONES[i % CATEGORY_TONES.length]} delay={i * 0.05} />
-              <p className="mt-1 text-[12px] text-silver">Found in {data.job_count} of {analysis.total_jobs_analyzed || 'all'} jobs. Typical level: {data.avg_experience_level}</p>
+              <p className="mt-1 text-[12px] text-silver">
+                In {data.job_count.toLocaleString('en-IN')} of {(analysis.total_jobs_analyzed || 0).toLocaleString('en-IN')} Indian postings. Typical experience asked: {data.avg_experience_level}
+              </p>
             </div>
           ))}
         </div>
       </section>
       <section>
-        <h3 className="mb-3 font-display text-[19px] font-semibold tracking-tight">Trending in the market</h3>
+        <h3 className="mb-3 font-display text-[19px] font-semibold tracking-tight">Most requested skills in India</h3>
         <div className="flex flex-wrap gap-2">
           {analysis.trending_skills?.slice(0, 20).map((skill) => <Chip key={skill} toneName="orange" className="capitalize">{skill}</Chip>)}
         </div>
@@ -144,11 +203,18 @@ function MarketAnalysis({ analysis }) {
       {analysis.skill_gap_analysis?.length > 0 && (
         <section className="rounded-[20px] bg-yellow-soft p-5">
           <h3 className="mb-2 font-display text-[19px] font-semibold tracking-tight">Recommended skills to learn</h3>
-          <p className="mb-3 text-[14px] text-yellow-ink">These trending skills could boost your market value:</p>
+          <p className="mb-3 text-[14px] text-yellow-ink">Postings that ask for your skills often also ask for these:</p>
           <div className="flex flex-wrap gap-2">
             {analysis.skill_gap_analysis.map((skill) => <Chip key={skill} className="bg-white capitalize">{skill}</Chip>)}
           </div>
         </section>
+      )}
+      {analysis.source && (
+        <p className="text-[12px] text-silver">
+          Based on {analysis.source.name}, collected {analysis.source.collected}.{' '}
+          <a href={analysis.source.url} target="_blank" rel="noopener noreferrer" className="text-action-link hover:underline">Dataset</a>
+          {' '}({analysis.source.licence}).
+        </p>
       )}
     </div>
   );
@@ -165,6 +231,9 @@ const JobRecommender = () => {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [filters, setFilters] = useState({ experienceYears: '', preferredLocations: [], preferredCategories: [], topK: 10 });
   const [availableCategories, setAvailableCategories] = useState([]);
+  const [availableCities, setAvailableCities] = useState([]);
+  const [liveJobs, setLiveJobs] = useState([]);
+  const [liveSources, setLiveSources] = useState([]);
 
   useEffect(() => {
     loadAvailableOptions();
@@ -174,8 +243,9 @@ const JobRecommender = () => {
 
   const loadAvailableOptions = async () => {
     try {
-      const { data } = await api.get('/api/job-categories');
-      setAvailableCategories(Array.isArray(data.categories) ? data.categories : []);
+      const [categories, cities] = await Promise.all([api.get('/api/job-categories'), api.get('/api/job-locations')]);
+      setAvailableCategories(Array.isArray(categories.data.categories) ? categories.data.categories : []);
+      setAvailableCities(Array.isArray(cities.data.locations) ? cities.data.locations.slice(0, 40) : []);
     } catch (err) {
       setAvailableCategories([]);
     }
@@ -187,7 +257,7 @@ const JobRecommender = () => {
     setError('');
     try {
       const { data } = await api.post('/api/recommend-jobs', {
-        experience_years: parseInt(filters.experienceYears, 10) || 0,
+        experience_years: Number(filters.experienceYears) || 0,
         preferred_locations: filters.preferredLocations,
         preferred_categories: filters.preferredCategories,
         top_k: filters.topK,
@@ -195,6 +265,8 @@ const JobRecommender = () => {
       setRecommendations(data.recommendations || []);
       setUserProfile(data.user_profile || null);
       setSkillsAnalysis(data.skills_analysis || null);
+      setLiveJobs(data.live_jobs || []);
+      setLiveSources(data.live_sources || []);
       if (data.recommendations && data.recommendations.length === 0) {
         setError('No job recommendations found. Try adjusting your filters or uploading a more detailed resume.');
       }
@@ -242,7 +314,7 @@ const JobRecommender = () => {
         eyebrow="Jobs"
         toneName="purple"
         title="Roles that fit the skills you already have."
-        subtitle="AI-powered job matching based on your resume skills."
+        subtitle="Your resume skills matched against 97,000+ Indian job postings from Naukri.com (2025)."
         actions={userProfile && (
           <Button variant="outline" onClick={handleSkillsAnalysis} loading={analysisLoading}>
             Market analysis
@@ -285,7 +357,7 @@ const JobRecommender = () => {
 
       {/* Filters */}
       <Card className="mb-8 !p-6">
-        <div className="grid gap-6 lg:grid-cols-[180px_1fr_auto_auto] lg:items-end">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-[160px_220px_auto_1fr] lg:items-end">
           <TextField
             label="Experience (years)"
             type="number"
@@ -294,29 +366,13 @@ const JobRecommender = () => {
             onChange={(e) => setFilters((prev) => ({ ...prev, experienceYears: e.target.value }))}
             placeholder="From resume"
           />
-          <div>
-            <p className="mb-1.5 text-[13px] font-medium text-ink">Preferred categories</p>
-            <div className="flex flex-wrap gap-2">
-              {availableCategories.map((category, i) => {
-                const active = filters.preferredCategories.includes(category);
-                const t = tone(CATEGORY_TONES[i % CATEGORY_TONES.length]);
-                return (
-                  <button
-                    key={category}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => toggleCategory(category)}
-                    className={cx(
-                      'rounded-full border px-3.5 py-1.5 text-[13px] transition-colors',
-                      active ? `${t.soft} ${t.text} border-transparent` : 'border-hairline text-graphite hover:border-silver hover:text-ink'
-                    )}
-                  >
-                    {category}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <SelectField
+            label="City"
+            value={filters.preferredLocations[0] || ''}
+            onChange={(e) => setFilters((prev) => ({ ...prev, preferredLocations: e.target.value ? [e.target.value] : [] }))}
+            options={availableCities}
+            placeholder="Anywhere in India"
+          />
           <div>
             <p className="mb-1.5 text-[13px] font-medium text-ink">Results</p>
             <Segmented
@@ -326,17 +382,41 @@ const JobRecommender = () => {
               options={[5, 10, 15, 20].map((n) => ({ value: n, label: String(n) }))}
             />
           </div>
-          <Button onClick={handleGetRecommendations} loading={loading} size="lg">
+          <Button onClick={handleGetRecommendations} loading={loading} size="lg" className="lg:justify-self-end">
             Update search
           </Button>
         </div>
+        <div className="mt-6 border-t border-black/[0.06] pt-5">
+          <p className="mb-2 text-[13px] font-medium text-ink">Fields</p>
+          <div className="flex flex-wrap gap-2">
+            {availableCategories.map((category, i) => {
+              const active = filters.preferredCategories.includes(category);
+              const t = tone(CATEGORY_TONES[i % CATEGORY_TONES.length]);
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => toggleCategory(category)}
+                  className={cx(
+                    'rounded-full border px-3.5 py-1.5 text-[13px] transition-colors',
+                    active ? `${t.soft} ${t.text} border-transparent` : 'border-hairline text-graphite hover:border-silver hover:text-ink'
+                  )}
+                >
+                  {category}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </Card>
+
 
       {error && !needsResume && <Notice className="mb-6">{error}</Notice>}
 
       {loading ? (
         <div className="space-y-5">
-          <p className="text-[15px] text-graphite">Analyzing your resume and finding perfect job matches...</p>
+          <p className="text-[15px] text-graphite">Matching your skills against Indian job postings...</p>
           {[0, 1, 2].map((i) => <Skeleton key={i} className="h-64" />)}
         </div>
       ) : needsResume ? (
@@ -353,11 +433,12 @@ const JobRecommender = () => {
         <>
           <div className="mb-5 flex items-baseline justify-between">
             <h2 className="font-display text-[24px] font-semibold tracking-tight">{recommendations.length} matches</h2>
-            <p className="text-[13px] text-graphite">Sorted by relevance score</p>
+            <p className="text-[13px] text-graphite">From the 2025 dataset, sorted by fit</p>
           </div>
           <div className="space-y-5">
             {recommendations.map((job, index) => <JobCard key={job.job_id} job={job} index={index} />)}
           </div>
+          <LiveJobs jobs={liveJobs} sources={liveSources} />
         </>
       ) : null}
 

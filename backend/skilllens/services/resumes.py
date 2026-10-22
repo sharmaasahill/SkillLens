@@ -54,7 +54,7 @@ def upload_resume(user, file_storage):
 
 
 def list_resumes(user):
-    return Resume.query.filter_by(user_id=user.id).order_by(Resume.uploaded_at.desc()).all()
+    return Resume.query.filter_by(user_id=user.id).order_by(Resume.uploaded_at.desc(), Resume.id.desc()).all()
 
 
 def delete_resume(user, resume_id):

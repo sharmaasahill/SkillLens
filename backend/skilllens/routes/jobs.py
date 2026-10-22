@@ -1,7 +1,7 @@
 """Job recommendations and market analysis."""
 import os
 
-from flask import Blueprint, current_app, jsonify
+from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import current_user, jwt_required
 
 from models.database import Resume
@@ -9,14 +9,14 @@ from models.database import Resume
 from ..errors import ApiError
 from ..extensions import limiter
 from ..schemas import JobsBySkillsRequest, MarketAnalysisRequest, RecommendJobsRequest
-from ..services import ml, storage
+from ..services import live_jobs, ml, storage
 from . import json_body
 
 bp = Blueprint('jobs', __name__, url_prefix='/api')
 
 
 def _latest_resume(user):
-    return Resume.query.filter_by(user_id=user.id).order_by(Resume.uploaded_at.desc()).first()
+    return Resume.query.filter_by(user_id=user.id).order_by(Resume.uploaded_at.desc(), Resume.id.desc()).first()
 
 
 def _resume_skills_and_text(resume):
@@ -58,9 +58,23 @@ def recommend_jobs():
         top_k=params.top_k,
     )
 
+    analysis = recommender.get_skills_analysis(user_skills)
+    live = []
+    if params.include_live:
+        # Search with the user's most in-demand skills; only these keywords leave the server
+        demand = analysis.get('user_skills_demand', {})
+        top_skills = sorted(user_skills, key=lambda s: demand.get(s, {}).get('job_count', 0), reverse=True)[:3]
+        city = (params.preferred_locations or [None])[0]
+        live = live_jobs.annotate(
+            live_jobs.search(top_skills, city=city, limit=10,
+                             user_ip=request.remote_addr, user_agent=request.headers.get('User-Agent')),
+            user_skills)
+
     return jsonify({
         'success': True,
         'recommendations': recommendations,
+        'live_jobs': live,
+        'live_sources': live_jobs.configured_providers(),
         'user_profile': {
             'extracted_skills': user_skills,
             'experience_years': experience,
@@ -75,7 +89,7 @@ def recommend_jobs():
                 },
             },
         },
-        'skills_analysis': recommender.get_skills_analysis(user_skills),
+        'skills_analysis': analysis,
         'total_recommendations': len(recommendations),
         'message': f'Found {len(recommendations)} job recommendations based on '
                    f'{len(user_skills)} skills extracted from your resume',

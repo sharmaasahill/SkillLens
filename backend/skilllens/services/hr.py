@@ -121,7 +121,7 @@ def candidate_details(user_id):
     if user is None:
         raise ApiError('User not found', 404)
 
-    resumes = Resume.query.filter_by(user_id=user.id).order_by(Resume.uploaded_at.desc()).all()
+    resumes = Resume.query.filter_by(user_id=user.id).order_by(Resume.uploaded_at.desc(), Resume.id.desc()).all()
     changes = (ProfileHistory.query.filter_by(user_id=user.id)
                .order_by(ProfileHistory.changed_at.desc()).limit(10).all())
 

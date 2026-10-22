@@ -13,7 +13,7 @@ import { dateLabel, firstName, greeting } from '../lib/format';
 const TOOLS = [
   {
     to: '/salary-predictor', title: 'Salary', eyebrow: 'Predict', toneName: 'green',
-    text: 'Know your worth with accurate salary estimates.',
+    text: 'Your CTC in lakhs, estimated from real Indian job postings.',
     glow: 'from-[#34c759]/40 via-[#30b0c7]/15',
   },
   {
@@ -180,7 +180,7 @@ function Dashboard() {
         eyebrow={new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         toneName="orange"
         title={loading ? 'Welcome back.' : `${greeting()}${name ? `, ${name}` : ''}.`}
-        subtitle="Navigate your tech career with AI-powered tools. Predict your salary, discover your dream job, and optimize your resume."
+        subtitle="Estimate your salary, sharpen your resume and find roles across India that fit your skills."
       />
 
       {error && <Notice className="mb-8">{error}</Notice>}

@@ -4,10 +4,10 @@ import { CountUp, Reveal } from './motion';
 import { Wordmark } from './GlobalNav';
 
 const NUMBERS = [
-  { value: 6704, label: 'salary records behind every estimate', color: 'text-green' },
-  { value: 193, label: 'job titles the models understand', color: 'text-blue' },
-  { value: 2197, label: 'job listings to match against', color: 'text-purple' },
-  { value: 74, label: 'locations across India and remote', color: 'text-orange' },
+  { value: 31566, label: 'disclosed Indian salaries behind every estimate', color: 'text-green' },
+  { value: 97316, label: 'Indian job postings to match against', color: 'text-blue' },
+  { value: 18595, label: 'companies hiring across the country', color: 'text-purple' },
+  { value: 196, label: 'Indian cities, plus remote roles', color: 'text-orange' },
 ];
 
 export function Numbers() {
@@ -61,8 +61,12 @@ export function Footer() {
     <footer className="bg-mist px-5 py-10 text-[12px] text-graphite">
       <div className="mx-auto max-w-[984px]">
         <p className="border-b border-hairline pb-4 leading-[1.6]">
-          Salary estimates come from models trained on historical data and are a starting point, not an offer.
-          Job matches use a public listings dataset and may no longer be open.
+          Salary estimates come from models trained on salaries disclosed in Naukri.com postings from September and
+          October 2025, and are a starting point, not an offer. Job matches use the same dataset, so individual
+          postings may have closed.{' '}
+          <a href="https://www.kaggle.com/datasets/shivamshrivastava21/indian-job-market-dataset-2025-2026" target="_blank" rel="noopener noreferrer" className="underline">
+            Indian Job Market Dataset 2025
+          </a>{' '}by Shivam Shrivastava, CC BY-NC-SA 4.0.
         </p>
         <div className="flex flex-col gap-6 pt-6 md:flex-row md:items-start md:justify-between">
           <div className="text-[14px]"><Wordmark /></div>

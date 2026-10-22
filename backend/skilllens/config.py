@@ -44,6 +44,11 @@ class Config:
     AUTH_RATE_LIMIT = os.environ.get('AUTH_RATE_LIMIT', '5 per minute;30 per hour')
     PUBLIC_API_RATE_LIMIT = os.environ.get('PUBLIC_API_RATE_LIMIT', '30 per minute')
 
+    # Optional live job listings for India (free keys; see backend/.env.example)
+    ADZUNA_APP_ID = os.environ.get('ADZUNA_APP_ID', '')
+    ADZUNA_APP_KEY = os.environ.get('ADZUNA_APP_KEY', '')
+    CAREERJET_API_KEY = os.environ.get('CAREERJET_API_KEY', '')
+
     # Serve the production React build (created with `npm run build` in /frontend)
     FRONTEND_BUILD_DIR = os.path.join(BACKEND_DIR, '..', 'frontend', 'build')
 
@@ -53,3 +58,4 @@ class TestingConfig(Config):
     JWT_SECRET_KEY = 'test-secret-key-that-is-long-enough-for-hs256'
     SQLALCHEMY_DATABASE_URI = 'sqlite://'
     RATELIMIT_ENABLED = False
+    ADZUNA_APP_ID = ADZUNA_APP_KEY = CAREERJET_API_KEY = ''  # tests never call external APIs

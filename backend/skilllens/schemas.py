@@ -3,10 +3,6 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
-EDUCATION_LEVELS = ["High School", "Associate", "Bachelor's", "Master's", "MBA", "PhD"]
-GENDERS = ["Male", "Female", "Other"]
-
-
 class _Schema(BaseModel):
     model_config = ConfigDict(extra='ignore', str_strip_whitespace=True)
 
@@ -79,17 +75,22 @@ class ProfileUpdateRequest(_Schema):
 # ---------- Salary ----------
 
 class SalaryRequest(_Schema):
-    age: int = Field(ge=16, le=100)
-    gender: Literal['Male', 'Female', 'Other']
-    education_level: Literal["High School", "Associate", "Bachelor's", "Master's", "MBA", "PhD"]
-    job_title: str = Field(min_length=1, max_length=100)
-    years_of_experience: int = Field(ge=0, le=60)
+    """Inputs for the Indian salary model. City, work mode and skills are optional."""
+    job_title: str = Field(min_length=2, max_length=100)
+    years_of_experience: float = Field(ge=0, le=40)
+    city: Optional[str] = Field(None, max_length=60)
+    work_mode: Optional[Literal['On-site', 'Hybrid', 'Remote']] = None
+    skills: List[str] = Field(default_factory=list, max_length=40)
 
-    @model_validator(mode='after')
-    def experience_fits_age(self):
-        if self.years_of_experience > self.age - 14:
-            raise ValueError('years_of_experience is too high for the given age')
-        return self
+    @field_validator('city', mode='before')
+    @classmethod
+    def blank_city(cls, value):
+        return _blank_to_none(value)
+
+    @field_validator('skills')
+    @classmethod
+    def clean_skills(cls, value):
+        return [s.strip()[:40] for s in value if isinstance(s, str) and s.strip()]
 
 
 # ---------- Jobs ----------
@@ -102,6 +103,7 @@ class RecommendJobsRequest(_Schema):
     preferred_locations: List[str] = Field(default_factory=list, max_length=20)
     preferred_categories: List[str] = Field(default_factory=list, max_length=20)
     top_k: int = Field(10, ge=1, le=50)
+    include_live: bool = True
 
 
 class JobsBySkillsRequest(_Schema):

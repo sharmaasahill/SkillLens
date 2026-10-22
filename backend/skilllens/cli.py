@@ -32,3 +32,27 @@ def register_commands(app: Flask):
         if not dry_run:
             db.session.commit()
         click.echo(f"{'Would rescore' if dry_run else 'Rescored'} {changed} resumes; skipped {skipped} without stored text.")
+
+    @app.cli.command('build-india-data')
+    @click.option('--download', is_flag=True, help='Download the raw CSV again even if it exists.')
+    @click.option('--skip-training', is_flag=True, help='Only rebuild the cleaned dataset.')
+    def build_india_data(download, skip_training):
+        """Download the Naukri.com 2025 dataset, clean it and retrain the salary model.
+
+        Writes data/india_jobs.csv.gz and models/india_salary_model.pkl. Takes about two minutes.
+        """
+        from models import india_data, salary_model
+
+        click.echo('Downloading raw dataset...' if download or not __import__('os').path.exists(india_data.RAW_PATH)
+                   else 'Using existing raw dataset.')
+        india_data.download_raw(force=download)
+        jobs = india_data.build_clean_dataset()
+        click.echo(f'Cleaned {len(jobs):,} postings -> {india_data.CLEAN_PATH}')
+        if skip_training:
+            return
+        click.echo('Training salary model (about a minute)...')
+        model = salary_model.train()
+        m = model.metrics
+        click.echo(f"Trained on {m['trained_on_rows']:,} salaries. On held-out companies: "
+                   f"median error {m['quick']['median_error_pct']}%, "
+                   f"{m['quick']['within_25_pct']}% of estimates within 25%.")

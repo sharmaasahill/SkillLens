@@ -18,6 +18,9 @@ backend/instance/
 *.sqlite
 *.sqlite3
 
+# Raw downloaded datasets (rebuilt with `flask --app app build-india-data`)
+backend/data/raw/
+
 # Runtime uploads (user resumes)
 backend/uploaded_resumes/
 

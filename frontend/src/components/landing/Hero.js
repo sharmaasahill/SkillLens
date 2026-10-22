@@ -94,7 +94,7 @@ function Hero({ signedIn }) {
           className="absolute inset-x-0 top-[calc(3rem+4vh)] px-6 text-center text-[17px] text-graphite md:text-[21px]"
           style={{ opacity: captionOpacity, y: captionY }}
         >
-          A Data Scientist with five years and a Master's. <span className="text-ink">Estimated at $110,354.</span>
+          A Data Scientist in Bengaluru with five years. <span className="text-ink">Estimated at ₹15.9 LPA.</span>
         </motion.p>
       </div>
     </section>

@@ -20,14 +20,10 @@ def _get(name, factory):
     return instance
 
 
-def basic_salary_model():
-    from models.salary_predictor import SalaryPredictor
-    return _get('basic_salary', SalaryPredictor)
-
-
-def advanced_salary_model():
-    from models.advanced_salary_predictor import AdvancedSalaryPredictor
-    return _get('advanced_salary', AdvancedSalaryPredictor)
+def salary_model():
+    """Indian salary predictor (quick and advanced estimates share one trained model)."""
+    from models.salary_model import IndiaSalaryPredictor
+    return _get('salary', IndiaSalaryPredictor)
 
 
 def job_recommender():
@@ -42,8 +38,7 @@ def resume_analyzer():
 
 def preload():
     """Load every model up front so the first requests are fast."""
-    basic_salary_model()
-    advanced_salary_model()
+    salary_model()
     job_recommender()
     resume_analyzer()
 

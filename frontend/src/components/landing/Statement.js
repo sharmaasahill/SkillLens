@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 
 const TEXT =
-  'Most career advice is a guess. SkillLens reads your resume, weighs your experience against 6,704 real salaries, and matches you to 2,197 open roles. Then it shows its working.';
+  'Most career advice is a guess. SkillLens reads your resume, weighs your experience against 31,566 real Indian salaries, and matches you to 97,316 job postings. Then it shows its working.';
 
 function Word({ children, progress, range, className = '' }) {
   const opacity = useTransform(progress, range, [0.16, 1]);
@@ -22,8 +22,8 @@ function Statement() {
   // Words that carry the facts get their product colour
   const accent = (word) => {
     if (word.startsWith('resume')) return 'text-blue';
-    if (word === '6,704' || word === 'real' || word.startsWith('salaries')) return 'text-green';
-    if (word === '2,197' || word === 'open' || word.startsWith('roles')) return 'text-purple';
+    if (word === '31,566' || word === 'real' || word === 'Indian' || word.startsWith('salaries')) return 'text-green';
+    if (word === '97,316' || word === 'job' || word.startsWith('postings')) return 'text-purple';
     if (word === 'working.') return 'bg-[linear-gradient(90deg,#ff9500,#ff2d55)] bg-clip-text text-transparent';
     return '';
   };

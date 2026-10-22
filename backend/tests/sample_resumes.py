@@ -70,3 +70,27 @@ FALSE_POSITIVE_TEXT = """Experience
 I worked hard every spring and summer to grow our market share, and was eager to go further.
 Our team created a great career program. Excellent communication with every partner.
 """
+
+INDIAN_ACCOUNTANT = """Neha Gupta
+Accounts Executive | Noida | +91-98110-22334 | neha.gupta@example.com | linkedin.com/in/nehagupta
+
+Professional Summary
+Accounts executive with 4 years of experience in GST filing, TDS returns and bank reconciliation for SMEs.
+
+Work Experience
+Accounts Executive, Shree Balaji Traders Pvt Ltd, Noida (2021 - Present)
+- Reduced month-end closing time by 30% by automating MIS reports in Excel with pivot tables and VLOOKUP.
+- Filed GST returns for 45 clients every month and cut late-filing penalties to zero.
+- Managed accounts payable of Rs 2 crore a year across 120 vendors in Tally Prime.
+
+Education
+B.Com (Hons), Delhi University, 2020, CGPA 8.2/10
+
+Skills
+Tally, GST, TDS, Income Tax, Bank Reconciliation, Accounts Payable, Excel, MIS
+
+Personal Details
+Date of Birth: 12/04/1998
+Marital Status: Single
+Father's Name: R. K. Gupta
+"""

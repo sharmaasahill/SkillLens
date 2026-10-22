@@ -66,9 +66,31 @@ SKILLS = [
     # Data and marketing
     "seo", "sem", "analytics", "data analysis", "data visualization", "data reporting", "data modeling",
     "data warehousing", "data integration", "data cleansing", "data transformation", "data governance",
+    "digital marketing", "google ads", "meta ads", "social media marketing", "content writing", "email marketing",
+    # Generative AI
+    "generative ai", "langchain", "rag", "prompt engineering", "vector databases", "openai api",
+    # Enterprise and tools common in Indian job postings
+    "sap", "sap fico", "sap mm", "sap sd", "sap abap", "sap hana", "salesforce", "servicenow", "zoho", "jira",
+    "confluence", "figma", "adobe photoshop", "adobe illustrator", "canva", "ms office", "vlookup", "pivot tables",
+    "spring boot", "microservices", "hibernate", ".net", "asp.net", "kafka", "airflow",
+    # Finance and accounting (India)
+    "tally", "gst", "tds", "income tax", "bank reconciliation", "accounts payable", "accounts receivable",
+    "payroll", "mis", "financial analysis", "budgeting", "auditing", "ifrs", "ind as",
+    # Sales, HR and operations
+    "b2b sales", "b2c sales", "lead generation", "crm", "channel sales", "key account management", "telecalling",
+    "customer service", "recruitment", "talent acquisition", "hr operations", "onboarding", "supply chain",
+    "procurement", "vendor management", "inventory management", "six sigma", "lean",
+    # Engineering and manufacturing
+    "autocad", "solidworks", "catia", "revit", "staad pro", "plc", "scada", "embedded c", "vlsi", "verilog",
+    "quality control", "ansys",
 ]
 
 INDUSTRY_KEYWORDS = [
+    # Finance, sales, HR and operations, so non-tech resumes are scored fairly
+    'gst', 'tds', 'income tax', 'bank reconciliation', 'tally', 'mis', 'budgeting', 'forecasting', 'audit',
+    'compliance', 'b2b', 'b2c', 'lead generation', 'crm', 'target achievement', 'key account management',
+    'recruitment', 'onboarding', 'payroll', 'employee engagement', 'supply chain', 'vendor management',
+    'inventory', 'quality assurance', 'six sigma', 'stakeholder management', 'customer satisfaction',
     # Software development
     'agile', 'scrum', 'sprint', 'version control', 'git', 'ci/cd', 'code review', 'unit testing',
     'integration testing', 'deployment', 'microservices', 'api', 'rest', 'graphql', 'database', 'sql', 'nosql',
@@ -119,6 +141,17 @@ CASE_SENSITIVE = {
     'api': r'\bAPIs?\b',
     'logging': r'\blogging\b',
     'monitoring': r'\bmonitoring\b',
+    # Acronyms that are also ordinary words or word fragments
+    'sap': r'\bSAP\b',
+    'mis': r'\bMIS\b',
+    'rag': r'\bRAG\b',
+    'lean': r'\bLean\b',
+    'plc': r'\bPLC\b',
+    'gst': r'\bGST\b',
+    'tds': r'\bTDS\b',
+    'crm': r'\bCRM\b',
+    'audit': r'(?i)\baudit(?:s|ing|ed)?\b',
+    'ind as': r'\bInd[ -]?AS\b',
 }
 
 
@@ -164,10 +197,12 @@ WEAK_PATTERNS = [(p, re.compile(rf'\b{p}\b', re.IGNORECASE)) for p in WEAK_PHRAS
 # Section headings: a short line that starts with one of these words
 SECTION_GROUPS = [
     ('experience', 6, ['professional experience', 'work experience', 'work history', 'employment', 'experience']),
-    ('education', 5, ['education', 'academic background', 'academics', 'qualifications']),
+    ('education', 5, ['education', 'academic background', 'academic qualifications', 'educational qualifications',
+                      'academics', 'qualifications']),
     ('skills', 5, ['technical skills', 'core competencies', 'skills', 'technologies', 'tech stack']),
     ('summary', 2, ['professional summary', 'summary', 'objective', 'profile', 'about me']),
-    ('projects', 2, ['projects', 'certifications', 'achievements', 'awards', 'publications', 'certificates']),
+    ('projects', 2, ['projects', 'internships', 'certifications', 'achievements', 'awards', 'publications',
+                     'certificates', 'extra-curricular']),
 ]
 SECTION_PATTERNS = [
     (name, points, re.compile(
@@ -192,7 +227,7 @@ PROFILE_LINK_RE = re.compile(r'(?i)\b(?:linkedin|github|gitlab|behance|dribbble|
 QUANTIFIED_PATTERNS = [
     re.compile(r'\b\d+(?:\.\d+)?\s?%'),
     re.compile(r'(?i)(?:[$\u20b9\u20ac\u00a3]|\brs\.?|\binr\b|\busd\b)\s?\d[\d,.]*'),
-    re.compile(r'(?i)\b\d+(?:\.\d+)?\s?(?:x|k|m|mn|million|billion|lakhs?|crores?)\b'),
+    re.compile(r'(?i)\b\d+(?:\.\d+)?\s?(?:x|k|m|mn|million|billion|lakhs?|lacs?|crores?|cr|lpa)\b'),
     re.compile(
         r'(?i)\b\d{1,3}(?:,\d{3})*\+?\s+(?:users|customers|clients|people|engineers|developers|members|projects|'
         r'applications|apps|services|countries|cities|stores|students|hours|days|weeks|downloads|requests|'
@@ -207,6 +242,28 @@ FORMAT_CHECKS = [
     ('confidential or draft notices', re.compile(r'(?i)\b(?:confidential|draft copy|do not (?:copy|distribute))\b')),
 ]
 ICON_GLYPHS_RE = re.compile('[\ue000-\uf8ff\ufffd]')
+
+# Common on Indian resumes, but not needed by recruiters and a privacy and bias risk
+PERSONAL_DETAILS_RE = re.compile(
+    r"(?i)\b(?:date of birth|d\.?\s?o\.?\s?b\.?|marital status|father'?s name|mother'?s name|religion|caste|"
+    r"nationality|gender\s*:|passport no)\b")
+
+INDIAN_CITIES = [
+    'Bengaluru', 'Bangalore', 'Hyderabad', 'Pune', 'Mumbai', 'Navi Mumbai', 'Thane', 'Chennai', 'Gurugram',
+    'Gurgaon', 'Noida', 'Greater Noida', 'Delhi', 'New Delhi', 'Ghaziabad', 'Faridabad', 'Ahmedabad', 'Gandhinagar',
+    'Kolkata', 'Jaipur', 'Kochi', 'Coimbatore', 'Chandigarh', 'Mohali', 'Vadodara', 'Nagpur', 'Surat', 'Lucknow',
+    'Nashik', 'Indore', 'Bhopal', 'Bhubaneswar', 'Visakhapatnam', 'Vijayawada', 'Mysuru', 'Mysore', 'Madurai',
+    'Thiruvananthapuram', 'Trivandrum', 'Patna', 'Ranchi', 'Raipur', 'Dehradun', 'Ludhiana', 'Guwahati',
+    'Aurangabad', 'Rajkot', 'Udaipur', 'Kanpur', 'Varanasi', 'Mangaluru', 'Mangalore', 'Hubli', 'Goa',
+]
+CITY_RE = re.compile(r'\b(' + '|'.join(re.escape(c) for c in sorted(INDIAN_CITIES, key=len, reverse=True)) + r')\b')
+
+# Indian degrees, longest first so "B.Tech" is not read as "B"
+DEGREE_RE = re.compile(
+    r"(?i)(?<![a-z])(b\.?\s?tech|m\.?\s?tech|b\.?\s?e\.?(?=\s|,|$)|m\.?\s?e\.?(?=\s|,|$)|b\.?\s?sc|m\.?\s?sc|"
+    r"b\.?\s?com|m\.?\s?com|bca|mca|bba|mba|pgdm|b\.?\s?a\.?(?=\s|,|$)|m\.?\s?a\.?(?=\s|,|$)|ph\.?\s?d|"
+    r"chartered accountant|\bca\b(?=\s+(?:final|inter|foundation))|diploma|bachelor'?s?|master'?s?|"
+    r"\b(?:10th|12th|ssc|hsc|cbse|icse)\b)")
 
 
 # ---------------------------------------------------------------------------
@@ -376,12 +433,17 @@ def check_ats_compatibility(text, skills=None):
         problematic.append('icon fonts or symbols that do not convert to text')
     if problematic:
         issues.append(f"Contains elements that might not parse well in ATS: {', '.join(problematic)}")
+    personal = sorted({m.group().lower().rstrip(' :') for m in PERSONAL_DETAILS_RE.finditer(text)})
+    if personal:
+        issues.append(f"Remove personal details recruiters do not need ({', '.join(personal[:3])}). "
+                      "They take space and can introduce bias")
     if words < 100:
         # Too little text to judge formatting, so these points are not given away for free
         formatting = part('formatting', 'ATS-safe formatting', 0, 10, 'Not enough content to assess')
     else:
-        formatting = part('formatting', 'ATS-safe formatting', 10 - 4 * len(problematic), 10,
-                          'Clean' if not problematic else f'{len(problematic)} issue(s)')
+        found_issues = len(problematic) + (1 if personal else 0)
+        formatting = part('formatting', 'ATS-safe formatting', 10 - 4 * len(problematic) - (3 if personal else 0), 10,
+                          'Clean' if not found_issues else f'{found_issues} issue(s)')
 
     total = contact + sections + skill_score + impact + verb_score + length + formatting
     return {
@@ -396,6 +458,7 @@ def check_ats_compatibility(text, skills=None):
         'action_verbs': verbs,
         'word_count': words,
         'problematic_elements': problematic,
+        'personal_details': personal,
     }
 
 
@@ -473,8 +536,8 @@ class ResumeAnalyzer:
             )
 
             company_patterns = [
-                r'(?:worked?\s*(?:at|for)|employed\s*(?:at|by))\s+([A-Z][A-Za-z\s&]+(?:Inc|LLC|Corp|Company|Ltd)?)',
-                r'\b([A-Z][A-Za-z\s&]+(?:Inc|LLC|Corp|Company|Ltd))\b',
+                r'(?:worked?\s*(?:at|for|with)|employed\s*(?:at|by))\s+([A-Z][A-Za-z\s&]+?(?:Pvt\.?\s?Ltd\.?|Private Limited|Limited|Ltd\.?|LLP)?)(?=[,.\n]|$)',
+                r'\b([A-Z][A-Za-z&]+(?:\s[A-Z][A-Za-z&]+){0,4}\s(?:Pvt\.?\s?Ltd\.?|Private Limited|Limited|Ltd\.?|LLP|Technologies|Solutions|Infotech|Consultancy Services))\b',
             ]
             companies = set()
             for pattern in company_patterns:
@@ -485,18 +548,20 @@ class ResumeAnalyzer:
         return info
 
     def _extract_education_info(self, text):
-        info = {'degrees': [], 'institutions': [], 'graduation_years': []}
+        info = {'degrees': [], 'institutions': [], 'graduation_years': [], 'cgpa': None}
         try:
-            degree_patterns = [
-                r'\b(?:bachelor|master|phd|doctorate|diploma|certificate|associate)s?\s*(?:of\s*)?(?:science|arts|engineering|business|technology)?\b',
-                r'\b(?:bs|ba|ms|ma|mba|phd|btech|mtech)\b',
-            ]
-            degrees = set()
-            for pattern in degree_patterns:
-                degrees.update(re.findall(pattern, text.lower()))
-            info['degrees'] = sorted(degrees)
-
-            years = {int(y) for y in re.findall(r'\b(19\d{2}|20\d{2})\b', text) if 1950 <= int(y) <= datetime.now().year}
+            degrees = []
+            for match in DEGREE_RE.finditer(text):
+                label = re.sub(r'[\s.]', '', match.group()).upper().replace('PHD', 'PhD')
+                if label not in degrees:
+                    degrees.append(label)
+            info['degrees'] = degrees
+            institutions = re.findall(r'\b((?:[A-Z][A-Za-z.&]+\s){0,6}(?:University|Institute|College|IIT|NIT|IIIT|IIM|BITS|Vidyalaya|School)'
+                                      r'(?:\s(?:of|for)\s[A-Z][A-Za-z&]+(?:\s[A-Z][A-Za-z&]+){0,4})?)', text)
+            info['institutions'] = list(dict.fromkeys(i.strip() for i in institutions))[:4]
+            cgpa = re.search(r'(?i)\b(?:cgpa|cpi|gpa)\s*[:\-]?\s*(\d{1,2}(?:\.\d{1,2})?)\s*(?:/\s*10)?', text)
+            info['cgpa'] = float(cgpa.group(1)) if cgpa and float(cgpa.group(1)) <= 10 else None
+            years = {int(y) for y in re.findall(r'\b(19\d{2}|20\d{2})\b', text) if 1950 <= int(y) <= datetime.now().year + 4}
             info['graduation_years'] = sorted(years)
         except Exception as exc:
             self.logger.warning('Error extracting education info: %s', exc)
@@ -512,8 +577,8 @@ class ResumeAnalyzer:
             info['phone'] = phone
             linkedin = re.search(r'(?i)(?:https?://)?(?:www\.)?linkedin\.com/in/[\w-]+', text)
             info['linkedin'] = linkedin.group().lower() if linkedin else None
-            location = re.search(r'\b([A-Z][a-z]+),\s*([A-Z]{2})\b', text)
-            info['location'] = f'{location.group(1)}, {location.group(2)}' if location else None
+            city = CITY_RE.search(text[:1500])  # the header area, where candidates put their city
+            info['location'] = city.group(1) if city else None
         except Exception as exc:
             self.logger.warning('Error extracting contact info: %s', exc)
         return info

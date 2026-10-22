@@ -73,3 +73,27 @@ def test_scoring_is_fast():
     for _ in range(20):
         analyze_text(STRONG)
     assert (time.perf_counter() - start) / 20 < 0.05
+
+
+def test_indian_resume_conventions():
+    from models.resume_analyzer import ResumeAnalyzer
+    from .sample_resumes import INDIAN_ACCOUNTANT
+
+    result = analyze_text(INDIAN_ACCOUNTANT)
+    skills = set(result['skills'])
+    assert {'tally', 'gst', 'tds', 'bank reconciliation', 'mis', 'excel'} <= skills
+    ats = result['ats_analysis']
+    contact = next(p for p in ats['breakdown'] if p['key'] == 'contact')
+    assert contact['score'] == 10  # +91 number with dashes is recognised
+    assert ats['quantified_achievements'] >= 3  # "Rs 2 crore", "30%", "45 clients"
+    assert ats['personal_details'] and any('personal details' in i.lower() for i in ats['issues'])
+
+    analyzer = ResumeAnalyzer()
+    education = analyzer._extract_education_info(INDIAN_ACCOUNTANT)
+    assert 'BCOM' in education['degrees'] and education['cgpa'] == 8.2
+    assert analyzer._extract_contact_info(INDIAN_ACCOUNTANT)['location'] == 'Noida'
+
+
+def test_short_acronyms_do_not_match_ordinary_words():
+    skills = extract_skills_simple('I sap energy, lean on my team and miss deadlines rarely. Ragged edges.')
+    assert not {'sap', 'lean', 'mis', 'rag'} & set(skills)

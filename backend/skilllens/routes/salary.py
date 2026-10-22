@@ -1,4 +1,4 @@
-"""Salary prediction with the basic and advanced models."""
+"""Salary estimates for India, in INR per year."""
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
 
@@ -9,62 +9,54 @@ from . import json_body
 
 bp = Blueprint('salary', __name__)
 
+QUICK = 'Quick estimate (Ridge regression)'
+ADVANCED = 'Advanced estimate (Ridge + gradient boosting)'
 
-def _predict(model, data):
+
+def _predict(method, data):
     try:
-        return model.predict(data)
-    except Exception as exc:  # model wrappers raise generic exceptions for bad input
+        return method(data)
+    except Exception as exc:  # the model raises on malformed input
         raise ApiError(f'Prediction failed: {exc}', 422)
 
 
-def _advanced_fields(result):
-    keys = ['predicted_salary', 'salary_range', 'confidence_interval', 'prediction_confidence',
-            'top_influential_factors', 'model_version']
-    return {key: result[key] for key in keys}
+def _input(data):
+    return {**data, 'currency': 'INR', 'period': 'year'}
 
 
 @bp.post('/predict')
 @bp.post('/predict-salary')
 @jwt_required()
-def predict_basic():
+def predict_quick():
     data = json_body(SalaryRequest).model_dump()
-    result = _predict(ml.basic_salary_model(), data)
-    return jsonify({
-        'success': True,
-        'model_type': 'Basic Random Forest',
-        'predicted_salary': result['predicted_salary'],
-        'salary_range': result['salary_range'],
-        'input_data': data,
-    })
+    result = _predict(ml.salary_model().predict_quick, data)
+    return jsonify({'success': True, 'model_type': QUICK, 'currency': 'INR', **result, 'input_data': _input(data)})
 
 
 @bp.post('/predict-salary-advanced')
 @jwt_required()
 def predict_advanced():
     data = json_body(SalaryRequest).model_dump()
-    result = _predict(ml.advanced_salary_model(), data)
-    return jsonify({'success': True, 'model_type': 'Advanced Ensemble', **_advanced_fields(result),
-                    'input_data': data})
+    result = _predict(ml.salary_model().predict_advanced, data)
+    return jsonify({'success': True, 'model_type': ADVANCED, 'currency': 'INR', **result, 'input_data': _input(data)})
 
 
 @bp.post('/compare-predictions')
 @jwt_required()
 def compare():
     data = json_body(SalaryRequest).model_dump()
-    basic = _predict(ml.basic_salary_model(), data)
-    advanced = _predict(ml.advanced_salary_model(), data)
+    model = ml.salary_model()
+    quick = _predict(model.predict_quick, data)
+    advanced = _predict(model.predict_advanced, data)
 
-    difference = advanced['predicted_salary'] - basic['predicted_salary']
-    difference_pct = (difference / basic['predicted_salary']) * 100 if basic['predicted_salary'] > 0 else 0
+    difference = advanced['predicted_salary'] - quick['predicted_salary']
+    difference_pct = (difference / quick['predicted_salary']) * 100 if quick['predicted_salary'] > 0 else 0
     return jsonify({
         'success': True,
-        'input_data': data,
-        'basic_model': {
-            'model_type': 'Basic Random Forest',
-            'predicted_salary': basic['predicted_salary'],
-            'salary_range': basic['salary_range'],
-        },
-        'advanced_model': {'model_type': 'Advanced Ensemble', **_advanced_fields(advanced)},
+        'currency': 'INR',
+        'input_data': _input(data),
+        'basic_model': {'model_type': QUICK, **quick},
+        'advanced_model': {'model_type': ADVANCED, **advanced},
         'comparison': {
             'difference': difference,
             'difference_percentage': round(difference_pct, 2),
@@ -73,26 +65,15 @@ def compare():
     })
 
 
+@bp.get('/salary-options')
+@jwt_required()
+def salary_options():
+    """Cities, work modes and common job titles for the salary form."""
+    return jsonify({'success': True, **ml.salary_model().options()})
+
+
 @bp.get('/model-info')
 @jwt_required()
 def model_info():
-    info = ml.advanced_salary_model().get_model_info()
-    return jsonify({
-        'success': True,
-        'models': {
-            'basic': {
-                'name': 'Basic Random Forest',
-                'description': 'Simple Random Forest model with basic preprocessing',
-                'features': ['Age', 'Gender', 'Education Level', 'Job Title', 'Years of Experience'],
-                'capabilities': ['Salary Prediction', 'Salary Range Estimation'],
-            },
-            'advanced': {
-                'name': info['model_type'],
-                'description': 'Ensemble model with advanced feature engineering and multiple algorithms',
-                'features': info['feature_names'],
-                'feature_importance': info['feature_importance'],
-                'capabilities': info['capabilities'],
-                'models_in_ensemble': info['models_in_ensemble'],
-            },
-        },
-    })
+    """How the model was trained and how accurate it is on companies it never saw."""
+    return jsonify({'success': True, **ml.salary_model().info()})

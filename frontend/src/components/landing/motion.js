@@ -22,7 +22,7 @@ export function Reveal({ children, delay = 0, y = 32, as = 'div', className = ''
 }
 
 /** Counts up to `value` once visible. Renders the final value immediately for reduced motion. */
-export function CountUp({ value, duration = 1.6, format = (n) => Math.round(n).toLocaleString('en-US'), className = '' }) {
+export function CountUp({ value, duration = 1.6, format = (n) => Math.round(n).toLocaleString('en-IN'), className = '' }) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, amount: 0.6 });
   const reduce = useReducedMotion();
@@ -57,4 +57,5 @@ export function useElementWidth() {
   return [ref, width];
 }
 
-export const money = (n) => `$${Math.round(n).toLocaleString('en-US')}`;
+/** Annual salary in lakhs per annum: 1586000 -> "₹15.9 LPA". */
+export const money = (n) => `₹${(Number(n) / 100000).toFixed(1)} LPA`;

@@ -1,387 +1,324 @@
-import heapq
+"""Job matching against 97,000+ Indian job postings (Naukri.com, 2025).
+
+Skills are matched as whole tags (so "R" never matches "React"), weighted by rarity:
+sharing "PyTorch" with a posting says more than sharing "communication skills". Each
+posting's own experience range is used for the experience fit. Scoring is vectorised
+with a sparse jobs-by-skills matrix, so a request takes a few milliseconds.
+"""
 import logging
-import os
+import re
 from collections import Counter
 from typing import Any, Dict, List
+from urllib.parse import quote
 
-import pandas as pd
+import numpy as np
+import scipy.sparse as sp
+
+from . import india_data
 
 logger = logging.getLogger(__name__)
 
+# Different spellings of the same skill, after lowercasing
+SKILL_ALIASES = {
+    'reactjs': 'react', 'react.js': 'react', 'react js': 'react',
+    'nodejs': 'node.js', 'node js': 'node.js', 'node': 'node.js',
+    'nextjs': 'next.js', 'vuejs': 'vue', 'vue.js': 'vue', 'angularjs': 'angular', 'angular js': 'angular',
+    'expressjs': 'express', 'express.js': 'express',
+    'sklearn': 'scikit-learn', 'scikit learn': 'scikit-learn',
+    'ml': 'machine learning', 'dl': 'deep learning', 'ai': 'artificial intelligence',
+    'nlp': 'natural language processing', 'cv': 'computer vision',
+    'microsoft azure': 'azure', 'amazon web services': 'aws', 'google cloud': 'gcp', 'google cloud platform': 'gcp',
+    'postgres': 'postgresql', 'mongo': 'mongodb', 'k8s': 'kubernetes',
+    'ms excel': 'excel', 'advanced excel': 'excel', 'microsoft excel': 'excel',
+    'restful api': 'rest api', 'rest apis': 'rest api', 'restful': 'rest api', 'rest': 'rest api',
+    'ci cd': 'ci/cd', 'cicd': 'ci/cd', 'continuous integration': 'ci/cd',
+    'golang': 'go', 'c sharp': 'c#', 'dot net': '.net', 'asp.net core': 'asp.net', 'powerbi': 'power bi',
+    'communication': 'communication skills', 'team work': 'teamwork', 'tally erp': 'tally', 'tally prime': 'tally',
+    'html5': 'html', 'css3': 'css', 'spring-boot': 'spring boot', 'springboot': 'spring boot',
+}
+
+CATEGORY_RULES = [
+    ('Data Science', r'data scien|data analy|analytics|machine learning|\bml\b|\bai\b|artificial intelligence|deep learning|\bnlp\b|business intelligence|\bbi\b'),
+    ('DevOps/Cloud', r'devops|cloud|\bsre\b|reliability|infrastructure|platform engineer|kubernetes|\baws\b|azure'),
+    ('Software Development', r'software|developer|programmer|full ?stack|front ?end|back ?end|\bsde\b|android|\bios\b|web|java|python|\.net|application (?:developer|lead|engineer)|mobile'),
+    ('Quality Assurance', r'\bqa\b|test|quality assurance|automation engineer'),
+    ('Design', r'design|\bui\b|\bux\b|graphic|creative|animator|interior'),
+    ('Sales & Business Development', r'sales|business development|\bbde\b|\bbdm\b|relationship manager|account manager|key account|telecall|telesales|inside sales'),
+    ('Marketing', r'marketing|\bseo\b|content|social media|brand|digital|copywriter'),
+    ('Finance & Accounting', r'account|finance|financial|audit|\btax|\bgst\b|\bca\b|chartered|payroll|banking|credit|treasury'),
+    ('Human Resources', r'\bhr\b|human resource|recruit|talent acquisition|payroll'),
+    ('Customer Support', r'customer (?:support|service|care|success)|\bbpo\b|voice process|call cent|chat process|helpdesk|help desk'),
+    ('Operations & Supply Chain', r'operations|supply chain|logistic|procurement|purchase|warehouse|store|inventory'),
+    ('Engineering & Manufacturing', r'mechanical|electrical|civil|production|manufactur|maintenance|plant|site engineer|quality control|\bqc\b|automobile'),
+    ('Healthcare', r'doctor|nurse|medical|pharma|clinical|hospital|physio|lab technician|healthcare'),
+    ('Education', r'teacher|faculty|professor|tutor|trainer|educat|lecturer'),
+    ('Management', r'manager|head|director|\bvp\b|vice president|lead|chief|\bcxo\b'),
+]
+_CATEGORY_RE = [(name, re.compile(pattern)) for name, pattern in CATEGORY_RULES]
+
+MAX_PER_COMPANY = 2
+
+
+def canonical_skill(skill: str) -> str:
+    s = re.sub(r'\s+', ' ', str(skill).lower()).strip(' .,;')
+    return SKILL_ALIASES.get(s, s)
+
+
+def categorize(title_norm: str) -> str:
+    for name, pattern in _CATEGORY_RE:
+        if pattern.search(title_norm):
+            return name
+    return 'Other'
+
+
+def experience_label(lo: int, hi: int) -> str:
+    if hi <= 0:
+        return 'Fresher'
+    return f'{lo}-{hi} yrs' if hi > lo else f'{lo}+ yrs'
+
+
+def naukri_search_url(title: str, city: str) -> str:
+    """Naukri's search page for the role in that city. The 2025 postings themselves have expired."""
+    slug = re.sub(r'[^a-z0-9]+', '-', india_data.normalise_title(title)).strip('-') or 'jobs'
+    place = '' if city in ('', 'Remote', 'Unspecified') else f"-in-{re.sub(r'[^a-z0-9]+', '-', city.lower()).strip('-')}"
+    return f'https://www.naukri.com/{quote(slug)}-jobs{place}'
+
+
 class JobRecommender:
-    def __init__(self):
-        self.jobs_df = None
-        self._index = None
-        self._trending = None
-        self._load_jobs_data()
+    def __init__(self, jobs=None):
+        self.jobs_df = india_data.load_jobs() if jobs is None else jobs.reset_index(drop=True)
+        self._build_index()
+        logger.info('Indexed %d postings and %d distinct skills', len(self.jobs_df), len(self.vocab))
 
-    def _load_jobs_data(self):
-        """Load and preprocess the Glassdoor jobs dataset"""
-        try:
-            jobs_path = os.path.join(os.path.dirname(__file__), 'glassdoor_all_jobs.csv')
-            self.jobs_df = pd.read_csv(jobs_path)
-            
-            # Clean and preprocess the data
-            self.jobs_df = self.jobs_df.dropna(subset=['Position', 'Company', 'Skills'])
-            self.jobs_df['Skills'] = self.jobs_df['Skills'].fillna('')
-            self.jobs_df['Job Description'] = self.jobs_df['Job Description'].fillna('')
-            
-            # Clean skills column
-            self.jobs_df['Cleaned_Skills'] = self.jobs_df['Skills'].apply(self._clean_skills_text)
-            
-            # Extract experience level from position
-            self.jobs_df['Experience_Level'] = self.jobs_df['Position'].apply(self._extract_experience_level)
-            
-            # Extract job category
-            self.jobs_df['Job_Category'] = self.jobs_df['Position'].apply(self._categorize_job)
-            
-            logger.info("Loaded %d jobs from dataset", len(self.jobs_df))
-            
-        except Exception as e:
-            logger.error("Error loading jobs data: %s", e)
-            self.jobs_df = pd.DataFrame()
+    # ----- index -----
+    def _build_index(self):
+        df = self.jobs_df
+        df['category'] = df['title_norm'].map(categorize)
+        self.vocab: Dict[str, int] = {}
+        rows, cols = [], []
+        for i, text in enumerate(df['skills']):
+            for tag in set(canonical_skill(t) for t in str(text).split('|') if t):
+                cols.append(self.vocab.setdefault(tag, len(self.vocab)))
+                rows.append(i)
+        n_jobs, n_skills = len(df), len(self.vocab)
+        self.matrix = sp.csr_matrix((np.ones(len(rows), dtype=np.float32), (rows, cols)), shape=(n_jobs, n_skills))
+        self.skill_counts = np.asarray(self.matrix.sum(axis=0)).ravel()
+        # Rare skills weigh more; very common soft skills weigh little
+        self.idf = np.log((1 + n_jobs) / (1 + self.skill_counts)).astype(np.float32) + 1.0
+        self.job_weight = np.asarray(self.matrix @ self.idf).ravel()
+        self.exp_min = df['exp_min'].to_numpy(dtype=np.float32)
+        self.exp_max = df['exp_max'].to_numpy(dtype=np.float32)
+        self.city_lower = df['city'].str.lower().to_numpy()
+        self.mode = df['work_mode'].to_numpy()
+        self.category = df['category'].to_numpy()
+        self.company = df['company'].to_numpy()
+        names = np.array(list(self.vocab), dtype=object)
+        top = np.argsort(-self.skill_counts)
+        self._trending = [names[i] for i in top[:20]]
 
-    def _clean_skills_text(self, skills_text: str) -> str:
-        """Clean and normalize skills text"""
-        if pd.isna(skills_text) or skills_text == '':
-            return ''
-        
-        # Remove extra whitespace and normalize
-        skills = str(skills_text).lower().strip()
-        
-        # Split by comma and clean each skill
-        skill_list = [skill.strip() for skill in skills.split(',')]
-        
-        # Remove empty skills and duplicates
-        clean_skills = sorted(set(skill for skill in skill_list if skill and len(skill) > 1))
-        
-        return ', '.join(clean_skills)
+    def _user_vector(self, user_skills):
+        idx = sorted({self.vocab[s] for s in (canonical_skill(x) for x in user_skills) if s in self.vocab})
+        vec = np.zeros(len(self.vocab), dtype=np.float32)
+        vec[idx] = 1.0
+        return vec, idx
 
-    def _extract_experience_level(self, position: str) -> str:
-        """Extract experience level from job position"""
-        position_lower = position.lower()
-        
-        if any(keyword in position_lower for keyword in ['senior', 'sr.', 'lead', 'principal', 'staff']):
-            return 'Senior'
-        elif any(keyword in position_lower for keyword in ['junior', 'jr.', 'associate', 'intern', 'trainee', 'fresher']):
-            return 'Junior'
-        elif any(keyword in position_lower for keyword in ['manager', 'director', 'head', 'vp', 'vice president']):
-            return 'Management'
-        else:
-            return 'Mid-level'
+    # ----- scoring -----
+    def _experience_fit(self, years):
+        lo, hi = self.exp_min, np.maximum(self.exp_max, self.exp_min)
+        fit = np.ones_like(lo)
+        under = years < lo
+        over = years > hi + 2  # a little overqualified is fine
+        fit[under] = np.maximum(0.3, 1.0 - (lo[under] - years) * 0.2)
+        fit[over] = np.maximum(0.5, 1.0 - (years - hi[over] - 2) * 0.08)
+        return fit
 
-    def _categorize_job(self, position: str) -> str:
-        """Categorize job based on position title"""
-        position_lower = position.lower()
-        
-        # Software Development
-        if any(keyword in position_lower for keyword in ['software', 'developer', 'engineer', 'programmer', 'full stack', 'frontend', 'backend', 'mobile']):
-            return 'Software Development'
-        
-        # Data Science & Analytics
-        elif any(keyword in position_lower for keyword in ['data scientist', 'data analyst', 'analytics', 'machine learning', 'ml', 'ai', 'artificial intelligence']):
-            return 'Data Science'
-        
-        # DevOps & Cloud
-        elif any(keyword in position_lower for keyword in ['devops', 'cloud', 'infrastructure', 'platform', 'sre', 'reliability']):
-            return 'DevOps/Cloud'
-        
-        # Architecture & Design
-        elif any(keyword in position_lower for keyword in ['architect', 'architecture', 'solution', 'design']):
-            return 'Architecture'
-        
-        # Testing & QA
-        elif any(keyword in position_lower for keyword in ['test', 'qa', 'quality', 'automation']):
-            return 'Testing/QA'
-        
-        # Management
-        elif any(keyword in position_lower for keyword in ['manager', 'lead', 'director', 'head', 'vp']):
-            return 'Management'
-        
-        else:
-            return 'Other'
-
-    def _calculate_skill_match_score(self, user_skills: List[str], job_skills: str) -> float:
-        """Calculate skill match score between user skills and job requirements"""
-        if not user_skills or not job_skills:
-            return 0.0
-        
-        user_skills_lower = [skill.lower().strip() for skill in user_skills]
-        job_skills_lower = job_skills.lower()
-        
-        # Exact matches
-        exact_matches = sum(1 for skill in user_skills_lower if skill in job_skills_lower)
-        
-        # Partial matches (for compound skills)
-        partial_matches = 0
-        for user_skill in user_skills_lower:
-            if len(user_skill) > 3:  # Only check meaningful skills
-                for job_skill_part in job_skills_lower.split(','):
-                    if user_skill in job_skill_part.strip() or job_skill_part.strip() in user_skill:
-                        partial_matches += 0.5
-                        break
-        
-        total_matches = exact_matches + partial_matches
-        max_possible_matches = max(len(user_skills_lower), len(job_skills_lower.split(',')))
-        
-        return min(total_matches / max_possible_matches, 1.0) if max_possible_matches > 0 else 0.0
-
-    def _calculate_experience_match(self, user_experience: int, job_experience_level: str) -> float:
-        """Calculate experience level match score"""
-        experience_mapping = {
-            'Junior': (0, 3),
-            'Mid-level': (2, 7),
-            'Senior': (5, 15),
-            'Management': (7, 20)
-        }
-        
-        if job_experience_level not in experience_mapping:
-            return 0.5  # Neutral score for unknown levels
-        
-        min_exp, max_exp = experience_mapping[job_experience_level]
-        
-        if min_exp <= user_experience <= max_exp:
-            return 1.0
-        elif user_experience < min_exp:
-            # User is underqualified
-            return max(0.3, 1.0 - (min_exp - user_experience) * 0.2)
-        else:
-            # User is overqualified
-            return max(0.5, 1.0 - (user_experience - max_exp) * 0.1)
-
-    def _generate_recommendation_reasoning(self, user_skills: List[str], user_experience: int, 
-                                         job: Dict, skill_score: float, experience_score: float,
-                                         location_score: float, category_score: float,
-                                         matched_skills: List[str]) -> str:
-        """Generate detailed reasoning for why this job is recommended"""
-        reasons = []
-        
-        # Skills reasoning
-        if skill_score >= 0.7:
-            reasons.append(f"**Excellent skill match** ({int(skill_score * 100)}%) - You have {len(matched_skills)} key skills: {', '.join(matched_skills[:3])}{'...' if len(matched_skills) > 3 else ''}")
-        elif skill_score >= 0.4:
-            reasons.append(f"**Good skill match** ({int(skill_score * 100)}%) - Your skills align well with {len(matched_skills)} requirements: {', '.join(matched_skills[:2])}")
-        elif skill_score >= 0.2:
-            reasons.append(f"**Partial skill match** ({int(skill_score * 100)}%) - Some transferable skills, good growth opportunity")
-        else:
-            reasons.append(f"**Career growth opportunity** - While skill match is moderate, this role could expand your expertise")
-        
-        # Experience reasoning
-        experience_mapping = {
-            'Junior': (0, 3),
-            'Mid-level': (2, 7), 
-            'Senior': (5, 15),
-            'Management': (7, 20)
-        }
-        
-        job_exp_range = experience_mapping.get(job['Experience_Level'], (0, 0))
-        if experience_score >= 0.9:
-            reasons.append(f"**Perfect experience fit** - Your {user_experience} years aligns perfectly with {job['Experience_Level']} level")
-        elif experience_score >= 0.7:
-            reasons.append(f"**Strong experience match** - Your {user_experience} years suits this {job['Experience_Level']} position well")
-        elif user_experience < job_exp_range[0]:
-            reasons.append(f"**Growth opportunity** - Stretch role that could accelerate your career development")
-        else:
-            reasons.append(f"**Leadership potential** - Your experience could bring valuable insights to this role")
-        
-        # Location reasoning
-        if location_score > 1.0:
-            reasons.append(f"**Preferred location** - Located in your desired area: {job['Location']}")
-        
-        # Category reasoning  
-        if category_score > 1.0:
-            reasons.append(f"**Preferred field** - Matches your interest in {job['Job_Category']}")
-        
-        # Company and role specific insights
-        if 'senior' in job['Position'].lower() and user_experience >= 5:
-            reasons.append(f"**Senior role recognition** - Position acknowledges your expertise level")
-        
-        if any(skill in job['Cleaned_Skills'].lower() for skill in ['machine learning', 'ai', 'data science']):
-            reasons.append(f"**Cutting-edge technology** - Role involves emerging tech and innovation")
-        
-        if any(skill in job['Cleaned_Skills'].lower() for skill in ['leadership', 'team', 'management']):
-            reasons.append(f"**Leadership opportunity** - Role includes team collaboration and leadership aspects")
-        
-        return " • ".join(reasons[:4])  # Limit to top 4 reasons
-
-    def _job_index(self):
-        """Per-job values used for scoring, computed once instead of on every request."""
-        if getattr(self, '_index', None) is None:
-            df = self.jobs_df
-            self._index = [
-                (idx, cleaned.lower(), [part.strip() for part in cleaned.lower().split(',')], level,
-                 category, (loc.lower() if pd.notna(loc) else ''))
-                for idx, cleaned, level, category, loc in zip(
-                    df.index, df['Cleaned_Skills'], df['Experience_Level'], df['Job_Category'], df['Location'])
-            ]
-        return self._index
-
-    def recommend_jobs(self, user_skills: List[str], user_experience: int = 0,
-                      preferred_locations: List[str] = None,
-                      preferred_categories: List[str] = None,
-                      top_k: int = 10) -> List[Dict[str, Any]]:
-        """
-        Recommend jobs based on user skills and preferences.
-
-        Every job is scored, but the detailed fields (reasoning, highlights, description)
-        are only built for the top_k results, which keeps a request to a few milliseconds.
-        """
-        if self.jobs_df.empty or not user_skills:
+    def recommend_jobs(self, user_skills: List[str], user_experience: float = 0,
+                       preferred_locations: List[str] = None, preferred_categories: List[str] = None,
+                       top_k: int = 10) -> List[Dict[str, Any]]:
+        if not len(self.jobs_df) or not user_skills:
+            return []
+        vec, idx = self._user_vector(user_skills)
+        if not idx:
             return []
 
-        skills_lower = [skill.lower().strip() for skill in user_skills]
-        long_skills = [skill for skill in skills_lower if len(skill) > 3]
-        locations = [loc.lower() for loc in (preferred_locations or [])]
-        categories = set(preferred_categories or [])
-        exp_cache = {}
+        shared_weight = np.asarray(self.matrix @ (vec * self.idf)).ravel()
+        shared_count = np.asarray(self.matrix @ vec).ravel()
+        # Share of the posting's (rarity-weighted) requirements you cover, damped for postings with few tags
+        skill_score = shared_weight / (self.job_weight + 2.0 * self.idf.mean())
+        min_shared = 2 if len(idx) >= 3 else 1
+        candidates = np.flatnonzero(shared_count >= min_shared)
+        if not len(candidates):
+            candidates = np.flatnonzero(shared_count >= 1)
 
-        scored = []
-        for order, (idx, skills_text, parts, level, category, location) in enumerate(self._job_index()):
-            # Same formula as _calculate_skill_match_score, on precomputed lowercase text
-            exact = sum(1 for skill in skills_lower if skill in skills_text)
-            partial = 0.0
-            for skill in long_skills:
-                for part in parts:
-                    if skill in part or part in skill:
-                        partial += 0.5
-                        break
-            max_possible = max(len(skills_lower), len(parts))
-            skill_score = min((exact + partial) / max_possible, 1.0) if max_possible else 0.0
-            if skill_score <= 0.1:
+        exp_fit = self._experience_fit(float(user_experience or 0))
+        locations = [loc.lower().strip() for loc in (preferred_locations or []) if loc.strip()]
+        loc_match = cat_match = None
+        if locations:
+            loc_match = np.array([any(l in c for l in locations) for c in self.city_lower[candidates]], dtype=bool)
+            if 'remote' in locations:
+                loc_match |= self.mode[candidates] == 'Remote'
+        if preferred_categories:
+            cat_match = np.isin(self.category[candidates], list(preferred_categories))
+        # Preferences filter the list when enough postings satisfy them, otherwise they only rank
+        for which in ('location', 'category'):
+            match = loc_match if which == 'location' else cat_match
+            if match is None or match.sum() < top_k:
                 continue
+            candidates = candidates[match]
+            loc_match = None if loc_match is None else loc_match[match]
+            cat_match = None if cat_match is None else cat_match[match]
+        loc_score = np.ones(len(candidates)) if loc_match is None else np.where(loc_match, 1.2, 0.8)
+        cat_score = np.ones(len(candidates)) if cat_match is None else np.where(cat_match, 1.2, 0.8)
 
-            if level not in exp_cache:
-                exp_cache[level] = self._calculate_experience_match(user_experience, level)
-            experience_score = exp_cache[level]
-            location_score = (1.2 if any(loc in location for loc in locations) else 0.8) if locations else 1.0
-            category_score = (1.2 if category in categories else 0.8) if categories else 1.0
-            overall = skill_score * 0.5 + experience_score * 0.3 + location_score * 0.1 + category_score * 0.1
-            scored.append((round(overall, 3), order, idx, skill_score, experience_score, location_score, category_score))
+        s = np.clip(skill_score[candidates] * 1.6, 0, 1)
+        overall = s * 0.55 + exp_fit[candidates] * 0.25 + loc_score * 0.1 + cat_score * 0.1
+        order = candidates[np.lexsort((candidates, -overall))]
+        rank = {job: i for i, job in enumerate(candidates)}
 
-        # Highest score first; ties keep dataset order, exactly as a stable sort would
-        top = heapq.nsmallest(top_k, scored, key=lambda item: (-item[0], item[1]))
+        picked, per_company, seen_roles = [], Counter(), set()
+        for job in order:
+            role = (self.company[job], self.jobs_df.at[job, 'title_norm'])
+            if role in seen_roles or per_company[self.company[job]] >= MAX_PER_COMPANY:
+                continue
+            seen_roles.add(role)
+            per_company[self.company[job]] += 1
+            picked.append(job)
+            if len(picked) >= top_k:
+                break
 
-        recommendations = []
-        for overall, _, idx, skill_score, experience_score, location_score, category_score in top:
-            job = self.jobs_df.loc[idx]
-            matched_skills = self._get_matched_skills(user_skills, job['Cleaned_Skills'])
-            description = job['Job Description']
-            recommendations.append({
-                'job_id': int(idx),
-                'position': job['Position'],
-                'company': job['Company'],
-                'location': job['Location'],
-                'job_url': job.get('Job URL', ''),
-                'job_description': description[:500] + '...' if len(description) > 500 else description,
-                'required_skills': job['Skills'],
-                'job_category': job['Job_Category'],
-                'experience_level': job['Experience_Level'],
-                'overall_score': overall,
-                'skill_match_score': round(skill_score, 3),
-                'experience_match_score': round(experience_score, 3),
-                'matched_skills': matched_skills,
-                'recommendation_reasoning': self._generate_recommendation_reasoning(
-                    user_skills, user_experience, job, skill_score, experience_score,
-                    location_score, category_score, matched_skills),
-                'why_recommended': self._get_key_highlights(job, matched_skills, skill_score, experience_score),
-            })
-        return recommendations
+        user_set = {canonical_skill(x) for x in user_skills}
+        results = []
+        for job in picked:
+            i = rank[job]
+            results.append(self._job_payload(job, user_set, user_experience, float(s[i]), float(exp_fit[job]),
+                                             float(loc_score[i]), float(cat_score[i]), float(overall[i])))
+        return results
 
-    def _get_key_highlights(self, job: Dict, matched_skills: List[str], skill_score: float, experience_score: float) -> List[str]:
-        """Get key highlights for why this job is recommended"""
-        highlights = []
-        
+    def _job_payload(self, job, user_set, years, skill_score, exp_score, loc_score, cat_score, overall):
+        row = self.jobs_df.loc[job]
+        tags, seen = [], set()
+        for tag in str(row['skills']).split('|'):
+            key = canonical_skill(tag)
+            if tag and key not in seen:
+                seen.add(key)
+                tags.append(tag)
+        matched = [t for t in tags if canonical_skill(t) in user_set]
+        missing = [t for t in tags if canonical_skill(t) not in user_set][:5]
+        salary = None
+        if row['salary_min'] >= india_data.MIN_SALARY and row['salary_max'] > 0:
+            salary = {'min': int(row['salary_min']), 'max': int(row['salary_max']), 'currency': 'INR', 'period': 'year'}
+        description = str(row['description'])
+        return {
+            'job_id': int(row['job_id']),
+            'source': 'Naukri.com (2025 dataset)',
+            'position': row['title'],
+            'company': row['company'],
+            'location': row['location'] or row['city'],
+            'city': row['city'],
+            'work_mode': row['work_mode'],
+            'job_url': naukri_search_url(row['title'], row['city']),
+            'job_url_label': 'Find similar on Naukri',
+            'job_description': description + ('...' if len(description) >= india_data.DESCRIPTION_CHARS else ''),
+            'required_skills': ', '.join(tags),
+            'job_category': row['category'],
+            'experience_level': experience_label(int(row['exp_min']), int(row['exp_max'])),
+            'experience_range': {'min': int(row['exp_min']), 'max': int(row['exp_max'])},
+            'salary': salary,
+            'company_rating': None if row['rating'] in ('', None) or row['rating'] != row['rating'] else float(row['rating']),
+            'posted': row['posted'],
+            'overall_score': round(overall, 3),
+            'skill_match_score': round(skill_score, 3),
+            'experience_match_score': round(exp_score, 3),
+            'matched_skills': matched,
+            'missing_skills': missing,
+            'recommendation_reasoning': self._reasoning(row, matched, missing, years, skill_score, exp_score, loc_score, cat_score),
+            'why_recommended': self._highlights(row, matched, skill_score, exp_score, salary),
+        }
+
+    @staticmethod
+    def _reasoning(row, matched, missing, years, skill_score, exp_score, loc_score, cat_score):
+        reasons = []
+        pct = int(skill_score * 100)
+        if matched:
+            label = 'Strong skill match' if skill_score >= 0.6 else 'Good skill match' if skill_score >= 0.35 else 'Partial skill match'
+            reasons.append(f"**{label}** ({pct}%) - you have {len(matched)} of the listed skills: {', '.join(matched[:4])}")
+        if missing:
+            reasons.append(f"**To close the gap** - learn {', '.join(missing[:3])}")
+        lo, hi = int(row['exp_min']), int(row['exp_max'])
+        if exp_score >= 0.95:
+            reasons.append(f"**Experience fits** - the role asks for {experience_label(lo, hi)}, you have {years:g}")
+        elif years < lo:
+            reasons.append(f"**Stretch role** - asks for {lo}+ years, you have {years:g}")
+        else:
+            reasons.append(f"**You are senior for this** - it asks for up to {hi} years")
+        if loc_score > 1:
+            reasons.append(f"**Preferred location** - {row['city']}")
+        if cat_score > 1:
+            reasons.append(f"**Preferred field** - {row['category']}")
+        return ' • '.join(reasons)
+
+    @staticmethod
+    def _highlights(row, matched, skill_score, exp_score, salary):
+        out = []
         if skill_score >= 0.6:
-            highlights.append(f"Strong skill alignment with {len(matched_skills)} matching competencies")
-        
-        if experience_score >= 0.8:
-            highlights.append("Perfect experience level fit")
-        
-        if 'remote' in job.get('Location', '').lower():
-            highlights.append("Remote work opportunity")
-        
-        if any(keyword in job['Position'].lower() for keyword in ['lead', 'senior', 'principal']):
-            highlights.append("Leadership/Senior role opportunity")
-        
-        if any(keyword in job.get('Job Description', '').lower() for keyword in ['growth', 'learning', 'development']):
-            highlights.append("Career growth and learning opportunities")
-        
-        return highlights[:3]  # Limit to top 3 highlights
+            out.append(f'{len(matched)} matching skills')
+        if exp_score >= 0.95:
+            out.append('Experience level fits')
+        if salary:
+            out.append(f"Disclosed pay: Rs {salary['min'] / 1e5:.1f}-{salary['max'] / 1e5:.1f} LPA")
+        if row['work_mode'] in ('Remote', 'Hybrid'):
+            out.append(f"{row['work_mode']} work")
+        if row['rating'] not in ('', None) and row['rating'] == row['rating'] and float(row['rating']) >= 4:
+            out.append(f"Company rated {float(row['rating']):.1f}/5")
+        return out[:3]
 
-    def _get_matched_skills(self, user_skills: List[str], job_skills: str) -> List[str]:
-        """Get list of matched skills between user and job"""
-        if not user_skills or not job_skills:
-            return []
-        
-        user_skills_lower = [skill.lower().strip() for skill in user_skills]
-        job_skills_lower = job_skills.lower()
-        
-        matched = []
-        for skill in user_skills_lower:
-            if skill in job_skills_lower:
-                matched.append(skill)
-        
-        return matched
-
+    # ----- lookups -----
     def get_job_categories(self) -> List[str]:
-        """Get all available job categories"""
-        if self.jobs_df.empty:
-            return []
-        return self.jobs_df['Job_Category'].unique().tolist()
+        counts = Counter(self.category)
+        return [name for name, _ in counts.most_common() if name != 'Other'] + ['Other']
 
     def get_locations(self) -> List[str]:
-        """Get all available job locations"""
-        if self.jobs_df.empty:
-            return []
-        return self.jobs_df['Location'].unique().tolist()
-
-    def _trending_skills(self):
-        """Most frequent skills across all listings. The dataset is static, so compute once."""
-        if getattr(self, '_trending', None) is None:
-            counts = {}
-            for skills_text in self.jobs_df['Cleaned_Skills']:
-                if pd.notna(skills_text):
-                    for skill in skills_text.split(','):
-                        skill = skill.strip().lower()
-                        if len(skill) > 2:
-                            counts[skill] = counts.get(skill, 0) + 1
-            self._trending = [skill for skill, _ in sorted(counts.items(), key=lambda x: x[1], reverse=True)[:20]]
-        return self._trending
+        counts = Counter(self.jobs_df['city'])
+        return [city for city, n in counts.most_common() if n >= 20 and city != 'Unspecified']
 
     def get_skills_analysis(self, user_skills: List[str]) -> Dict[str, Any]:
-        """Analyze user skills against job market demand"""
-        if self.jobs_df.empty or not user_skills:
+        if not len(self.jobs_df) or not user_skills:
             return {}
-
-        total_jobs = len(self.jobs_df)
-        index = self._job_index()
-        skills_demand = {}
+        total = len(self.jobs_df)
+        demand = {}
         for skill in user_skills:
-            skill_lower = skill.lower()
-            levels = [level for _, skills_text, _, level, _, _ in index if skill_lower in skills_text]
-            skills_demand[skill] = {
-                'demand_percentage': round(len(levels) / total_jobs * 100, 2),
-                'job_count': len(levels),
-                'avg_experience_level': Counter(levels).most_common(1)[0][0] if levels else 'Unknown',
+            j = self.vocab.get(canonical_skill(skill))
+            if j is None:
+                demand[skill] = {'demand_percentage': 0.0, 'job_count': 0, 'avg_experience_level': 'Unknown'}
+                continue
+            jobs = self.matrix[:, j].nonzero()[0]
+            median_exp = float(np.median(self.exp_min[jobs])) if len(jobs) else 0
+            demand[skill] = {
+                'demand_percentage': round(len(jobs) / total * 100, 2),
+                'job_count': int(len(jobs)),
+                'avg_experience_level': f'{median_exp:g}+ yrs' if median_exp else 'Fresher',
             }
-
-        trending_skills = self._trending_skills()
+        user_set = {canonical_skill(s) for s in user_skills}
+        gaps = [s for s in self._related_skills(user_set) if s not in user_set][:5]
         return {
-            'user_skills_demand': skills_demand,
-            'trending_skills': trending_skills,
-            'total_jobs_analyzed': total_jobs,
-            'skill_gap_analysis': self._analyze_skill_gaps(user_skills, trending_skills)
+            'user_skills_demand': demand,
+            'trending_skills': self._trending,
+            'total_jobs_analyzed': total,
+            'skill_gap_analysis': gaps,
+            'source': india_data.SOURCE,
         }
 
-    def _analyze_skill_gaps(self, user_skills: List[str], trending_skills: List[str]) -> List[str]:
-        """Identify skill gaps based on trending skills"""
-        user_skills_lower = [skill.lower() for skill in user_skills]
-        
-        # Find trending skills that user doesn't have
-        skill_gaps = []
-        for trending_skill in trending_skills[:10]:  # Top 10 trending skills
-            if not any(trending_skill in user_skill or user_skill in trending_skill 
-                      for user_skill in user_skills_lower):
-                skill_gaps.append(trending_skill)
-        
-        return skill_gaps[:5]  # Return top 5 skill gaps
+    def _related_skills(self, user_set):
+        """Skills that most often appear alongside yours, i.e. what similar roles also ask for."""
+        idx = [self.vocab[s] for s in user_set if s in self.vocab]
+        if not idx:
+            return self._trending
+        jobs = np.unique(self.matrix[:, idx].nonzero()[0])
+        co = np.asarray(self.matrix[jobs].sum(axis=0)).ravel()
+        names = list(self.vocab)
+        # How much more often a skill appears in postings like yours than in postings overall.
+        # Weighted by how common it is among them, so niche one-offs do not dominate.
+        local = co / max(len(jobs), 1)
+        overall = self.skill_counts / len(self.jobs_df)
+        score = np.where(co >= 10, local * np.log(np.maximum(local / np.maximum(overall, 1e-9), 1e-9)), -np.inf)
+        return [names[i] for i in np.argsort(-score)[:40] if np.isfinite(score[i])]
