@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+kaggle.json
+*.pem
+*.key
+
+# Local database (contains user accounts and password hashes)
+backend/instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Runtime uploads (user resumes)
+backend/uploaded_resumes/
+
+# Frontend
+frontend/node_modules/
+frontend/build/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
