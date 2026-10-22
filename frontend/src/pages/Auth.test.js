@@ -32,7 +32,23 @@ test('logs in and sends regular users to the home page', async () => {
   renderAuth({ login });
   fillAndSubmit('a@example.com', 'password123');
   expect(await screen.findByText('User home')).toBeInTheDocument();
-  expect(login).toHaveBeenCalledWith('a@example.com', 'password123');
+  expect(login).toHaveBeenCalledWith('a@example.com', 'password123', 'candidate');
+});
+
+test('the HR team option signs in as HR', async () => {
+  const login = jest.fn().mockResolvedValue({ email: 'hr@example.com', is_admin: true });
+  renderAuth({ login });
+  fireEvent.click(screen.getByRole('button', { name: 'HR team' }));
+  fillAndSubmit('hr@example.com', 'password123');
+  expect(await screen.findByText('HR dashboard')).toBeInTheDocument();
+  expect(login).toHaveBeenCalledWith('hr@example.com', 'password123', 'hr');
+});
+
+test('shows the wrong-side message when an account uses the other login', async () => {
+  const error = { response: { status: 403, data: { error: 'This is an HR team account. Sign in with the HR team option instead.' } } };
+  renderAuth({ login: jest.fn().mockRejectedValue(error) });
+  fillAndSubmit('hr@example.com', 'password123');
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('HR team option'));
 });
 
 test('sends HR users to the HR dashboard', async () => {

@@ -12,8 +12,8 @@ const NUMBERS = [
 
 export function Numbers() {
   return (
-    <section className="px-6 py-[14vh]" aria-label="SkillLens in numbers">
-      <div className="mx-auto grid max-w-[1080px] gap-x-10 gap-y-14 sm:grid-cols-2 lg:grid-cols-4">
+    <section className="px-5 py-[14vh]" aria-label="SkillLens in numbers">
+      <div className="mx-auto grid max-w-[984px] gap-x-10 gap-y-14 sm:grid-cols-2 lg:grid-cols-4">
         {NUMBERS.map((n, i) => (
           <Reveal key={n.label} delay={i * 0.08}>
             <p className={`font-display text-[56px] font-semibold leading-none tracking-tighter2 md:text-[64px] ${n.color}`}>
@@ -29,7 +29,7 @@ export function Numbers() {
 
 export function CallToAction({ signedIn }) {
   return (
-    <section className="px-6 pb-[16vh] pt-[6vh] text-center" aria-labelledby="cta-title">
+    <section className="px-5 pb-[16vh] pt-[6vh] text-center" aria-labelledby="cta-title">
       <Reveal>
         <h2 id="cta-title" className="mx-auto max-w-[14ch] font-display text-[48px] font-semibold leading-[1.05] tracking-tighter2 text-ink md:text-[80px]">
           Know your worth. <span className="bg-[linear-gradient(90deg,#ff9500_0%,#ff2d55_35%,#af52de_68%,#007aff_100%)] bg-clip-text text-transparent">Then ask for it.</span>
@@ -58,8 +58,8 @@ export function CallToAction({ signedIn }) {
 export function Footer() {
   const year = new Date().getFullYear();
   return (
-    <footer className="bg-mist px-6 py-10 text-[12px] text-graphite">
-      <div className="mx-auto max-w-[1024px]">
+    <footer className="bg-mist px-5 py-10 text-[12px] text-graphite">
+      <div className="mx-auto max-w-[984px]">
         <p className="border-b border-hairline pb-4 leading-[1.6]">
           Salary estimates come from models trained on historical data and are a starting point, not an offer.
           Job matches use a public listings dataset and may no longer be open.

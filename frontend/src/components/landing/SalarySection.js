@@ -39,8 +39,8 @@ function SalarySection() {
   const difference = ((ADVANCED - BASIC) / BASIC) * 100;
 
   return (
-    <section id="salary" className="scroll-mt-12 px-6 py-[14vh]" aria-labelledby="salary-title">
-      <div className="mx-auto max-w-[980px]">
+    <section id="salary" className="scroll-mt-12 px-5 py-[14vh]" aria-labelledby="salary-title">
+      <div className="mx-auto max-w-[984px]">
         <Reveal>
           <p className="text-[17px] font-semibold text-green-ink md:text-[21px]">Salary</p>
           <h2 id="salary-title" className="mt-2 max-w-[16ch] font-display text-[40px] font-semibold leading-[1.08] tracking-tighter2 text-ink md:text-[64px]">

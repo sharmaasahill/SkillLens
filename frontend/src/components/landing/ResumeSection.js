@@ -91,10 +91,10 @@ function ResumeSection() {
 
   return (
     <section id="resume" ref={ref} className={`scroll-mt-12 ${reduce ? '' : 'h-[260vh]'}`} aria-labelledby="resume-title">
-      <div className={`${reduce ? 'py-[14vh]' : 'sticky top-0 flex h-screen items-center'} px-6`}>
-        <div className="mx-auto grid w-full max-w-[1080px] items-center gap-12 md:grid-cols-2 md:gap-20">
+      <div className={`${reduce ? 'py-[14vh]' : 'sticky top-0 flex h-screen items-center'} px-5`}>
+        <div className="mx-auto grid w-full max-w-[984px] items-center gap-12 md:grid-cols-2 md:gap-20">
           {/* Resume paper */}
-          <div className="relative mx-auto w-full max-w-[420px]" aria-hidden="true">
+          <div className="relative mx-auto w-full max-w-[420px] md:mx-0" aria-hidden="true">
             <div className="relative overflow-hidden rounded-[20px] bg-white p-8 shadow-[0_2px_4px_rgba(0,0,0,0.04),0_24px_60px_-12px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.04]">
               <div className="space-y-2.5">
                 {LINES.map((line, i) => (

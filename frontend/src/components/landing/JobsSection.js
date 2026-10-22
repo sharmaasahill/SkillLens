@@ -63,7 +63,7 @@ function JobsSection() {
   return (
     <section id="jobs" ref={ref} className={`scroll-mt-12 ${reduce ? 'py-[14vh]' : 'h-[300vh]'}`} aria-labelledby="jobs-title">
       <div className={reduce ? '' : 'sticky top-0 flex h-screen flex-col justify-center overflow-hidden'}>
-        <div className="mx-auto w-full max-w-[1080px] px-6">
+        <div className="mx-auto w-full max-w-[1024px] px-5">
           <Reveal>
             <p className="text-[17px] font-semibold text-purple-ink md:text-[21px]">Jobs</p>
             <h2 id="jobs-title" className="mt-2 max-w-[18ch] font-display text-[40px] font-semibold leading-[1.08] tracking-tighter2 text-ink md:text-[56px]">
@@ -82,7 +82,7 @@ function JobsSection() {
         <div ref={viewportRef} className={`mt-12 w-full ${reduce ? 'overflow-x-auto' : ''}`}>
           <motion.div
             ref={trackRef}
-            className="flex w-max gap-5 px-6 md:px-[max(1.5rem,calc((100vw-1080px)/2+1.5rem))]"
+            className="flex w-max gap-5 px-5 md:px-[max(1.25rem,calc((100vw-984px)/2))]"
             style={{ x: reduce ? 0 : x }}
           >
             {MATCHES.map((job, i) => (

@@ -29,10 +29,10 @@ function Statement() {
   };
 
   return (
-    <section className="px-6 py-[18vh]" aria-label="About SkillLens">
+    <section className="px-5 py-[18vh]" aria-label="About SkillLens">
       <p
         ref={ref}
-        className="mx-auto max-w-[980px] font-display text-[32px] font-semibold leading-[1.18] tracking-tight text-ink md:text-[56px] md:leading-[1.1]"
+        className="mx-auto max-w-[984px] font-display text-[32px] font-semibold leading-[1.18] tracking-tight text-ink md:text-[56px] md:leading-[1.1]"
       >
         {reduce
           ? TEXT

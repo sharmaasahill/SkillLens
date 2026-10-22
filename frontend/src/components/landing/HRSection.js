@@ -38,8 +38,8 @@ function HRSection() {
   });
 
   return (
-    <section id="hr" className="scroll-mt-12 bg-mist px-6 py-[14vh]" aria-labelledby="hr-title">
-      <div className="mx-auto max-w-[1080px]">
+    <section id="hr" className="scroll-mt-12 bg-mist px-5 py-[14vh]" aria-labelledby="hr-title">
+      <div className="mx-auto max-w-[984px]">
         <Reveal className="text-center">
           <p className="text-[17px] font-semibold text-teal-ink md:text-[21px]">For HR teams</p>
           <h2 id="hr-title" className="mx-auto mt-2 max-w-[18ch] font-display text-[40px] font-semibold leading-[1.08] tracking-tighter2 text-ink md:text-[64px]">
