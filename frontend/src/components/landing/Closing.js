@@ -1,0 +1,82 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { CountUp, Reveal } from './motion';
+import { Wordmark } from './GlobalNav';
+
+const NUMBERS = [
+  { value: 6704, label: 'salary records behind every estimate' },
+  { value: 193, label: 'job titles the models understand' },
+  { value: 2197, label: 'job listings to match against' },
+  { value: 74, label: 'locations across India and remote' },
+];
+
+export function Numbers() {
+  return (
+    <section className="px-6 py-[14vh]" aria-label="SkillLens in numbers">
+      <div className="mx-auto grid max-w-[1080px] gap-x-10 gap-y-14 sm:grid-cols-2 lg:grid-cols-4">
+        {NUMBERS.map((n, i) => (
+          <Reveal key={n.label} delay={i * 0.08}>
+            <p className="font-display text-[56px] font-semibold leading-none tracking-tighter2 text-ink md:text-[64px]">
+              <CountUp value={n.value} />
+            </p>
+            <p className="mt-3 max-w-[22ch] text-[17px] leading-[1.4] text-graphite">{n.label}</p>
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function CallToAction({ signedIn }) {
+  return (
+    <section className="px-6 pb-[16vh] pt-[6vh] text-center" aria-labelledby="cta-title">
+      <Reveal>
+        <h2 id="cta-title" className="mx-auto max-w-[14ch] font-display text-[48px] font-semibold leading-[1.05] tracking-tighter2 text-ink md:text-[80px]">
+          Know your worth. Then ask for it.
+        </h2>
+      </Reveal>
+      <Reveal delay={0.12}>
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-[17px]">
+          <Link
+            to={signedIn ? '/dashboard' : '/auth?mode=signup'}
+            className="rounded-full bg-action px-[22px] py-[11px] text-white transition-colors hover:bg-action-hover"
+          >
+            {signedIn ? 'Open dashboard' : 'Create a free account'}
+          </Link>
+          {!signedIn && (
+            <Link to="/auth" className="group text-action-link hover:underline">
+              Sign in
+              <span aria-hidden="true" className="ml-0.5 inline-block transition-transform group-hover:translate-x-0.5">›</span>
+            </Link>
+          )}
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
+export function Footer() {
+  const year = new Date().getFullYear();
+  return (
+    <footer className="bg-mist px-6 py-10 text-[12px] text-graphite">
+      <div className="mx-auto max-w-[1024px]">
+        <p className="border-b border-hairline pb-4 leading-[1.6]">
+          Salary estimates come from models trained on historical data and are a starting point, not an offer.
+          Job matches use a public listings dataset and may no longer be open.
+        </p>
+        <div className="flex flex-col gap-6 pt-6 md:flex-row md:items-start md:justify-between">
+          <div className="text-[14px]"><Wordmark /></div>
+          <nav aria-label="Footer" className="grid grid-cols-2 gap-x-16 gap-y-2 sm:grid-cols-3">
+            <a href="#salary" className="hover:underline">Salary predictor</a>
+            <a href="#resume" className="hover:underline">Resume analyzer</a>
+            <a href="#jobs" className="hover:underline">Job matches</a>
+            <a href="#hr" className="hover:underline">For HR teams</a>
+            <Link to="/auth" className="hover:underline">Sign in</Link>
+            <Link to="/auth?mode=signup" className="hover:underline">Create account</Link>
+          </nav>
+        </div>
+        <p className="mt-8 text-silver">Copyright {year} SkillLens. All rights reserved.</p>
+      </div>
+    </footer>
+  );
+}

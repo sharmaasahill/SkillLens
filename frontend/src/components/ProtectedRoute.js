@@ -15,7 +15,7 @@ function ProtectedRoute({ children, hrOnly = false }) {
     );
   }
   if (!user) return <Navigate to="/auth" replace />;
-  if (hrOnly && !user.is_admin) return <Navigate to="/" replace />;
+  if (hrOnly && !user.is_admin) return <Navigate to="/dashboard" replace />;
   return children;
 }
 

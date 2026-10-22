@@ -209,7 +209,7 @@ function AdvancedSalaryPredictor() {
 
                             <div className="text-center mt-4">
                                 <button
-                                    onClick={() => navigate('/')}
+                                    onClick={() => navigate('/dashboard')}
                                     className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                                 >
                                     Back to Home

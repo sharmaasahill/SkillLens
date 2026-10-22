@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 
 function Auth() {
-  const [isLogin, setIsLogin] = useState(true);
+  const [searchParams] = useSearchParams();
+  const [isLogin, setIsLogin] = useState(searchParams.get('mode') !== 'signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -14,7 +15,15 @@ function Auth() {
   const navigate = useNavigate();
   const { user, loading: sessionLoading, login, register } = useAuth();
 
-  const homeFor = (account) => (account.is_admin ? '/hr-dashboard' : '/');
+  // The sign-in page follows the landing page's light look
+  useEffect(() => {
+    const root = document.documentElement;
+    const hadDark = root.classList.contains('dark');
+    root.classList.remove('dark');
+    return () => { if (hadDark) root.classList.add('dark'); };
+  }, []);
+
+  const homeFor = (account) => (account.is_admin ? '/hr-dashboard' : '/dashboard');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,133 +47,86 @@ function Auth() {
     return <Navigate to={homeFor(user)} replace />;
   }
 
+  const field = 'block w-full rounded-xl border border-hairline bg-white px-4 py-3.5 text-[17px] text-ink placeholder:text-silver transition focus:border-action focus:outline-none focus:ring-4 focus:ring-action/15';
+
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-md">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            {isLogin ? 'Sign in to your account' : 'Create your account'}
-          </h2>
-          
+    <div className="flex min-h-screen flex-col bg-white font-text text-ink antialiased">
+      <header className="mx-auto flex h-12 w-full max-w-[1024px] items-center px-5">
+        <Link to="/" className="font-display text-[17px] font-semibold tracking-tight text-ink">
+          Skill<span className="text-graphite">Lens</span>
+        </Link>
+      </header>
+
+      <main className="flex flex-1 items-center justify-center px-6 pb-20">
+        <div className="w-full max-w-[400px]">
+          <h1 className="text-center font-display text-[40px] font-semibold leading-[1.1] tracking-tight">
+            {isLogin ? 'Sign in to SkillLens' : 'Create your account'}
+          </h1>
+          <p className="mt-3 text-center text-[17px] text-graphite">
+            {isLogin ? 'Welcome back.' : 'Free, and takes less than a minute.'}
+          </p>
+
           {isLogin && (
-            <div className="mt-4">
-              <div className="flex justify-center space-x-4">
+            <div className="mx-auto mt-8 flex w-fit rounded-full bg-mist p-1" role="group" aria-label="Account type">
+              {[['user', 'Candidate'], ['hr', 'HR team']].map(([type, label]) => (
                 <button
+                  key={type}
                   type="button"
-                  onClick={() => {
-                    setLoginType('user');
-                    setEmail('');
-                    setPassword('');
-                  }}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    loginType === 'user' 
-                      ? 'bg-blue-100 text-blue-700 border-2 border-blue-500' 
-                      : 'bg-gray-100 text-gray-700 border-2 border-gray-300 hover:bg-gray-200'
+                  aria-pressed={loginType === type}
+                  onClick={() => { setLoginType(type); setEmail(''); setPassword(''); }}
+                  className={`rounded-full px-5 py-1.5 text-[14px] transition ${
+                    loginType === type ? 'bg-white text-ink shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-graphite hover:text-ink'
                   }`}
                 >
-                  Login as User
+                  {label}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginType('hr');
-                    setEmail('');
-                    setPassword('');
-                  }}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    loginType === 'hr' 
-                      ? 'bg-purple-100 text-purple-700 border-2 border-purple-500' 
-                      : 'bg-gray-100 text-gray-700 border-2 border-gray-300 hover:bg-gray-200'
-                  }`}
-                >
-                  Login as HR
-                </button>
+              ))}
+            </div>
+          )}
+
+          <form className="mt-8 space-y-3" onSubmit={handleSubmit}>
+            {error && (
+              <div className="rounded-xl bg-[#fff2f0] px-4 py-3 text-[15px] text-[#bf1d00]" role="alert">
+                {error}
               </div>
-              {loginType === 'hr' && (
-                <div className="mt-2 text-center">
-                  <p className="text-sm text-gray-600">Sign in with your HR account</p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-              <span className="block sm:inline">{error}</span>
-            </div>
-          )}
-          <div className="rounded-md shadow-sm -space-y-px">
+            )}
             {!isLogin && (
               <div>
                 <label htmlFor="fullName" className="sr-only">Full Name</label>
-                <input
-                  id="fullName"
-                  name="fullName"
-                  type="text"
-                  required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                  placeholder="Full Name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                />
+                <input id="fullName" name="fullName" type="text" required autoComplete="name"
+                  className={field} placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
               </div>
             )}
             <div>
               <label htmlFor="email" className="sr-only">Email address</label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className={`appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 ${
-                  !isLogin ? '' : 'rounded-t-md'
-                } focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+              <input id="email" name="email" type="email" required autoComplete="email"
+                className={field} placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div>
               <label htmlFor="password" className="sr-only">Password</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
+              <input id="password" name="password" type="password" required
                 minLength={isLogin ? undefined : 8}
                 autoComplete={isLogin ? 'current-password' : 'new-password'}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+                className={field} placeholder={isLogin ? 'Password' : 'Password (8+ characters)'}
+                value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
-          </div>
-
-          <div>
             <button
               type="submit"
               disabled={loading}
-              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
-                loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'
-              } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
+              className="!mt-6 w-full rounded-xl bg-action py-3.5 text-[17px] font-medium text-white transition-colors hover:bg-action-hover disabled:opacity-60"
             >
-              {loading ? 'Processing...' : (isLogin ? 'Sign in' : 'Sign up')}
+              {loading ? 'Please wait...' : (isLogin ? 'Sign in' : 'Create account')}
             </button>
-          </div>
+          </form>
 
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-indigo-600 hover:text-indigo-500"
-            >
-              {isLogin ? 'Need an account? Sign up' : 'Already have an account? Sign in'}
+          <p className="mt-8 text-center text-[15px] text-graphite">
+            {isLogin ? 'New to SkillLens? ' : 'Already have an account? '}
+            <button type="button" onClick={() => { setIsLogin(!isLogin); setError(''); }} className="text-action-link hover:underline">
+              {isLogin ? 'Create an account' : 'Sign in'}
             </button>
-          </div>
-        </form>
-      </div>
+          </p>
+        </div>
+      </main>
     </div>
   );
 }

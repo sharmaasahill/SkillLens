@@ -4,6 +4,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
+import Landing from './pages/Landing';
 import Auth from './pages/Auth';
 import SalaryPredictor from './pages/SalaryPredictor';
 import AdvancedSalaryPredictor from './pages/AdvancedSalaryPredictor';
@@ -21,7 +22,8 @@ function App() {
             <Route path="/auth" element={<Auth />} />
 
             {/* Protected routes */}
-            <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/" element={<Landing />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/salary-predictor" element={<ProtectedRoute><SalaryPredictor /></ProtectedRoute>} />
             <Route path="/advanced-salary-predictor" element={<ProtectedRoute><AdvancedSalaryPredictor /></ProtectedRoute>} />
             <Route path="/job-recommender" element={<ProtectedRoute><JobRecommender /></ProtectedRoute>} />

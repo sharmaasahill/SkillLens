@@ -14,7 +14,7 @@ function renderAuth(auth) {
     <MemoryRouter initialEntries={['/auth']}>
       <Routes>
         <Route path="/auth" element={<Auth />} />
-        <Route path="/" element={<p>User home</p>} />
+        <Route path="/dashboard" element={<p>User home</p>} />
         <Route path="/hr-dashboard" element={<p>HR dashboard</p>} />
       </Routes>
     </MemoryRouter>

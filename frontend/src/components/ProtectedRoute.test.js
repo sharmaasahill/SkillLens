@@ -10,7 +10,7 @@ function renderAt(path, { hrOnly = false } = {}) {
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/auth" element={<p>Login page</p>} />
-        <Route path="/" element={<p>Home page</p>} />
+        <Route path="/dashboard" element={<p>Home page</p>} />
         <Route path="/secret" element={<ProtectedRoute hrOnly={hrOnly}><p>Secret page</p></ProtectedRoute>} />
       </Routes>
     </MemoryRouter>
