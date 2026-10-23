@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { EASE } from './motion';
+import { LensMark } from '../ui/studio';
 
 const LINKS = [
   { href: '#salary', label: 'Salary' },
@@ -40,9 +41,9 @@ function GlobalNav({ signedIn, home = '/dashboard' }) {
         scrolled || open ? 'bg-white/[0.86] backdrop-blur-xl backdrop-saturate-[1.8]' : 'bg-white/0'
       } ${scrolled && !open ? 'border-black/[0.08]' : 'border-transparent'}`}
     >
-      <nav aria-label="Main" className="mx-auto flex h-12 max-w-[1024px] items-center justify-between px-5">
-        <a href="#top" className="text-[17px]" aria-label="SkillLens home">
-          <Wordmark />
+      <nav aria-label="Main" className="mx-auto grid h-12 max-w-[1024px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-5">
+        <a href="#top" className="group justify-self-start" aria-label="SkillLens home">
+          <LensMark className="h-6 w-6 transition-transform duration-700 ease-apple group-hover:rotate-[200deg]" />
         </a>
 
         <ul className="hidden items-center gap-8 md:flex">
@@ -55,7 +56,7 @@ function GlobalNav({ signedIn, home = '/dashboard' }) {
           ))}
         </ul>
 
-        <div className="flex items-center gap-4">
+        <div className="col-start-3 flex items-center gap-4 justify-self-end">
           {signedIn ? (
             <Link to={home} className="rounded-full bg-action px-3.5 py-1 text-[12px] font-medium text-white transition-colors hover:bg-action-hover">
               Open dashboard

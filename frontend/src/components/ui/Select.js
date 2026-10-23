@@ -3,8 +3,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 const cx = (...c) => c.filter(Boolean).join(' ');
 const EASE = [0.28, 0.11, 0.32, 1];
-const FIELD = 'flex w-full items-center rounded-xl border border-hairline bg-white px-3.5 py-2.5 text-left text-[15px] text-ink transition focus:border-action focus:outline-none focus:ring-4 focus:ring-action/15';
+const FIELD = 'flex w-full items-center rounded-2xl border border-black/[0.08] bg-white/70 px-4 py-3 text-left text-[15px] text-ink backdrop-blur transition hover:border-black/[0.16] focus:border-action/60 focus:outline-none focus:ring-4 focus:ring-action/10';
 const MAX_SHOWN = 80;
+// Inline variant: sits inside a sentence, underlined, in display type
+const INLINE = 'inline-flex max-w-full items-center gap-1 border-b-2 border-black/15 bg-transparent px-0.5 pb-0.5 text-left font-display font-semibold tracking-tight text-ink transition-colors hover:border-ink focus:border-action focus:outline-none';
 
 const norm = (options) => options.map((o) => (typeof o === 'object' ? o : { value: o, label: String(o) }));
 
@@ -35,7 +37,7 @@ function OptionList({ id, items, active, selected, onPick, onHover, empty, heade
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -4, scale: 0.98 }}
       transition={{ duration: 0.18, ease: EASE }}
-      className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-2xl bg-white shadow-[0_18px_50px_-12px_rgba(0,0,0,0.28)] ring-1 ring-black/[0.06]"
+      className="absolute left-0 top-[calc(100%+6px)] z-50 w-full min-w-[240px] overflow-hidden rounded-2xl bg-white font-text text-[15px] font-normal tracking-normal shadow-[0_18px_50px_-12px_rgba(0,0,0,0.28)] ring-1 ring-black/[0.06]"
     >
     {header}
     <ul ref={listRef} id={id} role="listbox" className="max-h-64 overflow-y-auto p-1.5">
@@ -68,7 +70,7 @@ function OptionList({ id, items, active, selected, onPick, onHover, empty, heade
  * Dropdown in the SkillLens style. Drop-in for a native <select>: onChange receives
  * { target: { name, value } }. Long lists get a search box automatically.
  */
-export function Select({ id, name, value, onChange, options, placeholder, disabled, searchable, className = '' }) {
+export function Select({ id, name, value, onChange, options, placeholder, disabled, searchable, className = '', variant }) {
   const items = useMemo(() => norm(options || []), [options]);
   const all = useMemo(() => (placeholder !== undefined ? [{ value: '', label: placeholder }, ...items] : items), [items, placeholder]);
   const [open, setOpen] = useState(false);
@@ -109,7 +111,7 @@ export function Select({ id, name, value, onChange, options, placeholder, disabl
   };
 
   return (
-    <div ref={ref} className={cx('relative', className)} onKeyDown={onKey}>
+    <div ref={ref} className={cx('relative', variant === 'inline' && 'inline-block max-w-full align-baseline', className)} onKeyDown={onKey}>
       <button
         id={id}
         type="button"
@@ -118,9 +120,15 @@ export function Select({ id, name, value, onChange, options, placeholder, disabl
         aria-expanded={open}
         aria-controls={listId}
         onClick={() => (open ? setOpen(false) : openList())}
-        className={cx(FIELD, open && 'border-action ring-4 ring-action/15', disabled && 'cursor-not-allowed bg-mist text-graphite')}
+        className={variant === 'inline'
+          ? cx(INLINE, open && 'border-action', disabled && 'cursor-not-allowed opacity-50')
+          : cx(FIELD, open && 'border-action ring-4 ring-action/15', disabled && 'cursor-not-allowed bg-mist text-graphite')}
       >
-        <span className={cx('truncate', (!current || current.value === '') && 'text-silver')}>{current ? current.label : placeholder || 'Select'}</span>
+        {/* Inline labels wrap inside their own box (never past the line) instead of overlapping what follows */}
+        <span className={cx(
+          variant === 'inline' ? 'min-w-0 [overflow-wrap:anywhere]' : 'truncate',
+          (!current || current.value === '') && (variant === 'inline' ? 'text-black/25' : 'text-silver')
+        )}>{current ? current.label : placeholder || 'Select'}</span>
         <Chevron open={open} />
       </button>
       <AnimatePresence>
@@ -148,7 +156,7 @@ export function Select({ id, name, value, onChange, options, placeholder, disabl
 }
 
 /** Free-text input with filtered suggestions in the SkillLens style (used for job titles). */
-export function Combobox({ id, value, onChange, suggestions, placeholder, required, minLength, maxLength }) {
+export function Combobox({ id, value, onChange, suggestions, placeholder, required, minLength, maxLength, variant, className = '' }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const ref = useRef(null);
@@ -178,10 +186,19 @@ export function Combobox({ id, value, onChange, suggestions, placeholder, requir
     else if (e.key === 'Escape') setOpen(false);
   };
 
+  const inline = variant === 'inline';
   return (
-    <div ref={ref} className="relative">
+    // Inline: a hidden copy of the text sits in the same grid cell as the input, so the field is
+    // exactly as wide as what is typed. Words after it move along (and wrap) instead of being covered.
+    <div ref={ref} className={cx('relative', inline && 'inline-grid max-w-full grid-cols-[minmax(0,1fr)] align-baseline', className)}>
+      {inline && (
+        <span aria-hidden="true" className={cx(INLINE, 'invisible col-start-1 row-start-1 overflow-hidden whitespace-pre')}>
+          {`${value || placeholder || ''}\u00a0`}
+        </span>
+      )}
       <input
         id={id}
+        size={inline ? 1 : undefined}
         role="combobox"
         aria-expanded={open}
         aria-controls={listId}
@@ -196,7 +213,9 @@ export function Combobox({ id, value, onChange, suggestions, placeholder, requir
         required={required}
         minLength={minLength}
         maxLength={maxLength}
-        className="block w-full rounded-xl border border-hairline bg-white px-3.5 py-2.5 text-[15px] text-ink placeholder:text-silver transition focus:border-action focus:outline-none focus:ring-4 focus:ring-action/15"
+        className={inline
+          ? cx(INLINE, 'col-start-1 row-start-1 w-full min-w-0 placeholder:text-black/25')
+          : 'block w-full rounded-2xl border border-black/[0.08] bg-white/70 px-4 py-3 text-[15px] text-ink placeholder:text-silver backdrop-blur transition focus:border-action/60 focus:bg-white focus:outline-none focus:ring-4 focus:ring-action/10'}
       />
       <AnimatePresence>
         {open && shown.length > 0 && (

@@ -39,9 +39,23 @@ module.exports = {
             },
             keyframes: {
                 shimmer: { '0%': { backgroundPosition: '-400px 0' }, '100%': { backgroundPosition: '400px 0' } },
+                drift: {
+                    '0%, 100%': { transform: 'translate3d(0, 0, 0) scale(1)' },
+                    '33%': { transform: 'translate3d(6%, -4%, 0) scale(1.08)' },
+                    '66%': { transform: 'translate3d(-5%, 5%, 0) scale(0.96)' },
+                },
+                marquee: { '0%': { transform: 'translateX(0)' }, '100%': { transform: 'translateX(-50%)' } },
+                ants: { to: { strokeDashoffset: '-48' } },
+                pulsering: { '0%': { transform: 'scale(0.85)', opacity: '0.6' }, '100%': { transform: 'scale(1.6)', opacity: '0' } },
             },
             animation: {
                 shimmer: 'shimmer 1.4s linear infinite',
+                drift: 'drift 22s ease-in-out infinite',
+                'drift-slow': 'drift 34s ease-in-out infinite reverse',
+                marquee: 'marquee 38s linear infinite',
+                ants: 'ants 1.6s linear infinite',
+                pulsering: 'pulsering 2.4s cubic-bezier(0.28, 0.11, 0.32, 1) infinite',
+                'spin-slow': 'spin 60s linear infinite',
             },
         },
     },

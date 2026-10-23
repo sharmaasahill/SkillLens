@@ -1,114 +1,102 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useId, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import api, { errorMessage } from '../api';
-import AppShell, { PageHeader } from '../components/ui/AppShell';
-import { Appear, Button, Card, Notice, ScoreRing, Skeleton, TextArea, TextField, EASE, cx } from '../components/ui/primitives';
+import AppShell from '../components/ui/AppShell';
+import { Button, Notice, Skeleton, Spinner, cx } from '../components/ui/primitives';
 import { useFeedback } from '../components/ui/overlays';
-import Dropzone, { pdfError } from '../components/ui/Dropzone';
-import { tone } from '../components/ui/tones';
+import { pdfError } from '../components/ui/Dropzone';
+import { CountNumber, EASE, Orbit, RevealText, Rise, Section } from '../components/ui/studio';
 import { editFormFrom, profileCompletion } from '../lib/careerStats';
 import { dateLabel, dateTimeLabel, downloadBlob } from '../lib/format';
 
 const SECTIONS = [
   {
-    key: 'personal', title: 'Personal information', toneName: 'orange',
+    key: 'personal', index: '01', title: 'Personal', note: 'Only HR teams on SkillLens can see these.',
     fields: [
-      { name: 'full_name', label: 'Full name', placeholder: 'Enter your full name', span: 2 },
-      { name: 'phone_number', label: 'Phone', type: 'tel', placeholder: '+1 (555) 123-4567' },
+      { name: 'full_name', label: 'Full name', placeholder: 'Your full name' },
+      { name: 'phone_number', label: 'Phone', type: 'tel', placeholder: '+91 98765 43210' },
       { name: 'age', label: 'Age', type: 'number', placeholder: '25', min: 18, max: 100 },
-      { name: 'address', label: 'Address', placeholder: 'City, State, Country', span: 2 },
+      { name: 'address', label: 'Address', placeholder: 'City, State' },
     ],
   },
   {
-    key: 'professional', title: 'Professional information', toneName: 'blue',
+    key: 'professional', index: '02', title: 'Work', note: 'What recruiters filter by first.',
     fields: [
-      { name: 'current_work', label: 'Current position', placeholder: 'e.g., Senior Software Engineer' },
-      { name: 'current_company', label: 'Company', placeholder: 'e.g., Tech Corp Inc.' },
-      { name: 'current_location', label: 'Location', placeholder: 'San Francisco, CA' },
-      { name: 'total_experience', label: 'Experience (years)', type: 'number', placeholder: '3.5', min: 0, max: 50, step: 0.5 },
+      { name: 'current_work', label: 'Current role', placeholder: 'e.g. Senior Software Engineer' },
+      { name: 'current_company', label: 'Company', placeholder: 'e.g. Infosys' },
+      { name: 'current_location', label: 'City', placeholder: 'e.g. Bengaluru' },
+      { name: 'total_experience', label: 'Experience', type: 'number', placeholder: '3.5', min: 0, max: 50, step: 0.5, suffix: 'years' },
     ],
   },
   {
-    key: 'education', title: 'Education and skills', toneName: 'green',
+    key: 'education', index: '03', title: 'Skills and education',
     fields: [
-      { name: 'education', label: 'Education', placeholder: 'e.g., BS Computer Science, Stanford University', span: 2 },
-      { name: 'skills_summary', label: 'Skills', multiline: 2, placeholder: 'e.g., Python, JavaScript, React, Node.js, AWS, Docker...', span: 2 },
-      { name: 'certifications', label: 'Certifications', multiline: 2, placeholder: 'e.g., AWS Solutions Architect, PMP' },
-      { name: 'languages', label: 'Languages', placeholder: 'e.g., English (Native), Spanish (Fluent)' },
-      { name: 'achievements', label: 'Achievements', multiline: 3, placeholder: 'e.g., Led team of 10 engineers, Increased system performance by 40%...', span: 2 },
+      { name: 'education', label: 'Education', placeholder: 'e.g. B.Tech Computer Science, VIT' },
+      { name: 'skills_summary', label: 'Skills', multiline: 2, placeholder: 'e.g. Python, SQL, React, AWS' },
+      { name: 'certifications', label: 'Certifications', multiline: 2, placeholder: 'e.g. AWS Solutions Architect' },
+      { name: 'languages', label: 'Languages', placeholder: 'e.g. English, Hindi' },
+      { name: 'achievements', label: 'Achievements', multiline: 3, placeholder: 'e.g. Cut report time by 40%' },
     ],
   },
   {
-    key: 'links', title: 'Links and bio', toneName: 'purple',
+    key: 'links', index: '04', title: 'Links and bio',
     fields: [
-      { name: 'linkedin_url', label: 'LinkedIn', type: 'url', placeholder: 'https://linkedin.com/in/yourprofile' },
-      { name: 'website_url', label: 'Portfolio or website', type: 'url', placeholder: 'https://yourportfolio.com' },
-      { name: 'bio', label: 'Bio', multiline: 3, placeholder: 'A brief professional summary about yourself...', span: 2 },
+      { name: 'linkedin_url', label: 'LinkedIn', type: 'url', placeholder: 'https://linkedin.com/in/you' },
+      { name: 'website_url', label: 'Portfolio', type: 'url', placeholder: 'https://you.dev' },
+      { name: 'bio', label: 'Bio', multiline: 3, placeholder: 'A short professional summary' },
     ],
   },
 ];
 
-function displayValue(field, value) {
-  if (value === null || value === undefined || String(value).trim() === '') return null;
-  if (field.name === 'total_experience') return `${value} years`;
+const INPUT = 'block w-full border-0 border-b border-black/15 bg-transparent px-0 py-1.5 text-[17px] text-ink placeholder:text-silver focus:border-action focus:outline-none focus:ring-0';
+
+function Value({ field, value }) {
+  if (value === null || value === undefined || String(value).trim() === '') return <span className="text-silver">Not added</span>;
   if (field.type === 'url') {
-    return (
-      <a href={value} target="_blank" rel="noopener noreferrer" className="break-all text-action-link hover:underline">
-        {field.name === 'linkedin_url' ? 'View profile' : 'Visit site'}
-      </a>
-    );
+    return <a href={value} target="_blank" rel="noopener noreferrer" className="break-all text-action-link hover:underline">{value.replace(/^https?:\/\/(www\.)?/, '')}</a>;
   }
-  return value;
+  return <span className="whitespace-pre-line">{value}{field.suffix ? ` ${field.suffix}` : ''}</span>;
 }
 
-function SectionCard({ section, profile, editing, form, onChange, delay }) {
-  const t = tone(section.toneName);
+/** Spec-sheet rows: label on the left, value (or an underlined input when editing) on the right. */
+function SpecSection({ section, profile, editing, form, onChange }) {
   return (
-    <Appear delay={delay}>
-      <Card className="!p-6 md:!p-8">
-        <div className="mb-6 flex items-center gap-3">
-          <span className={cx('h-5 w-1 rounded-full', t.bg)} aria-hidden="true" />
-          <h2 className="font-display text-[21px] font-semibold tracking-tight">{section.title}</h2>
-        </div>
-        {editing ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {section.fields.map((field) => {
-              const common = {
-                name: field.name, label: field.label, placeholder: field.placeholder,
-                value: form[field.name] ?? '', onChange, className: field.span === 2 ? 'sm:col-span-2' : '',
-              };
-              return field.multiline
-                ? <TextArea key={field.name} rows={field.multiline} {...common} />
-                : <TextField key={field.name} type={field.type || 'text'} min={field.min} max={field.max} step={field.step} {...common} />;
-            })}
+    <Section index={section.index} title={section.title} note={section.note}>
+      <dl>
+        {section.key === 'personal' && (
+          <div className="grid gap-1 border-b border-black/[0.07] py-5 sm:grid-cols-[180px_1fr] sm:gap-8">
+            <dt className="text-[14px] text-graphite">Email</dt>
+            <dd className="text-[17px] text-ink">{profile.email}</dd>
           </div>
-        ) : (
-          <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
-            {section.key === 'personal' && (
-              <div className="sm:col-span-2">
-                <dt className="text-[13px] text-silver">Email</dt>
-                <dd className="mt-0.5 text-[15px] text-ink">{profile.email}</dd>
-              </div>
-            )}
-            {section.fields.map((field) => {
-              const value = displayValue(field, profile[field.name]);
-              return (
-                <div key={field.name} className={field.span === 2 ? 'sm:col-span-2' : ''}>
-                  <dt className="text-[13px] text-silver">{field.label}</dt>
-                  <dd className={cx('mt-0.5 whitespace-pre-line text-[15px]', value ? 'text-ink' : 'text-silver')}>{value || 'Not set'}</dd>
-                </div>
-              );
-            })}
-          </dl>
         )}
-      </Card>
-    </Appear>
+        {section.fields.map((field) => (
+          <div key={field.name} className="grid gap-1 border-b border-black/[0.07] py-5 sm:grid-cols-[180px_1fr] sm:gap-8">
+            <dt className="pt-0.5 text-[14px] text-graphite"><label htmlFor={`f-${field.name}`}>{field.label}</label></dt>
+            <dd className="min-w-0 text-[17px] text-ink">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div key={editing ? 'edit' : 'view'} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.25, ease: EASE }}>
+                  {editing ? (
+                    field.multiline ? (
+                      <textarea id={`f-${field.name}`} name={field.name} rows={field.multiline} value={form[field.name] ?? ''} onChange={onChange} placeholder={field.placeholder} className={cx(INPUT, 'resize-y')} />
+                    ) : (
+                      <input id={`f-${field.name}`} name={field.name} type={field.type || 'text'} min={field.min} max={field.max} step={field.step}
+                        value={form[field.name] ?? ''} onChange={onChange} placeholder={field.placeholder} className={INPUT} />
+                    )
+                  ) : <Value field={field} value={profile[field.name]} />}
+                </motion.div>
+              </AnimatePresence>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </Section>
   );
 }
 
 function Profile() {
   const { notify } = useFeedback();
+  const uploadId = useId();
   const [profile, setProfile] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -121,10 +109,10 @@ function Profile() {
   const [resumeError, setResumeError] = useState('');
 
   const load = useCallback(async () => {
-    const [profileResponse, historyResponse] = await Promise.all([api.get('/profile'), api.get('/profile/history')]);
-    setProfile(profileResponse.data);
-    setHistory(historyResponse.data.history || []);
-    setForm(editFormFrom(profileResponse.data));
+    const [p, h] = await Promise.all([api.get('/profile'), api.get('/profile/history')]);
+    setProfile(p.data);
+    setHistory(h.data.history || []);
+    setForm(editFormFrom(p.data));
   }, []);
 
   useEffect(() => {
@@ -134,7 +122,6 @@ function Profile() {
   }, [load]);
 
   const onChange = (e) => setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-
   const startEditing = () => { setForm(editFormFrom(profile)); setSaveError(''); setEditing(true); };
   const cancelEditing = () => { setForm(editFormFrom(profile)); setSaveError(''); setEditing(false); };
 
@@ -145,7 +132,7 @@ function Profile() {
       await api.put('/update-profile', form, { headers: { 'Content-Type': 'application/json' } });
       await load();
       setEditing(false);
-      notify('Profile updated successfully!');
+      notify('Profile saved');
     } catch (err) {
       setSaveError(errorMessage(err, 'Failed to update profile'));
     } finally {
@@ -161,11 +148,9 @@ function Profile() {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const response = await api.post('/profile/upload-resume', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      if (response.data.message) {
-        notify('Resume uploaded successfully!');
-        await load();
-      }
+      await api.post('/profile/upload-resume', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      notify('Primary resume updated');
+      await load();
     } catch (err) {
       setResumeError(errorMessage(err, 'Failed to upload resume'));
     } finally {
@@ -176,7 +161,7 @@ function Profile() {
   const downloadResume = async () => {
     try {
       const response = await api.get('/profile/download-resume', { responseType: 'blob' });
-      downloadBlob(response.data, profile.profile_resume_filename || 'profile_resume.pdf');
+      downloadBlob(response.data, profile.profile_resume_filename || 'resume.pdf');
     } catch (err) {
       notify('Failed to download resume', 'error');
     }
@@ -184,121 +169,109 @@ function Profile() {
 
   if (loading) {
     return (
-      <AppShell>
-        <Skeleton className="mb-10 h-28 w-2/3" />
-        <div className="grid gap-5 md:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-64" />)}</div>
+      <AppShell toneName="orange">
+        <div className="grid items-center gap-12 md:grid-cols-[1fr_auto]"><div className="space-y-4"><Skeleton className="h-20 w-2/3" /><Skeleton className="h-6 w-1/2" /></div><Skeleton className="h-[260px] w-[260px] !rounded-full" /></div>
       </AppShell>
     );
   }
-
-  if (error || !profile) {
-    return <AppShell><Notice>{error || 'Failed to load profile data'}</Notice></AppShell>;
-  }
+  if (error || !profile) return <AppShell toneName="orange"><Notice>{error || 'Failed to load profile data'}</Notice></AppShell>;
 
   const completion = profileCompletion(profile);
-  const initial = (profile.full_name || profile.email || 'U').charAt(0).toUpperCase();
+  const role = [profile.current_work, profile.current_company].filter(Boolean).join(' at ');
 
   return (
-    <AppShell>
-      <PageHeader
-        eyebrow="Profile"
-        toneName="orange"
-        title={profile.full_name || 'Complete your profile'}
-        subtitle={[
-          [profile.current_work, profile.current_company].filter(Boolean).join(' at '),
-          profile.current_location,
-        ].filter(Boolean).join(', ') || profile.email}
-        actions={editing ? (
-          <>
-            <Button variant="secondary" onClick={cancelEditing} disabled={saving}>Cancel</Button>
-            <Button onClick={save} loading={saving}>Save changes</Button>
-          </>
-        ) : (
-          <Button variant="dark" onClick={startEditing}>Edit profile</Button>
-        )}
-      />
-
-      {saveError && <Notice className="mb-6">{saveError}</Notice>}
-
-      <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
-        <div className="space-y-5">
-          {SECTIONS.map((section, i) => (
-            <SectionCard key={section.key} section={section} profile={profile} editing={editing} form={form} onChange={onChange} delay={0.05 * i} />
-          ))}
-          <AnimatePresence>
-            {editing && (
-              <motion.div
-                className="sticky bottom-4 z-10 flex justify-end gap-3 rounded-full bg-white/85 p-2 shadow-[0_10px_40px_-12px_rgba(0,0,0,0.3)] ring-1 ring-black/5 backdrop-blur-xl"
-                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
-                transition={{ duration: 0.35, ease: EASE }}
-              >
-                <Button variant="secondary" onClick={cancelEditing} disabled={saving}>Cancel</Button>
+    <AppShell toneName="orange">
+      {/* Opening */}
+      <div className="grid items-center gap-12 pb-16 md:grid-cols-[1fr_auto]">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <span className="h-px w-9 bg-orange" />
+            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-orange-ink">Profile</p>
+          </div>
+          <RevealText text={profile.full_name || 'Complete your profile'} accent={profile.full_name ? 0 : 1} toneName="orange"
+            className="mt-5 font-display text-[48px] font-semibold leading-[1.02] tracking-tighter2 text-ink md:text-[84px]" />
+          <p className="mt-5 text-[19px] text-graphite md:text-[21px]">{[role, profile.current_location].filter(Boolean).join(', ') || profile.email}</p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            {editing ? (
+              <>
                 <Button onClick={save} loading={saving}>Save changes</Button>
-              </motion.div>
+                <Button variant="secondary" onClick={cancelEditing} disabled={saving}>Cancel</Button>
+              </>
+            ) : (
+              <Button variant="dark" onClick={startEditing}>Edit profile</Button>
             )}
-          </AnimatePresence>
+          </div>
+          {saveError && <Notice className="mt-5">{saveError}</Notice>}
         </div>
-
-        <aside className="space-y-5">
-          <Appear delay={0.1}>
-            <Card className="!p-6 text-center">
-              <div className="relative mx-auto w-fit">
-                <ScoreRing value={completion} size={132} stroke={8} toneName="orange">
-                  <span className="flex h-[96px] w-[96px] items-center justify-center rounded-full bg-[linear-gradient(135deg,#ff9500,#ff2d55)] font-display text-[40px] font-semibold text-white">
-                    {initial}
-                  </span>
-                </ScoreRing>
-              </div>
-              <p className="mt-4 font-display text-[28px] font-semibold tracking-tight tabular-nums">{completion}%</p>
-              <p className="text-[14px] text-graphite">profile complete</p>
-            </Card>
-          </Appear>
-
-          <Appear delay={0.15}>
-            <Card className="!p-6">
-              <h2 className="mb-1 font-display text-[19px] font-semibold tracking-tight">Primary resume</h2>
-              <p className="mb-4 text-[13px] text-graphite">
-                Used for salary, job matches and what HR sees. <Link to="/dashboard" className="text-action-link hover:underline">Manage all resumes</Link>
-              </p>
-              {profile.profile_resume_filename ? (
-                <div className="mb-4 rounded-2xl bg-green-soft p-4">
-                  <p className="truncate text-[14px] font-medium text-green-ink" title={profile.profile_resume_filename}>{profile.profile_resume_filename}</p>
-                  <p className="text-[12px] text-green-ink/80">
-                    Uploaded {profile.profile_resume_uploaded_at ? dateLabel(profile.profile_resume_uploaded_at) : 'recently'}
-                  </p>
-                  <Button variant="outline" size="sm" className="mt-3" onClick={downloadResume}>Download</Button>
-                </div>
-              ) : (
-                <p className="mb-4 text-[14px] text-graphite">No primary resume yet. A resume you add here becomes your primary one.</p>
-              )}
-              <Dropzone compact onFile={uploadResume} busy={resumeUploading} title={profile.profile_resume_filename ? 'Upload a new primary resume' : 'Add your resume'} />
-              {resumeError && <Notice className="mt-3">{resumeError}</Notice>}
-            </Card>
-          </Appear>
-
-          <Appear delay={0.2}>
-            <Card className="!p-6">
-              <h2 className="mb-4 font-display text-[19px] font-semibold tracking-tight">Profile history</h2>
-              {history.length > 0 ? (
-                <ol className="relative space-y-5 border-l border-hairline pl-5">
-                  {history.slice(0, 10).map((entry, i) => (
-                    <li key={`${entry.changed_at}-${i}`} className="relative">
-                      <span className="absolute -left-[25px] top-1.5 h-2.5 w-2.5 rounded-full bg-purple ring-4 ring-white" aria-hidden="true" />
-                      <p className="text-[12px] text-silver">Changed on {dateTimeLabel(entry.changed_at)}</p>
-                      <p className="text-[14px] text-ink">{entry.full_name || 'No name'}{entry.current_work ? `, ${entry.current_work}` : ''}</p>
-                      <p className="text-[12px] text-graphite">
-                        {[entry.phone_number, entry.address, entry.age ? `Age ${entry.age}` : null].filter(Boolean).join(' / ') || 'No contact details'}
-                      </p>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="text-[14px] text-graphite">Earlier versions of your profile appear here after you edit it.</p>
-              )}
-            </Card>
-          </Appear>
-        </aside>
+        <Rise className="mx-auto">
+          {/* Completion itself sits in the ring, instead of a letter avatar */}
+          <Orbit size={260} rings={[{ label: 'Profile complete', value: completion, a: '#ff9500', b: '#ff2d55' }]}>
+            <span className="font-display text-[64px] font-semibold leading-none tracking-tighter2 text-ink">
+              <CountNumber value={completion} /><span className="text-[26px] text-silver">%</span>
+            </span>
+            <span className="mt-2 text-[13px] font-medium uppercase tracking-[0.12em] text-orange-ink">Complete</span>
+          </Orbit>
+        </Rise>
       </div>
+
+      {SECTIONS.map((section) => (
+        <SpecSection key={section.key} section={section} profile={profile} editing={editing} form={form} onChange={onChange} />
+      ))}
+
+      <Section index="05" title="Primary resume" note={<>Used for salary, job matches and what HR sees. <Link to="/dashboard" className="text-action-link hover:underline">Manage all resumes</Link></>}>
+        {profile.profile_resume_filename ? (
+          <div className="flex flex-wrap items-baseline justify-between gap-4 border-b border-black/[0.07] pb-6">
+            <div className="min-w-0">
+              <p className="truncate font-display text-[24px] font-semibold tracking-tight">{profile.profile_resume_filename}</p>
+              <p className="text-[14px] text-graphite">Added {profile.profile_resume_uploaded_at ? dateLabel(profile.profile_resume_uploaded_at) : 'recently'}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={downloadResume}>Download</Button>
+          </div>
+        ) : (
+          <p className="border-b border-black/[0.07] pb-6 text-[16px] text-graphite">No primary resume yet. The one you add here becomes primary.</p>
+        )}
+        <label htmlFor={uploadId} className="group mt-2 flex cursor-pointer items-center gap-4 py-5">
+          <input id={uploadId} type="file" accept=".pdf,application/pdf" className="sr-only" disabled={resumeUploading}
+            onChange={(e) => { if (e.target.files[0]) uploadResume(e.target.files[0]); e.target.value = ''; }} />
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-ink text-white transition-colors group-hover:bg-orange">
+            {resumeUploading ? <Spinner className="h-5 w-5" /> : <span className="text-[20px] leading-none">+</span>}
+          </span>
+          <span className="text-[16px] font-medium text-ink">{profile.profile_resume_filename ? 'Upload a new primary resume' : 'Add your resume'}</span>
+        </label>
+        {resumeError && <Notice>{resumeError}</Notice>}
+      </Section>
+
+      <Section index="06" title="History" note="Earlier versions of your profile, newest first.">
+        {history.length > 0 ? (
+          <ol className="relative ml-1.5 border-l border-black/[0.1]">
+            {history.slice(0, 10).map((entry, i) => (
+              <Rise key={`${entry.changed_at}-${i}`} delay={i * 0.04} as="li" className="relative pb-8 pl-8 last:pb-0">
+                <span className="absolute -left-[5px] top-2 h-2.5 w-2.5 rounded-full bg-orange ring-4 ring-[#fbfbfd]" aria-hidden="true" />
+                <p className="text-[13px] text-silver">{dateTimeLabel(entry.changed_at)}</p>
+                <p className="mt-1 text-[17px] text-ink">{entry.full_name || 'No name'}{entry.current_work ? `, ${entry.current_work}` : ''}</p>
+                <p className="text-[14px] text-graphite">{[entry.current_company, entry.current_location].filter(Boolean).join(', ') || 'No work details'}</p>
+              </Rise>
+            ))}
+          </ol>
+        ) : (
+          <p className="text-[16px] text-graphite">Changes appear here after you edit your profile.</p>
+        )}
+      </Section>
+
+      <AnimatePresence>
+        {editing && (
+          <motion.div
+            className="fixed inset-x-0 bottom-6 z-40 mx-auto flex w-fit items-center gap-3 rounded-full bg-ink/90 p-2 pl-6 text-white shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+            initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }} transition={{ duration: 0.4, ease: EASE }}
+          >
+            <span className="text-[14px]">Editing your profile</span>
+            <button type="button" onClick={cancelEditing} className="rounded-full px-4 py-2 text-[14px] text-white/70 hover:text-white">Cancel</button>
+            <button type="button" onClick={save} disabled={saving} className="rounded-full bg-white px-5 py-2 text-[14px] font-medium text-ink disabled:opacity-60">
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AppShell>
   );
 }

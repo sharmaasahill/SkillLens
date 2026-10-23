@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { homeFor } from '../components/ProtectedRoute';
+import { LensMark } from '../components/ui/studio';
 
 function Auth() {
   const [searchParams] = useSearchParams();
@@ -60,8 +61,8 @@ function Auth() {
   return (
     <div className="flex min-h-screen flex-col bg-white font-text text-ink antialiased">
       <header className="mx-auto flex h-12 w-full max-w-[1024px] items-center px-5">
-        <Link to="/" className="font-display text-[17px] font-semibold tracking-tight text-ink">
-          Skill<span className="text-graphite">Lens</span>
+        <Link to="/" className="group" aria-label="SkillLens home">
+          <LensMark className="h-6 w-6 transition-transform duration-700 ease-apple group-hover:rotate-[200deg]" />
         </Link>
       </header>
 

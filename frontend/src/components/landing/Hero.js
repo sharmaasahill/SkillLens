@@ -1,11 +1,100 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useMotionValue, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 import Laptop from './Laptop';
 import ScreenUI from './ScreenUI';
 import { EASE } from './motion';
+import { LensMark } from '../ui/studio';
 
 const easeOutCubic = (t) => 1 - (1 - t) ** 3;
+
+// The lens falls onto the "i" with a squash on impact and two settling bounces, and stays there.
+// The drop and the recurring hop run on separate layers, so neither can reset the other.
+const DROP_DELAY = 1.15;
+const DROP_DURATION = 1.05;
+const LENS_DROP = {
+  initial: { y: '-1.7em', opacity: 0, scaleX: 0.88, scaleY: 1.14 },
+  animate: {
+    y: ['-1.7em', '0em', '-0.22em', '0em', '-0.05em', '0em'],
+    scaleX: [0.88, 1.34, 0.95, 1.1, 0.99, 1],
+    scaleY: [1.14, 0.68, 1.07, 0.9, 1.01, 1],
+    opacity: [0, 1, 1, 1, 1, 1],
+  },
+  transition: {
+    duration: DROP_DURATION, delay: DROP_DELAY, times: [0, 0.42, 0.62, 0.78, 0.9, 1],
+    ease: ['easeIn', 'easeOut', 'easeIn', 'easeOut', 'easeInOut'],
+  },
+};
+// Every few seconds after landing, a small hop: crouch, jump, land
+const LENS_HOP = {
+  animate: {
+    y: ['0em', '0em', '-0.34em', '0em', '0em'],
+    scaleX: [1, 1.2, 0.93, 1.14, 1],
+    scaleY: [1, 0.8, 1.09, 0.84, 1],
+  },
+  transition: {
+    duration: 0.95, delay: DROP_DELAY + DROP_DURATION + 3.2, times: [0, 0.16, 0.52, 0.8, 1],
+    ease: 'easeInOut', repeat: Infinity, repeatDelay: 5.5,
+  },
+};
+
+/**
+ * SkillLens wordmark, set in exactly the headline's typeface, weight and tracking. The dot
+ * of the "i" is the SkillLens lens: it drops in once the letters have tracked together,
+ * sends out a ripple on landing, keeps turning slowly, and hops now and then.
+ */
+function BrandWord({ reduce }) {
+  const [landed, setLanded] = useState(Boolean(reduce));
+  return (
+    <p className="mb-5 select-none whitespace-nowrap font-display text-[64px] font-semibold leading-none text-ink md:mb-7 md:text-[112px]">
+      <span className="sr-only">SkillLens</span>
+      <motion.span
+        aria-hidden="true"
+        className="inline-block"
+        initial={reduce ? false : { opacity: 0, letterSpacing: '0.32em', filter: 'blur(10px)' }}
+        animate={{ opacity: 1, letterSpacing: '-0.04em', filter: 'blur(0px)' }}
+        transition={{ duration: 1.4, ease: EASE, delay: 0.1 }}
+      >
+        Sk
+        {/* Dotless i; the lens takes the place of its dot */}
+        <span className="relative inline-block">
+          {'\u0131'}
+          <span className="absolute left-[calc(50%+0.02em)] top-[0.05em] h-[0.19em] w-[0.19em] -translate-x-1/2">
+            {landed && !reduce && (
+              <>
+                <motion.span
+                  className="absolute inset-0 rounded-full border-[0.012em] border-[#af52de]"
+                  initial={{ scale: 1, opacity: 0.7 }} animate={{ scale: 5.5, opacity: 0 }}
+                  transition={{ duration: 1.3, ease: EASE }}
+                />
+                <motion.span
+                  className="absolute -inset-[70%] rounded-full bg-[conic-gradient(#ff9500,#ff2d55,#af52de,#007aff,#ff9500)] blur-[0.12em]"
+                  initial={{ opacity: 0 }} animate={{ opacity: 0.28 }} transition={{ duration: 1.2, ease: EASE }}
+                />
+              </>
+            )}
+            {reduce ? (
+              <LensMark className="absolute inset-0 h-full w-full" />
+            ) : (
+              <motion.span
+                className="absolute inset-0 block origin-bottom"
+                initial={LENS_DROP.initial}
+                animate={LENS_DROP.animate}
+                transition={LENS_DROP.transition}
+                onAnimationComplete={() => setLanded(true)}
+              >
+                <motion.span className="block h-full w-full origin-bottom" animate={LENS_HOP.animate} transition={LENS_HOP.transition}>
+                  <LensMark className="h-full w-full animate-[spin_12s_linear_infinite]" />
+                </motion.span>
+              </motion.span>
+            )}
+          </span>
+        </span>
+        ll<span className="text-graphite">Lens</span>
+      </motion.span>
+    </p>
+  );
+}
 
 /**
  * Scroll-driven hero. At rest it is just the headline. As you scroll, the laptop
@@ -45,6 +134,7 @@ function Hero({ signedIn, home = '/dashboard' }) {
           className={`${reduce ? 'relative py-28' : 'absolute inset-0 pt-12'} z-10 flex flex-col items-center justify-center px-6 text-center`}
           style={{ opacity: headlineOpacity, y: headlineY, scale: headlineScale }}
         >
+          <BrandWord reduce={reduce} />
           <motion.h1
             id="hero-title"
             className="mx-auto max-w-[13ch] font-display text-[48px] font-semibold leading-[1.05] tracking-tighter2 text-ink md:text-[80px]"

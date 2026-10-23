@@ -1,222 +1,246 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, animate, useMotionValue, useTransform } from 'framer-motion';
 import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
-import { Badge, Button, Card, ComboboxField, Meter, Notice, ScoreRing, Segmented, SelectField, TextField, EASE, cx } from '../components/ui/primitives';
+import { Button, Notice, Segmented, cx } from '../components/ui/primitives';
+import { Combobox, Select } from '../components/ui/Select';
+import { EASE, Glass, Rise, Section, SegmentDial } from '../components/ui/studio';
 import { lpa, money, signedPercent } from '../lib/format';
 
 const EMPTY_FORM = { job_title: '', years_of_experience: '', city: '', work_mode: 'On-site', skills: '' };
 const FALLBACK_CITIES = ['Bengaluru', 'Hyderabad', 'Pune', 'Mumbai', 'Chennai', 'Gurugram', 'Noida', 'Delhi', 'Kolkata', 'Ahmedabad', 'Remote'];
-
 const parseSkills = (text) => text.split(',').map((s) => s.trim()).filter(Boolean);
+const GREEN = '#34c759';
+const TEAL = '#30b0c7';
 
 /** Big LPA figure that counts up to `value` whenever it changes. */
 function CountingLpa({ value, className }) {
   const mv = useMotionValue(0);
   const text = useTransform(mv, (v) => lpa(v));
-  React.useEffect(() => {
-    const controls = animate(mv, value, { duration: 1.2, ease: EASE });
+  useEffect(() => {
+    const controls = animate(mv, value, { duration: 1.3, ease: EASE });
     return () => controls.stop();
   }, [value, mv]);
   return <motion.span className={cx('tabular-nums', className)}>{text}</motion.span>;
 }
 
-/** Where `value` sits between min and max, drawn as a track with a marker. */
-function RangeTrack({ min, max, value, toneName = 'green' }) {
-  const lo = Math.min(min, value) * 0.9;
-  const hi = Math.max(max, value) * 1.1;
-  const pos = (v) => `${((v - lo) / (hi - lo)) * 100}%`;
-  const fill = toneName === 'green' ? 'bg-green' : 'bg-blue';
+/** Inline input styled as part of the sentence. */
+function InlineInput({ className = '', ...props }) {
   return (
-    <div>
-      <div className="relative h-3 rounded-full bg-[#e8e8ed]">
-        <motion.div
-          className={cx('absolute inset-y-0 origin-left rounded-full', fill)}
-          style={{ left: pos(min), width: `calc(${pos(max)} - ${pos(min)})` }}
-          initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 1, ease: EASE }}
-        />
-        <motion.span
-          className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] ring-2 ring-ink"
-          style={{ left: pos(value) }}
-          initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.4, delay: 0.8 }}
-        />
-      </div>
-      <div className="mt-2 flex justify-between text-[13px] text-graphite tabular-nums">
-        <span>{lpa(min)}</span>
-        <span>{lpa(max)}</span>
-      </div>
-    </div>
+    <input
+      {...props}
+      className={cx('inline-block border-b-2 border-black/15 bg-transparent px-0.5 pb-0.5 font-display font-semibold tracking-tight text-ink placeholder:text-black/25 transition-colors hover:border-ink focus:border-action focus:outline-none', className)}
+    />
   );
 }
 
-/** What moved the estimate, as signed percentages against an average posting. */
-function Factors({ factors }) {
-  if (!factors?.length) return null;
-  return (
-    <div className="space-y-4">
-      {factors.map((factor, i) => (
-        <div key={factor.factor}>
-          <div className="mb-1.5 flex justify-between text-[14px]">
-            <span className="text-ink">{factor.factor}</span>
-            <span className={cx('tabular-nums font-medium', factor.effect_pct >= 0 ? 'text-green-ink' : 'text-red-ink')}>
-              {signedPercent(factor.effect_pct)}
-            </span>
-          </div>
-          <Meter value={factor.importance * 100} toneName={factor.effect_pct >= 0 ? 'green' : 'red'} delay={i * 0.1} />
-        </div>
-      ))}
-      <p className="text-[12px] text-silver">Compared with an average posting in the dataset.</p>
-    </div>
-  );
-}
-
-function SalaryForm({ form, setForm, onSubmit, loading, mode, options, resumeSkills }) {
+/** The form reads as a sentence: "I'm a [title] with [n] years in [city], working [mode]." */
+function SentenceForm({ form, setForm, onSubmit, loading, mode, options, resumeSkills }) {
   const set = (name) => (e) => setForm((prev) => ({ ...prev, [name]: e.target.value }));
   const cities = options?.cities?.length ? options.cities : FALLBACK_CITIES;
   return (
-    <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
-      <ComboboxField
-        label="Job title" placeholder="e.g. Data Scientist, Accountant, Sales Manager" value={form.job_title}
-        onChange={set('job_title')} required minLength={2} maxLength={100} className="sm:col-span-2"
-        suggestions={options?.job_titles || options?.popular_titles || []}
-        hint={`Type any title. ${options?.job_titles ? `${options.job_titles.length.toLocaleString('en-IN')} titles` : 'Suggestions'} from Indian job postings.`}
-      />
-      <TextField label="Years of experience" type="number" min="0" max="40" step="0.5" placeholder="Years" value={form.years_of_experience} onChange={set('years_of_experience')} required />
-      <SelectField label="City" value={form.city} onChange={set('city')} options={cities} placeholder="Any city" />
-      <SelectField label="Work mode" value={form.work_mode} onChange={set('work_mode')} options={options?.work_modes || ['On-site', 'Hybrid', 'Remote']} className="sm:col-span-2" />
-      <div className="sm:col-span-2">
-        <TextField
-          label="Key skills (optional)" placeholder="Python, SQL, Power BI" value={form.skills} onChange={set('skills')}
-          hint="Comma separated. Skills such as SAP or cloud platforms can move pay a lot."
-        />
-        {resumeSkills.length > 0 && !form.skills && (
-          <button
-            type="button"
-            onClick={() => setForm((prev) => ({ ...prev, skills: resumeSkills.slice(0, 12).join(', ') }))}
-            className="mt-2 text-[13px] text-action-link hover:underline"
-          >
-            Use skills from my primary resume
-          </button>
-        )}
-      </div>
-      <div className="sm:col-span-2">
-        <Button type="submit" size="lg" loading={loading} className="w-full">
-          {loading ? (mode === 'compare' ? 'Analyzing...' : 'Estimating...') : (mode === 'compare' ? 'Compare both estimates' : 'Estimate my salary')}
+    <form onSubmit={onSubmit}>
+      <p className="font-display text-[28px] font-semibold leading-[1.75] tracking-tight text-black/35 md:text-[40px] md:leading-[1.7]">
+        I&apos;m a{' '}
+        <Combobox
+          variant="inline" value={form.job_title} onChange={set('job_title')} required minLength={2} maxLength={100}
+          suggestions={options?.job_titles || options?.popular_titles || []} placeholder="job title"
+        />{' '}
+        with{' '}
+        <InlineInput
+          type="number" min="0" max="40" step="0.5" required value={form.years_of_experience} onChange={set('years_of_experience')}
+          placeholder="0" aria-label="Years of experience" className="w-[2.6ch] text-center"
+        />{' '}
+        years in{' '}
+        <Select variant="inline" value={form.city} onChange={set('city')} options={cities} placeholder="any city" />,
+        working{' '}
+        <Select variant="inline" value={form.work_mode} onChange={set('work_mode')} options={options?.work_modes || ['On-site', 'Hybrid', 'Remote']} />.
+      </p>
+      <div className="mt-6 grid gap-6 border-t border-black/[0.07] pt-6 md:grid-cols-[1fr_auto] md:items-end">
+        <div>
+          <label htmlFor="salary-skills" className="text-[13px] font-medium text-graphite">Key skills, optional</label>
+          <input
+            id="salary-skills" value={form.skills} onChange={set('skills')} placeholder="Python, SQL, Power BI"
+            className="mt-1 block w-full border-b border-black/15 bg-transparent py-2 text-[17px] text-ink placeholder:text-silver focus:border-action focus:outline-none"
+          />
+          {resumeSkills.length > 0 && !form.skills && (
+            <button type="button" onClick={() => setForm((p) => ({ ...p, skills: resumeSkills.slice(0, 12).join(', ') }))} className="mt-2 text-[13px] text-action-link hover:underline">
+              Use skills from my primary resume
+            </button>
+          )}
+        </div>
+        <Button type="submit" size="lg" loading={loading} className="min-w-[220px]">
+          {loading ? 'Estimating...' : mode === 'compare' ? 'Compare both estimates' : 'Estimate my salary'}
         </Button>
       </div>
     </form>
   );
 }
 
-function BasicResult({ result }) {
+/** A soft spectrum from low to high with the estimate marked, instead of a progress bar. */
+function Spectrum({ min, max, value, wideMin, wideMax }) {
+  const lo = Math.min(wideMin ?? min, value) * 0.92;
+  const hi = Math.max(wideMax ?? max, value) * 1.06;
+  const pos = (v) => ((v - lo) / (hi - lo)) * 100;
   return (
-    <div className="space-y-5">
-      <Card className="relative overflow-hidden !p-8">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(52,199,89,0.25),transparent_70%)]" />
-        <Badge toneName="green">Quick estimate</Badge>
-        <p className="mt-6 text-[15px] text-graphite">Estimated annual CTC</p>
-        <CountingLpa value={result.predicted_salary} className="mt-1 block font-display text-[56px] font-semibold leading-none tracking-tighter2 text-ink md:text-[72px]" />
-        <p className="mt-3 text-[15px] text-graphite tabular-nums">
-          {money(result.predicted_salary)} a year, about {money(result.predicted_salary / 12)} a month before tax
-        </p>
-        <div className="mt-10">
-          <p className="mb-3 text-[13px] font-medium text-graphite">Likely range for similar postings</p>
-          <RangeTrack min={result.salary_range.min} max={result.salary_range.max} value={result.predicted_salary} />
-        </div>
-      </Card>
-      {result.top_influential_factors?.length > 0 && (
-        <Card className="!p-7">
-          <h3 className="mb-5 font-display text-[19px] font-semibold tracking-tight">What moved the number</h3>
-          <Factors factors={result.top_influential_factors} />
-        </Card>
-      )}
+    <div className="pt-10">
+      <div className="relative h-16">
+        {wideMin != null && (
+          <div className="absolute top-1/2 h-px -translate-y-1/2 bg-black/15" style={{ left: `${pos(wideMin)}%`, width: `${pos(wideMax) - pos(wideMin)}%` }} />
+        )}
+        <motion.div
+          className="absolute top-1/2 h-10 -translate-y-1/2 rounded-full opacity-80 blur-[1px]"
+          style={{ left: `${pos(min)}%`, width: `${pos(max) - pos(min)}%`, background: `linear-gradient(90deg, ${TEAL}55, ${GREEN}, ${TEAL}55)` }}
+          initial={{ scaleX: 0, opacity: 0 }} animate={{ scaleX: 1, opacity: 0.85 }} transition={{ duration: 1.1, ease: EASE }}
+        />
+        <motion.div className="absolute top-0 flex h-full -translate-x-1/2 flex-col items-center" style={{ left: `${pos(value)}%` }}
+          initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE, delay: 0.7 }}>
+          <span className="h-full w-[2px] rounded-full bg-ink" />
+          <span className="absolute -top-8 whitespace-nowrap rounded-full bg-ink px-2.5 py-1 text-[12px] font-semibold text-white tabular-nums">{lpa(value)}</span>
+        </motion.div>
+      </div>
+      <div className="mt-3 flex justify-between text-[13px] text-graphite tabular-nums">
+        <span>{lpa(wideMin ?? min)}</span>
+        <span className="text-silver">{wideMin != null ? 'Likely range glows, wide range is the thin line' : 'Likely range for similar postings'}</span>
+        <span>{lpa(wideMax ?? max)}</span>
+      </div>
     </div>
+  );
+}
+
+/**
+ * Waterfall: starts at a typical posting, then each factor multiplies it, ending at the estimate.
+ * The effects come from the model, so the steps add up exactly (in log space).
+ */
+function Waterfall({ factors, estimate }) {
+  const steps = useMemo(() => {
+    const list = (factors || []).filter((f) => Number.isFinite(f.effect_pct));
+    const product = list.reduce((acc, f) => acc * (1 + f.effect_pct / 100), 1);
+    let running = estimate / (product || 1);
+    const out = [{ label: 'Typical posting', from: 0, to: running, base: true }];
+    list.forEach((f) => {
+      const next = running * (1 + f.effect_pct / 100);
+      out.push({ label: f.factor, from: running, to: next, effect: f.effect_pct });
+      running = next;
+    });
+    out.push({ label: 'Your estimate', from: 0, to: estimate, total: true });
+    return out;
+  }, [factors, estimate]);
+  const top = Math.max(...steps.map((s) => Math.max(s.from, s.to))) * 1.08 || 1;
+  const pct = (v) => (v / top) * 100;
+  return (
+    <div className="space-y-3">
+      {steps.map((s, i) => {
+        const left = Math.min(s.from, s.to);
+        const width = Math.abs(s.to - s.from);
+        const up = s.effect >= 0;
+        const color = s.total ? `linear-gradient(90deg, ${GREEN}, ${TEAL})` : s.base ? '#d2d2d7' : up ? GREEN : '#ff3b30';
+        return (
+          <div key={s.label} className="grid grid-cols-[130px_1fr_88px] items-center gap-4 md:grid-cols-[170px_1fr_110px]">
+            <span className={cx('text-[14px]', s.total ? 'font-semibold text-ink' : 'text-graphite')}>{s.label}</span>
+            <div className="relative h-7">
+              <div className="absolute inset-y-[13px] left-0 right-0 bg-black/[0.04]" />
+              <motion.div
+                className="absolute inset-y-0 origin-left rounded-[6px]"
+                style={{ left: `${pct(left)}%`, width: `${Math.max(pct(width), 0.6)}%`, background: color }}
+                initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true }}
+                transition={{ duration: 0.7, ease: EASE, delay: 0.15 + i * 0.14 }}
+              />
+            </div>
+            <span className={cx('text-right text-[14px] tabular-nums', s.total || s.base ? 'font-semibold text-ink' : up ? 'text-green-ink' : 'text-red-ink')}>
+              {s.total || s.base ? lpa(s.to) : signedPercent(s.effect)}
+            </span>
+          </div>
+        );
+      })}
+      <p className="pt-2 text-[12px] text-silver">Each bar shows how much that input moves pay compared with an average Indian posting.</p>
+    </div>
+  );
+}
+
+function QuickResult({ result }) {
+  return (
+    <>
+      <Rise>
+        <div className="py-6">
+          <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-green-ink">Estimated annual CTC</p>
+          <CountingLpa value={result.predicted_salary} className="mt-4 block font-display text-[72px] font-semibold leading-none tracking-tighter2 text-ink md:text-[136px]" />
+          <p className="mt-5 text-[17px] text-graphite tabular-nums">
+            {money(result.predicted_salary)} a year, about <span className="text-ink">{money(result.predicted_salary / 12)}</span> a month before tax
+          </p>
+          <Spectrum min={result.salary_range.min} max={result.salary_range.max} value={result.predicted_salary} />
+        </div>
+      </Rise>
+      {result.top_influential_factors?.length > 0 && (
+        <Section index="02" title="What moved the number" note="From a typical posting to your estimate, one input at a time.">
+          <Waterfall factors={result.top_influential_factors} estimate={result.predicted_salary} />
+        </Section>
+      )}
+    </>
   );
 }
 
 function CompareResult({ results, metrics }) {
   const { basic, advanced, comparison } = results;
-  const top = Math.max(basic?.predicted_salary || 0, advanced?.predicted_salary || 0) || 1;
-  const higher = comparison?.higher_prediction;
+  const confidence = Math.round(advanced?.prediction_confidence || 0);
   return (
-    <div className="space-y-5">
-      <div className="grid gap-5 md:grid-cols-2">
-        {basic && (
-          <Card className="!p-7">
-            <div className="flex items-center justify-between">
-              <Badge toneName="gray">Quick estimate</Badge>
-              {higher === 'basic' && <Badge toneName="orange">Higher</Badge>}
+    <>
+      <Rise>
+        <div className="grid gap-10 py-6 md:grid-cols-2 md:gap-0 md:divide-x md:divide-black/[0.07]">
+          {[['Quick estimate', 'Ridge regression', basic, 'basic'], ['Advanced estimate', 'Ridge + gradient-boosted trees', advanced, 'advanced']].map(([label, detail, r, key], i) => r && (
+            <div key={key} className={i ? 'md:pl-12' : 'md:pr-12'}>
+              <div className="flex items-center gap-3">
+                <p className={cx('text-[13px] font-semibold uppercase tracking-[0.14em]', i ? 'text-green-ink' : 'text-graphite')}>{label}</p>
+                {comparison?.higher_prediction === key && <span className="text-[12px] font-medium text-orange-ink">Higher</span>}
+              </div>
+              <CountingLpa value={r.predicted_salary} className="mt-4 block font-display text-[60px] font-semibold leading-none tracking-tighter2 text-ink md:text-[88px]" />
+              <p className="mt-3 text-[15px] text-graphite">Likely {lpa(r.salary_range?.min)} to {lpa(r.salary_range?.max)}</p>
+              <p className="text-[13px] text-silver">{detail}</p>
             </div>
-            <CountingLpa value={basic.predicted_salary} className="mt-5 block font-display text-[44px] font-semibold leading-none tracking-tight" />
-            <p className="mt-2 text-[14px] text-graphite">Likely {lpa(basic.salary_range?.min)} to {lpa(basic.salary_range?.max)}</p>
-            <p className="mt-1 text-[13px] text-silver">Ridge regression</p>
-            <Meter value={(basic.predicted_salary / top) * 100} toneName="gray" className="mt-6 h-2.5" />
-          </Card>
-        )}
+          ))}
+        </div>
         {advanced && (
-          <Card className="relative overflow-hidden !p-7">
-            <div className="pointer-events-none absolute -right-20 -top-20 h-60 w-60 rounded-full bg-[radial-gradient(circle,rgba(52,199,89,0.22),transparent_70%)]" />
-            <div className="relative flex items-center justify-between">
-              <Badge toneName="green">Advanced estimate</Badge>
-              {higher === 'advanced' && <Badge toneName="orange">Higher</Badge>}
-            </div>
-            <CountingLpa value={advanced.predicted_salary} className="relative mt-5 block font-display text-[44px] font-semibold leading-none tracking-tight" />
-            <p className="relative mt-2 text-[14px] text-graphite">Likely {lpa(advanced.salary_range?.min)} to {lpa(advanced.salary_range?.max)}</p>
-            {advanced.confidence_interval && (
-              <p className="relative mt-1 text-[13px] text-silver">
-                Wide range {lpa(advanced.confidence_interval.lower)} to {lpa(advanced.confidence_interval.upper)}
-                {metrics?.interval_coverage_pct ? ` (held ${Math.round(metrics.interval_coverage_pct)}% of real postings in testing)` : ''}
-              </p>
-            )}
-            <Meter value={(advanced.predicted_salary / top) * 100} toneName="green" className="relative mt-6 h-2.5" delay={0.1} />
-          </Card>
+          <Spectrum
+            min={advanced.salary_range.min} max={advanced.salary_range.max} value={advanced.predicted_salary}
+            wideMin={advanced.confidence_interval?.lower} wideMax={advanced.confidence_interval?.upper}
+          />
         )}
-      </div>
+      </Rise>
 
       {advanced && (
-        <div className="grid gap-5 md:grid-cols-[280px_1fr]">
-          <Card className="flex flex-col items-center justify-center !p-7 text-center">
-            {advanced.prediction_confidence && (
-              <ScoreRing value={advanced.prediction_confidence} size={128} toneName={advanced.prediction_confidence >= 75 ? 'green' : 'orange'} label="confidence">
-                <span className="font-display text-[28px] font-semibold leading-none tabular-nums">{Math.round(advanced.prediction_confidence)}%</span>
-              </ScoreRing>
-            )}
-            <p className="mt-4 text-[13px] text-silver">Narrower ranges give higher confidence</p>
-          </Card>
-          <Card className="!p-7">
-            <h3 className="mb-5 font-display text-[19px] font-semibold tracking-tight">What moved the number</h3>
-            <Factors factors={advanced.top_influential_factors} />
-          </Card>
-        </div>
+        <Section index="02" title="How sure is it" note={metrics?.interval_coverage_pct ? `The wide range held ${Math.round(metrics.interval_coverage_pct)}% of real postings in testing.` : 'Narrower ranges give higher confidence.'}>
+          <div className="flex flex-col items-start gap-10 md:flex-row md:items-center">
+            <SegmentDial
+              size={220}
+              parts={[{ key: 'c', label: 'Confidence', score: confidence, max: 100 }]}
+              toneFor={() => (confidence >= 75 ? GREEN : '#ff9500')}
+            >
+              <p className="font-display text-[48px] font-semibold leading-none tracking-tighter2 tabular-nums">{confidence}<span className="text-[22px] text-silver">%</span></p>
+              <p className="mt-1 text-[12px] text-graphite">confidence</p>
+            </SegmentDial>
+            <dl className="grid flex-1 gap-6 sm:grid-cols-3">
+              {[
+                ['Difference', lpa(Math.abs(comparison?.difference || 0))],
+                ['In percent', `${Math.abs(comparison?.difference_percentage || 0).toFixed(1)}%`],
+                ['Higher estimate', comparison?.higher_prediction === 'advanced' ? 'Advanced' : comparison?.higher_prediction === 'basic' ? 'Quick' : 'Equal'],
+              ].map(([k, v]) => (
+                <div key={k}>
+                  <dt className="text-[13px] text-graphite">{k}</dt>
+                  <dd className="mt-1 font-display text-[30px] font-semibold tracking-tight text-ink tabular-nums">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </Section>
       )}
 
-      {comparison && (
-        <Card className="!p-7">
-          <h3 className="font-display text-[19px] font-semibold tracking-tight">How the two estimates differ</h3>
-          <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl bg-orange-soft p-5">
-              <p className="text-[13px] text-orange-ink">Difference</p>
-              <p className="mt-1 font-display text-[28px] font-semibold tracking-tight">{lpa(Math.abs(comparison.difference))}</p>
-            </div>
-            <div className="rounded-2xl bg-orange-soft p-5">
-              <p className="text-[13px] text-orange-ink">Percentage difference</p>
-              <p className="mt-1 font-display text-[28px] font-semibold tracking-tight">{Math.abs(comparison.difference_percentage).toFixed(1)}%</p>
-            </div>
-            <div className="rounded-2xl bg-mist p-5">
-              <p className="text-[13px] text-graphite">Higher estimate</p>
-              <p className="mt-1 font-display text-[28px] font-semibold tracking-tight">
-                {higher === 'advanced' ? 'Advanced' : higher === 'basic' ? 'Quick' : 'Equal'}
-              </p>
-            </div>
-          </div>
-          <p className="mt-5 text-[15px] text-graphite">
-            The quick estimate is a straight line through the data. The advanced one adds gradient-boosted trees,
-            which pick up effects such as pay rising faster for senior roles.
-          </p>
-        </Card>
+      {advanced?.top_influential_factors?.length > 0 && (
+        <Section index="03" title="What moved the number" note="From a typical posting to the advanced estimate, one input at a time.">
+          <Waterfall factors={advanced.top_influential_factors} estimate={advanced.predicted_salary} />
+        </Section>
       )}
-    </div>
+    </>
   );
 }
 
@@ -235,14 +259,11 @@ function SalaryPredictor() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Form helpers are optional; the form still works if any of these fail
     api.get('/salary-options').then((res) => setOptions(res.data)).catch(() => {});
     api.get('/model-info').then((res) => setMetrics(res.data.metrics)).catch(() => {});
     api.get('/resume-history').then((res) => {
       const primary = res.data.resumes?.find((r) => r.is_primary);
-      const skills = Array.isArray(primary?.skills) ? primary.skills : [];
-      setResumeSkills(skills.map(String));
-      // Start from the primary resume's experience so the estimate needs fewer inputs
+      setResumeSkills((Array.isArray(primary?.skills) ? primary.skills : []).map(String));
       const years = res.data.primary_experience_years;
       if (years) setForm((prev) => (prev.years_of_experience ? prev : { ...prev, years_of_experience: String(years) }));
     }).catch(() => {});
@@ -284,14 +305,14 @@ function SalaryPredictor() {
   const accuracy = metrics?.quick;
 
   return (
-    <AppShell>
+    <AppShell toneName="green">
       <PageHeader
         eyebrow="Salary"
-        toneName="green"
         title={mode === 'compare' ? 'Two estimates. One honest range.' : 'Know what you are worth in India.'}
+        accent={mode === 'compare' ? 2 : 1}
         subtitle={mode === 'compare'
-          ? 'Compare a quick linear model with an advanced blend of gradient-boosted trees, with a data-driven range and the factors behind it.'
-          : 'Annual CTC estimated from your role, experience, city and skills, using real 2025 Indian job postings.'}
+          ? 'A quick linear model beside an advanced blend of gradient-boosted trees, with a range drawn from similar postings.'
+          : 'Annual CTC from your role, experience, city and skills, learned from real 2025 Indian job postings.'}
         actions={(
           <Segmented
             label="Estimate mode"
@@ -302,48 +323,27 @@ function SalaryPredictor() {
         )}
       />
 
-      <div className="grid items-start gap-6 lg:grid-cols-[400px_1fr]">
-        <Card className="lg:sticky lg:top-24">
-          <h2 className="mb-6 font-display text-[19px] font-semibold tracking-tight">Your details</h2>
-          <SalaryForm form={form} setForm={setForm} onSubmit={handleSubmit} loading={loading} mode={mode} options={options} resumeSkills={resumeSkills} />
-          {error && <Notice className="mt-4">{error}</Notice>}
-          <p className="mt-5 border-t border-black/[0.06] pt-4 text-[12px] leading-[1.5] text-silver">
-            Trained on {metrics?.trained_on_rows ? metrics.trained_on_rows.toLocaleString('en-IN') : '31,000+'} Naukri.com
-            postings with disclosed pay (Sep to Oct 2025).
-            {accuracy ? ` On companies it never saw, half of its estimates were within ${Math.round(accuracy.median_error_pct)}% of the posted salary.` : ''}
-            {' '}Posted ranges are a guide, not an offer.
-          </p>
-        </Card>
+      <Glass>
+        <SentenceForm form={form} setForm={setForm} onSubmit={handleSubmit} loading={loading} mode={mode} options={options} resumeSkills={resumeSkills} />
+        {error && <Notice className="mt-5">{error}</Notice>}
+      </Glass>
+      <p className="mt-4 max-w-[80ch] text-[13px] leading-[1.5] text-silver">
+        Trained on {metrics?.trained_on_rows ? metrics.trained_on_rows.toLocaleString('en-IN') : '31,000+'} Naukri.com postings with disclosed pay (Sep to Oct 2025).
+        {accuracy ? ` On companies it never saw, half of its estimates were within ${Math.round(accuracy.median_error_pct)}% of the posted salary.` : ''}
+        {' '}Posted ranges are a guide, not an offer.
+      </p>
 
+      <div className="mt-16">
         <AnimatePresence mode="wait">
-          <motion.div
-            key={`${mode}-${shown ? 'result' : 'empty'}`}
-            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.45, ease: EASE }}
-          >
+          <motion.div key={`${mode}-${shown ? 'r' : 'e'}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
             {shown ? (
-              mode === 'compare' ? <CompareResult results={comparison} metrics={metrics} /> : <BasicResult result={result} />
+              mode === 'compare' ? <CompareResult results={comparison} metrics={metrics} /> : <QuickResult result={result} />
             ) : (
-              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[24px] border-2 border-dashed border-hairline px-8 text-center">
-                <div className="flex -space-x-3">
-                  {['#34c759', '#30b0c7', '#007aff'].map((c, i) => (
-                    <motion.span
-                      key={c}
-                      className="h-12 w-12 rounded-full ring-4 ring-[#fbfbfd]"
-                      style={{ background: c }}
-                      animate={{ y: [0, -6, 0] }}
-                      transition={{ duration: 2.4, repeat: Infinity, delay: i * 0.2, ease: 'easeInOut' }}
-                    />
-                  ))}
-                </div>
-                <p className="mt-6 font-display text-[24px] font-semibold tracking-tight">Your estimate will appear here</p>
-                <p className="mt-2 max-w-[38ch] text-[15px] text-graphite">
-                  Fill in your details and {mode === 'compare' ? 'compare both estimates' : 'see your estimate in lakhs per annum'}.
-                </p>
+              <div className="relative overflow-hidden py-20 text-center">
+                <p aria-hidden="true" className="select-none font-display text-[96px] font-semibold leading-none tracking-tighter2 text-transparent md:text-[180px]" style={{ backgroundImage: 'linear-gradient(180deg, rgba(52,199,89,0.16), rgba(48,176,199,0.04))', WebkitBackgroundClip: 'text', backgroundClip: 'text' }}>₹ ? LPA</p>
+                <p className="mt-6 text-[17px] text-graphite">Complete the sentence above to see your estimate.</p>
                 {mode === 'quick' && (
-                  <button type="button" onClick={() => changeMode('compare')} className="mt-4 text-[15px] text-action-link hover:underline">
-                    Try the advanced estimate
-                  </button>
+                  <button type="button" onClick={() => changeMode('compare')} className="mt-3 text-[15px] text-action-link hover:underline">Or compare both models</button>
                 )}
               </div>
             )}

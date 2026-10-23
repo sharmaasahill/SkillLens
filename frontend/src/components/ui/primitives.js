@@ -167,7 +167,7 @@ export function StatTile({ label, value, hint, toneName = 'blue' }) {
 
 /* ---------- Form fields ---------- */
 
-const FIELD = 'block w-full rounded-xl border border-hairline bg-white px-3.5 py-2.5 text-[15px] text-ink placeholder:text-silver transition focus:border-action focus:outline-none focus:ring-4 focus:ring-action/15 disabled:bg-mist disabled:text-graphite';
+const FIELD = 'block w-full rounded-2xl border border-black/[0.08] bg-white/70 px-4 py-3 text-[15px] text-ink placeholder:text-silver backdrop-blur transition focus:border-action/60 focus:bg-white focus:outline-none focus:ring-4 focus:ring-action/10 disabled:bg-mist disabled:text-graphite';
 
 function FieldWrap({ id, label, hint, error, children, className = '' }) {
   return (
@@ -237,7 +237,7 @@ export function Segmented({ value, onChange, options, label, className = '' }) {
             aria-checked={active}
             onClick={() => onChange(optValue)}
             className={cx(
-              'relative rounded-full px-4 py-1.5 text-[13px] transition-colors',
+              'relative whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] transition-colors',
               active ? 'text-ink' : 'text-graphite hover:text-ink'
             )}
           >
