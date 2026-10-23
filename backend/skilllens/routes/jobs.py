@@ -8,15 +8,16 @@ from models.database import Resume
 
 from ..errors import ApiError
 from ..extensions import limiter
-from ..schemas import JobsBySkillsRequest, MarketAnalysisRequest, RecommendJobsRequest
-from ..services import live_jobs, ml, storage
+from ..schemas import JobsBySkillsRequest, LiveJobsRequest, MarketAnalysisRequest, RecommendJobsRequest
+from ..services import live_jobs, ml, resumes, storage
 from . import json_body
 
 bp = Blueprint('jobs', __name__, url_prefix='/api')
 
 
 def _latest_resume(user):
-    return Resume.query.filter_by(user_id=user.id).order_by(Resume.uploaded_at.desc(), Resume.id.desc()).first()
+    """The resume used for matching: the user's primary resume."""
+    return resumes.primary_resume(user)
 
 
 def _resume_skills_and_text(resume):
@@ -59,22 +60,11 @@ def recommend_jobs():
     )
 
     analysis = recommender.get_skills_analysis(user_skills)
-    live = []
-    if params.include_live:
-        # Search with the user's most in-demand skills; only these keywords leave the server
-        demand = analysis.get('user_skills_demand', {})
-        top_skills = sorted(user_skills, key=lambda s: demand.get(s, {}).get('job_count', 0), reverse=True)[:3]
-        city = (params.preferred_locations or [None])[0]
-        live = live_jobs.annotate(
-            live_jobs.search(top_skills, city=city, limit=10,
-                             user_ip=request.remote_addr, user_agent=request.headers.get('User-Agent')),
-            user_skills)
 
     return jsonify({
         'success': True,
         'recommendations': recommendations,
-        'live_jobs': live,
-        'live_sources': live_jobs.configured_providers(),
+        'live': live_jobs.status(),
         'user_profile': {
             'extracted_skills': user_skills,
             'experience_years': experience,
@@ -141,4 +131,30 @@ def recommend_jobs_by_skills():
         'recommendations': recommendations,
         'user_skills': params.skills,
         'total_recommendations': len(recommendations),
+    })
+
+
+@bp.post('/live-jobs')
+@jwt_required()
+def live_job_search():
+    """Current openings from Adzuna/Careerjet for the primary resume's top skills. Called on demand only."""
+    params = json_body(LiveJobsRequest)
+    resume = _latest_resume(current_user)
+    skills = params.skills or (resume.get_skills() if resume else [])
+    if not skills:
+        raise ApiError('Upload a resume or give some skills to search live openings.', 400)
+    if not live_jobs.configured_providers():
+        raise ApiError('Live openings are not set up on this server.', 404)
+    # Search with the most in-demand skills; only these keywords and the city leave the server
+    demand = ml.job_recommender().get_skills_analysis(skills).get('user_skills_demand', {})
+    top_skills = sorted(skills, key=lambda s: demand.get(s, {}).get('job_count', 0), reverse=True)[:3]
+    result = live_jobs.search(top_skills, city=params.city, limit=10,
+                              user_ip=request.remote_addr, user_agent=request.headers.get('User-Agent'))
+    return jsonify({
+        'success': True,
+        'jobs': live_jobs.annotate(result['jobs'], skills),
+        'searched_for': top_skills,
+        'from_cache': result['from_cache'],
+        'limit_reached': result['limit_reached'],
+        **live_jobs.status(),
     })

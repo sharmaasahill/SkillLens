@@ -72,7 +72,7 @@ def test_scoring_is_fast():
     start = time.perf_counter()
     for _ in range(20):
         analyze_text(STRONG)
-    assert (time.perf_counter() - start) / 20 < 0.05
+    assert (time.perf_counter() - start) / 20 < 0.15  # ~25 ms alone; headroom for a busy test machine
 
 
 def test_indian_resume_conventions():

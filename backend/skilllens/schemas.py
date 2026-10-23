@@ -103,7 +103,16 @@ class RecommendJobsRequest(_Schema):
     preferred_locations: List[str] = Field(default_factory=list, max_length=20)
     preferred_categories: List[str] = Field(default_factory=list, max_length=20)
     top_k: int = Field(10, ge=1, le=50)
-    include_live: bool = True
+
+
+class LiveJobsRequest(_Schema):
+    skills: List[str] = Field(default_factory=list, max_length=40)
+    city: Optional[str] = Field(None, max_length=60)
+
+    @field_validator('city', mode='before')
+    @classmethod
+    def blank_city(cls, value):
+        return _blank_to_none(value)
 
 
 class JobsBySkillsRequest(_Schema):

@@ -33,12 +33,14 @@ def profile_history_entry(entry):
     return data
 
 
-def resume_entry(resume):
+def resume_entry(resume, primary_id=None):
+    is_primary = bool(resume.is_primary) if primary_id is None else resume.id == primary_id
     return {
         'id': resume.id,
         'filename': resume.filename,
         'skills': resume.get_skills(),
         'score': resume.score or 0,
+        'is_primary': is_primary,
         'timestamp': _iso(resume.uploaded_at),
         'uploaded_at': _iso(resume.uploaded_at),
     }

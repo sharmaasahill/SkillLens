@@ -54,7 +54,7 @@ function ToolCard({ tool, index }) {
   );
 }
 
-function HistoryRow({ resume, index, onDelete }) {
+function HistoryRow({ resume, index, onDelete, onMakePrimary }) {
   const skills = normalizeSkills(resume.skills);
   const score = Math.round(resume.score || 0);
   return (
@@ -68,7 +68,17 @@ function HistoryRow({ resume, index, onDelete }) {
     >
       <span className="flex h-9 w-9 items-center justify-center rounded-full bg-mist text-[13px] font-semibold text-graphite">{index + 1}</span>
       <div className="min-w-0">
-        <p className="truncate text-[15px] font-medium text-ink" title={resume.filename}>{resume.filename}</p>
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate text-[15px] font-medium text-ink" title={resume.filename}>{resume.filename}</p>
+          {resume.is_primary && <Badge toneName="green" className="shrink-0">Primary</Badge>}
+        </div>
+        {resume.is_primary ? (
+          <p className="text-[12px] text-silver">Used for salary, job matches and HR</p>
+        ) : (
+          <button type="button" onClick={() => onMakePrimary(resume)} className="text-[13px] text-action-link hover:underline">
+            Make primary
+          </button>
+        )}
         <p className="text-[13px] text-silver md:hidden">{dateLabel(resume.timestamp || resume.uploaded_at)}</p>
       </div>
       <Badge toneName={scoreTone(score)} className="justify-self-end md:justify-self-start">{score}%</Badge>
@@ -104,6 +114,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [resumeHistory, setResumeHistory] = useState([]);
+  const [maxResumes, setMaxResumes] = useState(5);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
@@ -111,6 +122,7 @@ function Dashboard() {
     try {
       const response = await api.get('/resume-history');
       setResumeHistory(response.data.resumes || []);
+      setMaxResumes(response.data.max_resumes || 5);
     } catch (err) {
       console.error('Error fetching resume history:', err);
     }
@@ -152,6 +164,16 @@ function Dashboard() {
       setUploadError(errorMessage(err, 'Failed to upload resume'));
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleMakePrimary = async (resume) => {
+    try {
+      await api.put(`/resumes/${resume.id}/primary`);
+      notify(`${resume.filename} is now your primary resume`);
+      await fetchResumeHistory();
+    } catch (err) {
+      notify(errorMessage(err, 'Could not change the primary resume'), 'error');
     }
   };
 
@@ -211,7 +233,13 @@ function Dashboard() {
                 <p className="text-[14px] text-graphite">Upload your resume for instant AI-powered analysis and scoring</p>
               </div>
               <div className="mt-4">
-                <Dropzone compact onFile={handleFile} busy={uploading} busyLabel="Analyzing..." title="Drop a resume to score it" />
+                {resumeHistory.length >= maxResumes ? (
+                  <p className="rounded-2xl bg-mist p-4 text-[14px] text-graphite">
+                    You have {maxResumes} resumes saved, the most you can keep. Delete one below to upload another.
+                  </p>
+                ) : (
+                  <Dropzone compact onFile={handleFile} busy={uploading} busyLabel="Analyzing..." title="Drop a resume to score it" />
+                )}
               </div>
               {uploadError && <Notice className="mt-3">{uploadError}</Notice>}
             </Card>
@@ -287,12 +315,12 @@ function Dashboard() {
       {/* History */}
       <Appear delay={0.45} className="mt-14">
         <SectionTitle
-          eyebrow="History"
+          eyebrow="Library"
           toneName="purple"
-          title="Resume upload history"
+          title="Your resumes"
           action={resumeHistory.length > 0 && (
             <div className="flex items-center gap-3">
-              <span className="hidden text-[13px] text-graphite sm:inline">Total: {resumeHistory.length} uploads</span>
+              <span className="hidden text-[13px] text-graphite sm:inline">{resumeHistory.length} of {maxResumes} saved</span>
               <Button variant="secondary" size="sm" onClick={fetchResumeHistory}>
                 Refresh
               </Button>
@@ -312,7 +340,7 @@ function Dashboard() {
               </div>
               <ul className="divide-y divide-black/[0.06]">
                 {resumeHistory.map((resume, idx) => (
-                  <HistoryRow key={resume.id} resume={resume} index={idx} onDelete={handleDeleteResume} />
+                  <HistoryRow key={resume.id} resume={resume} index={idx} onDelete={handleDeleteResume} onMakePrimary={handleMakePrimary} />
                 ))}
               </ul>
             </>
@@ -321,7 +349,7 @@ function Dashboard() {
               title="No resume uploads yet"
               action={<Button onClick={() => navigate('/resume-analyzer')}>Upload resume</Button>}
             >
-              Upload your first resume to start tracking your analysis history.
+              Upload a resume to get started. You can keep up to 5 and choose which one is primary.
             </EmptyState>
           )}
         </Card>

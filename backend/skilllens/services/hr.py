@@ -24,12 +24,13 @@ def _ci_contains(column, text):
 
 
 def _resume_aggregates():
-    """Per-user resume count and the id of the most recent resume."""
+    """Per-user resume count and the id of the primary resume (newest if none is marked)."""
     return (
         select(
             Resume.user_id.label('user_id'),
             func.count(Resume.id).label('resume_count'),
-            func.max(Resume.id).label('latest_id'),
+            # Primary resume if one is marked, otherwise the newest (ids grow with uploads)
+            func.coalesce(func.max(case((Resume.is_primary.is_(True), Resume.id))), func.max(Resume.id)).label('latest_id'),
         )
         .group_by(Resume.user_id)
         .subquery()
@@ -131,6 +132,7 @@ def candidate_details(user_id):
         'filename': r.filename,
         'skills': r.get_skills(),
         'score': r.score,
+        'is_primary': bool(r.is_primary),
         'uploaded_at': r.uploaded_at.isoformat() if r.uploaded_at else None,
     } for r in resumes]
     data['profile_history'] = [{

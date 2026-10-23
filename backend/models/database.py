@@ -83,6 +83,8 @@ class Resume(db.Model):
     score = db.Column(db.Float, nullable=True)
     raw_text = db.Column(db.Text)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # The resume SkillLens uses for salary, job matching and HR (one per user)
+    is_primary = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
     def get_skills(self):
         """Convert JSON string to list of skills"""
@@ -98,4 +100,16 @@ class Resume(db.Model):
         self.skills = json.dumps(skills_list)
 
     def __repr__(self):
-        return f'<Resume {self.filename} for User {self.user_id}>' 
+        return f'<Resume {self.filename} for User {self.user_id}>'
+
+
+class ApiUsage(db.Model):
+    """Outbound calls to paid or quota-limited APIs, counted per provider per day."""
+    __tablename__ = 'api_usage'
+
+    id = db.Column(db.Integer, primary_key=True)
+    provider = db.Column(db.String(40), nullable=False)
+    day = db.Column(db.Date, nullable=False)
+    calls = db.Column(db.Integer, nullable=False, default=0)
+
+    __table_args__ = (db.UniqueConstraint('provider', 'day', name='uq_api_usage_provider_day'),)

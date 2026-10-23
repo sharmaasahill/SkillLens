@@ -126,33 +126,61 @@ function JobCard({ job, index }) {
   );
 }
 
-/** Current openings from a live job-search API, shown only when an API key is configured. */
-function LiveJobs({ jobs, sources }) {
-  if (!sources?.length) return null;
+const SOURCE_LINKS = { adzuna: ['Adzuna', 'https://www.adzuna.in/'], careerjet: ['Careerjet', 'https://www.careerjet.co.in/'] };
+
+/**
+ * Current openings from a live job-search API. Fetched only when the user asks,
+ * because free API plans allow few calls; the server also caps calls per day.
+ */
+function LiveJobs({ live, city }) {
+  const [state, setState] = useState({ loading: false, jobs: null, error: '', remaining: live?.remaining_today });
+  if (!live?.sources?.length) return null;
+
+  const load = async () => {
+    setState((s) => ({ ...s, loading: true, error: '' }));
+    try {
+      const { data } = await api.post('/api/live-jobs', { city: city || null });
+      setState({
+        loading: false, jobs: data.jobs, remaining: data.remaining_today,
+        error: data.limit_reached ? 'Today\'s live searches are used up. Try again tomorrow.' : '',
+      });
+    } catch (err) {
+      setState((s) => ({ ...s, loading: false, error: errorMessage(err, 'Could not load live openings') }));
+    }
+  };
+
   return (
     <section className="mt-10" aria-labelledby="live-jobs-title">
-      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="live-jobs-title" className="font-display text-[24px] font-semibold tracking-tight">Live openings</h2>
-        <p className="text-[13px] text-silver">
-          Jobs by{' '}
-          {sources.map((name, i) => (
-            <React.Fragment key={name}>
-              {i > 0 && ' and '}
-              <a href={name === 'adzuna' ? 'https://www.adzuna.in/' : 'https://www.careerjet.co.in/'} target="_blank" rel="noopener noreferrer" className="text-action-link hover:underline">
-                {name === 'adzuna' ? 'Adzuna' : 'Careerjet'}
-              </a>
-            </React.Fragment>
-          ))}
-        </p>
-      </div>
-      {jobs.length === 0 ? (
-        <Card><p className="text-[15px] text-graphite">No live openings found for your top skills right now.</p></Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {jobs.map((job) => (
+      <Card className="!p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 id="live-jobs-title" className="font-display text-[24px] font-semibold tracking-tight">Live openings</h2>
+            <p className="mt-1 text-[14px] text-graphite">
+              Current jobs for your top skills{city ? ` in ${city}` : ''}, from{' '}
+              {live.sources.map((name, i) => (
+                <React.Fragment key={name}>
+                  {i > 0 && ' and '}
+                  <a href={SOURCE_LINKS[name]?.[1]} target="_blank" rel="noopener noreferrer" className="text-action-link hover:underline">{SOURCE_LINKS[name]?.[0] || name}</a>
+                </React.Fragment>
+              ))}
+              . {state.remaining ?? live.remaining_today} of {live.daily_limit} searches left today.
+            </p>
+          </div>
+          <Button onClick={load} loading={state.loading} disabled={(state.remaining ?? live.remaining_today) <= 0 && !state.jobs}>
+            {state.jobs ? 'Refresh live openings' : 'Show live openings'}
+          </Button>
+        </div>
+        {state.error && <Notice toneName="orange" className="mt-4">{state.error}</Notice>}
+      </Card>
+      {state.jobs && state.jobs.length === 0 && !state.error && (
+        <p className="mt-4 text-[15px] text-graphite">No live openings found for your top skills right now.</p>
+      )}
+      {state.jobs?.length > 0 && (
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {state.jobs.map((job) => (
             <a key={job.id} href={job.job_url} target="_blank" rel="noopener noreferrer"
               className="group rounded-[20px] bg-white p-6 ring-1 ring-black/[0.05] transition-shadow hover:shadow-[0_20px_50px_-24px_rgba(0,0,0,0.25)]">
-              <p className="text-[12px] font-medium text-silver">{job.source}{job.posted ? ` · ${job.posted}` : ''}</p>
+              <p className="text-[12px] font-medium text-silver">Jobs by {job.source}{job.posted ? ` · ${job.posted}` : ''}</p>
               <h3 className="mt-1 font-display text-[19px] font-semibold leading-snug tracking-tight text-ink group-hover:text-action-link">{job.position}</h3>
               <p className="mt-1 text-[14px] text-graphite">{[job.company, job.location].filter(Boolean).join(' · ')}</p>
               {job.salary && <p className="mt-2 text-[14px] font-medium text-green-ink tabular-nums">{lpa(job.salary.min)} to {lpa(job.salary.max)}</p>}
@@ -232,8 +260,7 @@ const JobRecommender = () => {
   const [filters, setFilters] = useState({ experienceYears: '', preferredLocations: [], preferredCategories: [], topK: 10 });
   const [availableCategories, setAvailableCategories] = useState([]);
   const [availableCities, setAvailableCities] = useState([]);
-  const [liveJobs, setLiveJobs] = useState([]);
-  const [liveSources, setLiveSources] = useState([]);
+  const [live, setLive] = useState(null);
 
   useEffect(() => {
     loadAvailableOptions();
@@ -265,8 +292,7 @@ const JobRecommender = () => {
       setRecommendations(data.recommendations || []);
       setUserProfile(data.user_profile || null);
       setSkillsAnalysis(data.skills_analysis || null);
-      setLiveJobs(data.live_jobs || []);
-      setLiveSources(data.live_sources || []);
+      setLive(data.live || null);
       if (data.recommendations && data.recommendations.length === 0) {
         setError('No job recommendations found. Try adjusting your filters or uploading a more detailed resume.');
       }
@@ -342,7 +368,7 @@ const JobRecommender = () => {
                 );
               })}
               <p className="truncate text-[13px] text-silver md:text-right" title={userProfile.resume_analysis?.resume_filename}>
-                From {userProfile.resume_analysis?.resume_filename}
+                From your primary resume, {userProfile.resume_analysis?.resume_filename}
               </p>
             </div>
             <div className="mt-6 flex flex-wrap gap-2 border-t border-black/[0.06] pt-5">
@@ -438,7 +464,7 @@ const JobRecommender = () => {
           <div className="space-y-5">
             {recommendations.map((job, index) => <JobCard key={job.job_id} job={job} index={index} />)}
           </div>
-          <LiveJobs jobs={liveJobs} sources={liveSources} />
+          <LiveJobs live={live} city={filters.preferredLocations[0]} />
         </>
       ) : null}
 

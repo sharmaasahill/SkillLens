@@ -1,14 +1,13 @@
 """Profile updates (with history) and profile resume handling."""
 import logging
 import os
-from datetime import datetime
 
 from models.database import ProfileHistory
 
 from ..errors import ApiError
 from ..extensions import db
 from . import storage
-from .resumes import analyze_file, flatten_skills
+from .resumes import flatten_skills
 from .serializers import PROFILE_FIELDS
 
 logger = logging.getLogger(__name__)
@@ -36,37 +35,15 @@ def history(user):
 
 
 def upload_profile_resume(user, file_storage):
-    display_name = storage.original_name(file_storage)
-    stored = storage.save_pdf(file_storage, user.id, subfolder='profile')
-    old_path = storage.profile_resume_path(user)
+    """A resume added from the profile page joins the resume library as the primary resume."""
+    from . import resumes  # local import: resumes imports this module's helpers indirectly
 
-    try:
-        analysis = analyze_file(storage.resolve(stored))
-        skills = flatten_skills(analysis.get('skills'))
-        skills_summary = ', '.join(skills[:10]) if skills else 'Skills analysis in progress'
-    except ApiError as exc:
-        logger.warning('Profile resume analysis failed: %s', exc.message)
-        skills_summary = 'Skills analysis failed'
-
-    try:
-        user.profile_resume_filename = display_name
-        user.profile_resume_path = stored
-        user.profile_resume_uploaded_at = datetime.now()
-        if not user.skills_summary:  # keep a manually written summary
-            user.skills_summary = skills_summary
+    resume, analysis = resumes.upload_resume(user, file_storage, make_primary=True)
+    skills = flatten_skills(analysis.get('skills'))
+    skills_summary = ', '.join(skills[:10]) if skills else 'Skills analysis in progress'
+    if not user.skills_summary:  # keep a manually written summary
+        user.skills_summary = skills_summary
         db.session.commit()
-    except Exception:
-        db.session.rollback()
-        storage.delete(stored)
-        raise
-
-    if old_path:
-        try:
-            if os.path.exists(old_path):
-                os.remove(old_path)
-        except OSError as exc:
-            logger.warning('Could not remove old profile resume: %s', exc)
-
     return user, skills_summary
 
 

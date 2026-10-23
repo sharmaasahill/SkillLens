@@ -68,8 +68,20 @@ def compare():
 @bp.get('/salary-options')
 @jwt_required()
 def salary_options():
-    """Cities, work modes and common job titles for the salary form."""
-    return jsonify({'success': True, **ml.salary_model().options()})
+    """Cities, work modes and job titles (every title seen in 3+ Indian postings) for the salary form."""
+    return jsonify({'success': True, **ml.salary_model().options(), 'job_titles': _job_titles()})
+
+
+_TITLES = []
+
+
+def _job_titles():
+    if not _TITLES:
+        counts = ml.job_recommender().jobs_df['title_norm'].value_counts()
+        titles = [t for t, n in counts.items() if n >= 3 and 2 < len(t) <= 60 and not any(ch.isdigit() for ch in t)]
+        _TITLES.extend(' '.join(w.upper() if w in ('qa', 'ui', 'ux', 'hr', 'it', 'sap', 'aws', 'ai', 'ml', 'bi', 'sde', 'sql', 'erp', 'crm', 'seo')
+                                else w.capitalize() for w in t.split()) for t in titles)
+    return _TITLES
 
 
 @bp.get('/model-info')

@@ -17,8 +17,8 @@ def _seed_candidates(count):
         user = create_user(f'cand{i}@example.com', full_name=f'Candidate {i:02d}',
                            current_work='Data Analyst' if i % 2 else 'Software Engineer',
                            current_location='Pune', total_experience=i)
-        add_resume(user, score=40 + i, skills=['Python', f'Skill{i}'])
-        add_resume(user, score=50 + i, skills=['SQL'])
+        add_resume(user, score=40 + i, skills=['Python', f'Skill{i}'], primary=False)
+        add_resume(user, score=50 + i, skills=['SQL'], primary=True)
 
 
 def test_hr_routes_reject_regular_users(client, user_session):
@@ -36,13 +36,13 @@ def test_candidates_are_paginated(client, hr_session):
     assert len(ids) == 15
 
 
-def test_aggregates_use_latest_resume(client, hr_session):
+def test_aggregates_use_primary_resume(client, hr_session):
     _seed_candidates(3)
     users = client.get('/hr/all-users?sort=name').get_json()['users']
     first = users[0]
     assert first['full_name'] == 'Candidate 00'
     assert first['resume_count'] == 2
-    assert first['latest_score'] == 50  # the most recent resume, not the first
+    assert first['latest_score'] == 50  # the primary resume's score, not the other one
     assert set(first['all_skills']) == {'Python', 'Skill0', 'SQL'}
 
 

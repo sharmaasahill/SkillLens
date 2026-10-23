@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
-import { Appear, Badge, Button, Card, Chip, Meter, Notice, ScoreRing, SectionTitle, Skeleton, cx } from '../components/ui/primitives';
+import { Appear, Badge, Button, Card, Chip, Meter, Notice, ScoreRing, SectionTitle, Segmented, SelectField, Skeleton, TextArea, cx } from '../components/ui/primitives';
 import Dropzone, { pdfError } from '../components/ui/Dropzone';
 import { scoreTone, tone } from '../components/ui/tones';
 import {
@@ -291,12 +292,105 @@ function Results({ analysis, fileName }) {
   );
 }
 
+const JD_TYPES = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+
+/** How well the resume fits the pasted or uploaded job description. */
+function JdMatch({ match, overall, atsScore }) {
+  const parts = match.breakdown.filter((p) => p.score !== null);
+  return (
+    <Appear>
+      <Card className="relative overflow-hidden">
+        <div className="grid gap-8 md:grid-cols-[auto_1fr] md:items-center">
+          <ScoreRing value={match.score} size={150} stroke={12} toneName={scoreTone(match.score)} label="JD match">
+            <span className="font-display text-[44px] font-semibold leading-none tracking-tight tabular-nums">{Math.round(match.score)}</span>
+          </ScoreRing>
+          <div>
+            <Badge toneName={scoreTone(match.score)}>{match.verdict}</Badge>
+            <h2 className="mt-3 font-display text-[28px] font-semibold leading-tight tracking-tight">
+              {match.job_title ? `Fit for ${match.job_title}` : 'Fit for this job description'}
+            </h2>
+            <p className="mt-2 text-[15px] text-graphite">
+              Overall score <span className="font-semibold text-ink tabular-nums">{Math.round(overall)}</span>: 60% fit for this job, 40% resume quality (ATS {Math.round(atsScore)}).
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-8 grid gap-x-10 gap-y-5 md:grid-cols-2">
+          {parts.map((part, i) => {
+            const ratio = part.max ? (part.score / part.max) * 100 : 0;
+            const t = ratio >= 80 ? 'green' : ratio >= 50 ? 'orange' : 'red';
+            return (
+              <div key={part.key}>
+                <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                  <span className="text-[15px] font-medium text-ink">{part.label}</span>
+                  <span className="text-[14px] text-graphite tabular-nums"><span className={cx('font-semibold', tone(t).text)}>{part.score}</span> / {part.max}</span>
+                </div>
+                <Meter value={ratio} toneName={t} delay={i * 0.06} />
+                <p className="mt-1 text-[12px] text-silver">{part.detail}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-8 grid gap-5 md:grid-cols-2">
+          {[
+            ['Must-have skills you have', match.must_have.matched, 'green'],
+            ['Must-have skills missing', match.must_have.missing, 'red'],
+            ['Nice-to-have skills you have', match.nice_to_have.matched, 'blue'],
+            ['Keywords from the JD to add', match.keywords.missing, 'orange'],
+          ].filter(([, list]) => list.length > 0).map(([title, list, t]) => (
+            <div key={title}>
+              <p className="mb-2 text-[13px] font-semibold text-ink">{title}</p>
+              <div className="flex flex-wrap gap-1.5">{list.map((s) => <Chip key={s} toneName={t} className="!text-[12px]">{s}</Chip>)}</div>
+            </div>
+          ))}
+        </div>
+
+        {match.suggestions.length > 0 && (
+          <div className="mt-8 rounded-[20px] bg-mist p-5">
+            <p className="mb-3 text-[13px] font-semibold text-ink">To improve your chances for this job</p>
+            <ul className="space-y-2">
+              {match.suggestions.map((tip) => (
+                <li key={tip} className="flex gap-2.5 text-[14px] leading-[1.5] text-ink/85">
+                  <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-orange" aria-hidden="true" />{tip}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Card>
+    </Appear>
+  );
+}
+
 function ResumeAnalyzer() {
+  const [library, setLibrary] = useState({ resumes: [], max: 5 });
+  const [source, setSource] = useState('upload'); // 'upload' | 'saved'
+  const [savedId, setSavedId] = useState('');
   const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
+  const [makePrimary, setMakePrimary] = useState(false);
+  const [jdMode, setJdMode] = useState('none'); // 'none' | 'paste' | 'upload'
+  const [jdText, setJdText] = useState('');
+  const [jdFile, setJdFile] = useState(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [analysis, setAnalysis] = useState(null);
   const [uploadedFileName, setUploadedFileName] = useState('');
+
+  const loadLibrary = async () => {
+    try {
+      const { data } = await api.get('/resume-history');
+      const resumes = data.resumes || [];
+      setLibrary({ resumes, max: data.max_resumes || 5 });
+      if (resumes.length) {
+        setSource((s) => (s === 'upload' && !file ? 'saved' : s));
+        setSavedId((id) => id || String(data.primary_id || resumes[0].id));
+      }
+    } catch (err) { /* the upload path still works */ }
+  };
+  useEffect(() => { loadLibrary(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const full = library.resumes.length >= library.max;
 
   const pick = (picked) => {
     const problem = pdfError(picked);
@@ -305,24 +399,56 @@ function ResumeAnalyzer() {
     setError('');
   };
 
-  const handleUpload = async () => {
-    if (!file) { setError('Please select a file first'); return; }
-    setUploading(true);
+  const pickJd = (e) => {
+    const picked = e.target.files?.[0];
+    e.target.value = '';
+    if (!picked) return;
+    if (!JD_TYPES.includes(picked.type) && !/\.(pdf|docx|txt)$/i.test(picked.name)) { setError('Upload the job description as PDF, DOCX or TXT'); return; }
+    if (picked.size > 5 * 1024 * 1024) { setError('The job description file should be under 5 MB'); return; }
+    setJdFile(picked);
+    setError('');
+  };
+
+  const addJd = (formData) => {
+    if (jdMode === 'paste' && jdText.trim()) formData.append('jd_text', jdText.trim());
+    if (jdMode === 'upload' && jdFile) formData.append('jd_file', jdFile);
+  };
+
+  const handleAnalyze = async () => {
+    if (source === 'upload' && !file) { setError('Choose a PDF resume first'); return; }
+    if (source === 'saved' && !savedId) { setError('Choose a saved resume'); return; }
+    if (jdMode === 'paste' && jdText.trim() && jdText.trim().split(/\s+/).length < 15) { setError('Paste the full job description (at least 15 words), or choose No JD'); return; }
+    setBusy(true);
     setError('');
     setAnalysis(null);
     const formData = new FormData();
-    formData.append('file', file);
+    addJd(formData);
     try {
-      const response = await api.post('/upload-resume', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      let response;
+      if (source === 'upload') {
+        formData.append('file', file);
+        if (makePrimary) formData.append('make_primary', 'true');
+        response = await api.post('/upload-resume', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        setFile(null);
+        setMakePrimary(false);
+        await loadLibrary();
+        setSavedId(String(response.data.id));
+      } else {
+        response = await api.post(`/resumes/${savedId}/analyze`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      }
       setAnalysis(response.data);
-      setUploadedFileName(response.data.filename || file.name);
+      setUploadedFileName(response.data.filename || file?.name || '');
     } catch (err) {
-      setError(errorMessage(err, 'Failed to upload resume'));
+      setError(errorMessage(err, 'Analysis failed'));
     } finally {
-      setUploading(false);
-      setFile(null);
+      setBusy(false);
     }
   };
+
+  const resumeOptions = library.resumes.map((r) => ({
+    value: String(r.id),
+    label: `${r.filename}${r.is_primary ? ' (primary)' : ''}, ATS ${Math.round(r.score || 0)}`,
+  }));
 
   return (
     <AppShell>
@@ -330,31 +456,94 @@ function ResumeAnalyzer() {
         eyebrow="Resume"
         toneName="blue"
         title="Read like a recruiter. Scored like a machine."
-        subtitle="Upload a PDF. SkillLens pulls out your skills, checks the sections an applicant tracking system looks for, and tells you exactly what to fix."
+        subtitle="Score any of your resumes for applicant tracking systems. Add a job description to see how well it fits that exact role."
       />
 
-      <Card className="!p-5 md:!p-6">
-        <Dropzone onFile={pick} file={file} busy={uploading} busyLabel="Analyzing resume..." />
-        {error && <Notice className="mt-4">{error}</Notice>}
-        <div className="mt-5 flex flex-col items-center justify-between gap-3 sm:flex-row">
-          <p className="text-[13px] text-graphite">
-            Each analysis is saved to your history on the overview page.
-          </p>
-          <Button size="lg" onClick={handleUpload} disabled={!file || uploading} loading={uploading}>
-            {uploading ? 'Analyzing...' : 'Upload and analyze'}
-          </Button>
-        </div>
-      </Card>
+      <div className="grid items-start gap-5 lg:grid-cols-2">
+        <Card className="!p-5 md:!p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-display text-[19px] font-semibold tracking-tight">1. Resume</h2>
+            {library.resumes.length > 0 && (
+              <Segmented
+                label="Resume source"
+                value={source}
+                onChange={(v) => { setSource(v); setError(''); }}
+                options={[{ value: 'saved', label: 'Saved resume' }, { value: 'upload', label: 'Upload new' }]}
+              />
+            )}
+          </div>
+          {source === 'saved' ? (
+            <SelectField label="Choose a resume" value={savedId} onChange={(e) => setSavedId(e.target.value)} options={resumeOptions} />
+          ) : full ? (
+            <Notice toneName="orange">
+              You have {library.max} resumes saved, the most you can keep. Delete one on the <Link to="/dashboard" className="underline">overview page</Link>, or analyze a saved one.
+            </Notice>
+          ) : (
+            <>
+              <Dropzone compact onFile={pick} file={file} busy={busy && source === 'upload'} busyLabel="Analyzing resume..." />
+              {library.resumes.length > 0 && (
+                <label className="mt-3 flex items-center gap-2 text-[14px] text-ink">
+                  <input type="checkbox" checked={makePrimary} onChange={(e) => setMakePrimary(e.target.checked)} className="h-4 w-4 accent-[#0071e3]" />
+                  Make this my primary resume
+                </label>
+              )}
+              <p className="mt-2 text-[12px] text-silver">Saved to your library ({library.resumes.length} of {library.max}).</p>
+            </>
+          )}
+        </Card>
+
+        <Card className="!p-5 md:!p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-display text-[19px] font-semibold tracking-tight">2. Job description <span className="font-normal text-silver">(optional)</span></h2>
+            <Segmented
+              label="Job description"
+              value={jdMode}
+              onChange={(v) => { setJdMode(v); setError(''); }}
+              options={[{ value: 'none', label: 'No JD' }, { value: 'paste', label: 'Paste' }, { value: 'upload', label: 'Upload' }]}
+            />
+          </div>
+          {jdMode === 'none' && (
+            <p className="text-[14px] leading-[1.5] text-graphite">
+              Without a JD you get a general ATS score. Add the job description you are applying for to also get a match
+              score, the must-have skills you are missing and the exact keywords to add.
+            </p>
+          )}
+          {jdMode === 'paste' && (
+            <TextArea
+              label="Paste the job description" rows={8} value={jdText} onChange={(e) => setJdText(e.target.value)}
+              placeholder="Paste the full posting: role, responsibilities and requirements" maxLength={20000}
+              hint={`${jdText.trim() ? jdText.trim().split(/\s+/).length : 0} words`}
+            />
+          )}
+          {jdMode === 'upload' && (
+            <label className="flex cursor-pointer flex-col items-center justify-center rounded-[20px] border-2 border-dashed border-hairline bg-mist/60 px-6 py-8 text-center transition-colors hover:border-blue/50 hover:bg-blue-soft/50">
+              <input type="file" accept=".pdf,.docx,.txt,application/pdf,text/plain" className="sr-only" onChange={pickJd} />
+              <span className="font-display text-[17px] font-semibold text-ink">{jdFile ? jdFile.name : 'Choose a job description file'}</span>
+              <span className="mt-1 text-[13px] text-graphite">PDF, DOCX or TXT, up to 5 MB</span>
+            </label>
+          )}
+        </Card>
+      </div>
+
+      {error && <Notice className="mt-5">{error}</Notice>}
+      <div className="mt-5 flex justify-end">
+        <Button size="lg" onClick={handleAnalyze} loading={busy} disabled={busy || (source === 'upload' && (!file || full))}>
+          {busy ? 'Analyzing...' : (jdMode !== 'none' && (jdText.trim() || jdFile)) ? 'Analyze against JD' : 'Analyze resume'}
+        </Button>
+      </div>
 
       <div className="mt-8">
         <AnimatePresence mode="wait">
-          {uploading ? (
+          {busy ? (
             <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
               <Skeleton className="h-56" />
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28" />)}</div>
             </motion.div>
           ) : analysis ? (
-            <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+              {analysis.jd_match && (
+                <JdMatch match={analysis.jd_match} overall={analysis.overall_score} atsScore={analysis.ats_analysis?.score || 0} />
+              )}
               <Results analysis={analysis} fileName={uploadedFileName} />
             </motion.div>
           ) : null}

@@ -48,6 +48,8 @@ class Config:
     ADZUNA_APP_ID = os.environ.get('ADZUNA_APP_ID', '')
     ADZUNA_APP_KEY = os.environ.get('ADZUNA_APP_KEY', '')
     CAREERJET_API_KEY = os.environ.get('CAREERJET_API_KEY', '')
+    # Most calls each live-jobs provider may receive per day, across all users
+    LIVE_JOBS_DAILY_LIMIT = int(os.environ.get('LIVE_JOBS_DAILY_LIMIT', '20'))
 
     # Serve the production React build (created with `npm run build` in /frontend)
     FRONTEND_BUILD_DIR = os.path.join(BACKEND_DIR, '..', 'frontend', 'build')

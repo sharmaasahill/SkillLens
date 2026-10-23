@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, animate, useMotionValue, useTransform } from 'framer-motion';
 import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
-import { Badge, Button, Card, Meter, Notice, ScoreRing, Segmented, SelectField, TextField, EASE, cx } from '../components/ui/primitives';
+import { Badge, Button, Card, ComboboxField, Meter, Notice, ScoreRing, Segmented, SelectField, TextField, EASE, cx } from '../components/ui/primitives';
 import { lpa, money, signedPercent } from '../lib/format';
 
 const EMPTY_FORM = { job_title: '', years_of_experience: '', city: '', work_mode: 'On-site', skills: '' };
@@ -76,14 +76,12 @@ function SalaryForm({ form, setForm, onSubmit, loading, mode, options, resumeSki
   const cities = options?.cities?.length ? options.cities : FALLBACK_CITIES;
   return (
     <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
-      <TextField
+      <ComboboxField
         label="Job title" placeholder="e.g. Data Scientist, Accountant, Sales Manager" value={form.job_title}
-        onChange={set('job_title')} required minLength={2} maxLength={100} list="salary-titles" className="sm:col-span-2"
-        hint="Type any title. Suggestions come from Indian job postings."
+        onChange={set('job_title')} required minLength={2} maxLength={100} className="sm:col-span-2"
+        suggestions={options?.job_titles || options?.popular_titles || []}
+        hint={`Type any title. ${options?.job_titles ? `${options.job_titles.length.toLocaleString('en-IN')} titles` : 'Suggestions'} from Indian job postings.`}
       />
-      <datalist id="salary-titles">
-        {(options?.popular_titles || []).map((title) => <option key={title} value={title} />)}
-      </datalist>
       <TextField label="Years of experience" type="number" min="0" max="40" step="0.5" placeholder="Years" value={form.years_of_experience} onChange={set('years_of_experience')} required />
       <SelectField label="City" value={form.city} onChange={set('city')} options={cities} placeholder="Any city" />
       <SelectField label="Work mode" value={form.work_mode} onChange={set('work_mode')} options={options?.work_modes || ['On-site', 'Hybrid', 'Remote']} className="sm:col-span-2" />
@@ -98,7 +96,7 @@ function SalaryForm({ form, setForm, onSubmit, loading, mode, options, resumeSki
             onClick={() => setForm((prev) => ({ ...prev, skills: resumeSkills.slice(0, 12).join(', ') }))}
             className="mt-2 text-[13px] text-action-link hover:underline"
           >
-            Use skills from my latest resume
+            Use skills from my primary resume
           </button>
         )}
       </div>
@@ -241,9 +239,12 @@ function SalaryPredictor() {
     api.get('/salary-options').then((res) => setOptions(res.data)).catch(() => {});
     api.get('/model-info').then((res) => setMetrics(res.data.metrics)).catch(() => {});
     api.get('/resume-history').then((res) => {
-      const latest = res.data.resumes?.[0];
-      const skills = Array.isArray(latest?.skills) ? latest.skills : [];
+      const primary = res.data.resumes?.find((r) => r.is_primary);
+      const skills = Array.isArray(primary?.skills) ? primary.skills : [];
       setResumeSkills(skills.map(String));
+      // Start from the primary resume's experience so the estimate needs fewer inputs
+      const years = res.data.primary_experience_years;
+      if (years) setForm((prev) => (prev.years_of_experience ? prev : { ...prev, years_of_experience: String(years) }));
     }).catch(() => {});
   }, []);
 

@@ -45,8 +45,10 @@ def create_user(email, password=PASSWORD, is_admin=False, **fields):
     return user
 
 
-def add_resume(user, score, skills=('Python',), filename='resume.pdf'):
-    resume = Resume(user_id=user.id, filename=filename, score=score, raw_text='text')
+def add_resume(user, score, skills=('Python',), filename='resume.pdf', primary=None):
+    if primary is None:
+        primary = Resume.query.filter_by(user_id=user.id).count() == 0
+    resume = Resume(user_id=user.id, filename=filename, score=score, raw_text='text', is_primary=primary)
     resume.set_skills(list(skills))
     db.session.add(resume)
     db.session.commit()

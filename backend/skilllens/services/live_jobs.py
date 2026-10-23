@@ -7,8 +7,10 @@ Nothing here runs unless a key is configured in backend/.env:
 * Careerjet (CAREERJET_API_KEY): free publisher key. https://www.careerjet.com/partners/api/
 
 Only search keywords (a few skills or a job title) and a city are sent, never resume text or
-personal data. Results are cached for 30 minutes to stay well inside free quotas. Any failure
-(timeout, bad key, quota reached) returns an empty list so the dataset matches still show.
+personal data. Searches run only when a user clicks "Show live openings", results are cached for
+30 minutes, and each provider is capped at LIVE_JOBS_DAILY_LIMIT calls a day (default 20) across
+all users, counted in the database so restarts and multiple workers share one budget. Any failure
+(timeout, bad key, cap reached) returns no jobs, so the dataset matches still show.
 """
 import base64
 import json
@@ -20,7 +22,14 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from datetime import date
+
 from flask import current_app
+from sqlalchemy.exc import IntegrityError
+
+from models.database import ApiUsage
+
+from ..extensions import db
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +48,46 @@ def configured_providers():
     if cfg.get('CAREERJET_API_KEY'):
         providers.append('careerjet')
     return providers
+
+
+def daily_limit():
+    return int(current_app.config.get('LIVE_JOBS_DAILY_LIMIT', 20))
+
+
+def calls_today(provider):
+    row = ApiUsage.query.filter_by(provider=provider, day=date.today()).first()
+    return row.calls if row else 0
+
+
+def _take_call(provider):
+    """Reserve one call for today. False when the daily cap is used up.
+
+    A conditional UPDATE is atomic, so two requests at once can never both take the last call.
+    """
+    today, limit = date.today(), daily_limit()
+    for _ in range(2):
+        updated = (ApiUsage.query.filter(ApiUsage.provider == provider, ApiUsage.day == today, ApiUsage.calls < limit)
+                   .update({'calls': ApiUsage.calls + 1}, synchronize_session=False))
+        if updated:
+            db.session.commit()
+            return True
+        if ApiUsage.query.filter_by(provider=provider, day=today).first():
+            db.session.rollback()
+            return False  # today's row exists and is full
+        try:
+            db.session.add(ApiUsage(provider=provider, day=today, calls=0))
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()  # another request created it first; retry the update
+    return False
+
+
+def status():
+    """What the jobs page needs to show the live openings button."""
+    providers = configured_providers()
+    limit = daily_limit()
+    remaining = sum(max(0, limit - calls_today(p)) for p in providers)
+    return {'sources': providers, 'daily_limit': limit * len(providers), 'remaining_today': remaining}
 
 
 def _get_json(url, headers=None):
@@ -115,21 +164,28 @@ def _careerjet(keywords, city, limit, user_ip, user_agent):
 
 
 def search(keywords, city=None, limit=10, user_ip=None, user_agent=None):
-    """Live listings from every configured provider. Empty list when none is configured or all fail."""
+    """Live listings from every configured provider that still has calls left today.
+
+    Returns {'jobs': [...], 'from_cache': bool, 'limit_reached': bool}.
+    """
     providers = configured_providers()
     keywords = ' '.join(k for k in keywords if k)[:120]
     if not providers or not keywords:
-        return []
+        return {'jobs': [], 'from_cache': False, 'limit_reached': False}
 
     cache_key = (tuple(providers), keywords.lower(), (city or '').lower(), limit)
     now = time.time()
     with _cache_lock:
         hit = _cache.get(cache_key)
         if hit and now - hit[0] < CACHE_SECONDS:
-            return hit[1]
+            return {'jobs': hit[1], 'from_cache': True, 'limit_reached': False}  # cache hits cost nothing
 
-    jobs = []
+    jobs, blocked = [], 0
     for provider in providers:
+        if not _take_call(provider):
+            blocked += 1
+            logger.info('Daily cap reached for %s; skipping live search', provider)
+            continue
         try:
             if provider == 'adzuna':
                 jobs += _adzuna(keywords, city, limit)
@@ -138,11 +194,12 @@ def search(keywords, city=None, limit=10, user_ip=None, user_agent=None):
         except (urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
             logger.warning('Live jobs from %s failed: %s', provider, exc)
 
-    with _cache_lock:
-        if len(_cache) >= CACHE_MAX:
-            _cache.pop(next(iter(_cache)))
-        _cache[cache_key] = (now, jobs)
-    return jobs
+    if blocked < len(providers):
+        with _cache_lock:
+            if len(_cache) >= CACHE_MAX:
+                _cache.pop(next(iter(_cache)))
+            _cache[cache_key] = (now, jobs)
+    return {'jobs': jobs, 'from_cache': False, 'limit_reached': blocked == len(providers)}
 
 
 def annotate(jobs, user_skills):

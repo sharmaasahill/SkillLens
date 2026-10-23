@@ -1,6 +1,7 @@
 import React, { useId } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { tone } from './tones';
+import { Combobox, Select } from './Select';
 
 export const EASE = [0.28, 0.11, 0.32, 1];
 
@@ -200,23 +201,22 @@ export function TextArea({ label, hint, error, className, rows = 3, ...props }) 
   );
 }
 
+/** Dropdown field in the SkillLens style (not the browser's native menu). Same props as a <select>. */
 export function SelectField({ label, hint, error, className, options, placeholder, ...props }) {
   const id = useId();
   return (
     <FieldWrap id={id} label={label} hint={hint} error={error} className={className}>
-      <div className="relative">
-        <select id={id} className={cx(FIELD, 'appearance-none pr-10')} {...props}>
-          {placeholder !== undefined && <option value="">{placeholder}</option>}
-          {options.map((option) => {
-            const value = typeof option === 'object' ? option.value : option;
-            const text = typeof option === 'object' ? option.label : option;
-            return <option key={value} value={value}>{text}</option>;
-          })}
-        </select>
-        <svg className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-silver" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-          <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </div>
+      <Select id={id} options={options} placeholder={placeholder} {...props} />
+    </FieldWrap>
+  );
+}
+
+/** Text field with suggestions from a long list, in the SkillLens style. */
+export function ComboboxField({ label, hint, error, className, ...props }) {
+  const id = useId();
+  return (
+    <FieldWrap id={id} label={label} hint={hint} error={error} className={className}>
+      <Combobox id={id} {...props} />
     </FieldWrap>
   );
 }

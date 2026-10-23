@@ -13,6 +13,7 @@ everything well can reach 100 and every point lost is explained:
 
 All patterns are compiled once at import, so scoring a resume takes a few milliseconds.
 """
+import io
 import logging
 import re
 from datetime import datetime
@@ -282,17 +283,22 @@ def extract_text_from_pdf(file_path):
         except Exception as exc:
             logger.warning('pdfplumber failed: %s', exc)
 
-    with open(file_path, 'rb') as handle:
-        reader = PyPDF2.PdfReader(handle)
-        if reader.is_encrypted:
-            raise ValueError('PDF is encrypted and cannot be read')
-        pages = []
-        for page in reader.pages:
-            try:
-                pages.append(page.extract_text() or '')
-            except Exception as exc:
-                logger.warning('Error extracting text from page: %s', exc)
-        text = '\n'.join(pages)
+    # Accepts a path or an open binary file (used for uploaded job descriptions)
+    if hasattr(file_path, 'read'):
+        file_path.seek(0)
+        reader = PyPDF2.PdfReader(file_path)
+    else:
+        with open(file_path, 'rb') as handle:
+            reader = PyPDF2.PdfReader(io.BytesIO(handle.read()))
+    if reader.is_encrypted:
+        raise ValueError('PDF is encrypted and cannot be read')
+    pages = []
+    for page in reader.pages:
+        try:
+            pages.append(page.extract_text() or '')
+        except Exception as exc:
+            logger.warning('Error extracting text from page: %s', exc)
+    text = '\n'.join(pages)
     if not text.strip():
         raise ValueError('No text could be extracted from the PDF')
     return _normalise(text)
@@ -480,6 +486,38 @@ def extract_skills_from_resume(file_path):
         raise ValueError(f'Failed to analyze resume: {exc}')
 
 
+_MONTHS = {m: i for i, m in enumerate(['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'], 1)}
+DATE_RANGE_RE = re.compile(
+    r'(?i)\b(?:(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*[\'’]?)?((?:19|20)\d{2})\s*(?:-|–|—|to|till)\s*'
+    r'(?:(present|current|now|till date|date|ongoing)|(?:(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*[\'’]?)?((?:19|20)\d{2}))')
+EDUCATION_LINE_RE = re.compile(r'(?i)\b(university|college|institute|school|b\.?\s?tech|b\.?\s?e\b|b\.?\s?sc|b\.?\s?com|bca|mca|mba|m\.?\s?tech|m\.?\s?sc|degree|diploma|cgpa|10th|12th|hsc|ssc|bachelor|master)\b')
+
+
+def years_from_date_ranges(text, today=None):
+    """Total work experience from date ranges, skipping education lines and merging overlaps."""
+    today = today or datetime.now()
+    spans = []
+    for line in text.split('\n'):
+        if EDUCATION_LINE_RE.search(line):
+            continue
+        for m in DATE_RANGE_RE.finditer(line):
+            start = int(m.group(2)) + (_MONTHS.get((m.group(1) or 'jan')[:3].lower(), 1) - 1) / 12
+            if m.group(3):
+                end = today.year + (today.month - 1) / 12
+            else:
+                end = int(m.group(5)) + (_MONTHS.get((m.group(4) or 'dec')[:3].lower(), 12) - 1) / 12
+            if 1970 <= start <= end <= today.year + 1:
+                spans.append((start, end))
+    total, last_end = 0.0, None
+    for start, end in sorted(spans):
+        if last_end is not None and start < last_end:
+            start = last_end
+        if end > start:
+            total += end - start
+            last_end = end if last_end is None else max(last_end, end)
+    return int(round(min(total, 45)))
+
+
 class ResumeAnalyzer:
     """Resume analysis with experience, education and contact extraction."""
 
@@ -528,6 +566,9 @@ class ResumeAnalyzer:
                 if matches:
                     info['total_years'] = max(matches)
                     break
+            if not info['total_years']:
+                # Most Indian resumes give dates ("2019 - Present") rather than a total
+                info['total_years'] = years_from_date_ranges(text)
 
             years = info['total_years']
             info['experience_level'] = (

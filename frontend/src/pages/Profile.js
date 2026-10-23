@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
 import { Appear, Button, Card, Notice, ScoreRing, Skeleton, TextArea, TextField, EASE, cx } from '../components/ui/primitives';
@@ -255,7 +256,10 @@ function Profile() {
 
           <Appear delay={0.15}>
             <Card className="!p-6">
-              <h2 className="mb-4 font-display text-[19px] font-semibold tracking-tight">Profile resume</h2>
+              <h2 className="mb-1 font-display text-[19px] font-semibold tracking-tight">Primary resume</h2>
+              <p className="mb-4 text-[13px] text-graphite">
+                Used for salary, job matches and what HR sees. <Link to="/dashboard" className="text-action-link hover:underline">Manage all resumes</Link>
+              </p>
               {profile.profile_resume_filename ? (
                 <div className="mb-4 rounded-2xl bg-green-soft p-4">
                   <p className="truncate text-[14px] font-medium text-green-ink" title={profile.profile_resume_filename}>{profile.profile_resume_filename}</p>
@@ -265,9 +269,9 @@ function Profile() {
                   <Button variant="outline" size="sm" className="mt-3" onClick={downloadResume}>Download</Button>
                 </div>
               ) : (
-                <p className="mb-4 text-[14px] text-graphite">No profile resume uploaded. HR teams see the resume you add here.</p>
+                <p className="mb-4 text-[14px] text-graphite">No primary resume yet. A resume you add here becomes your primary one.</p>
               )}
-              <Dropzone compact onFile={uploadResume} busy={resumeUploading} title={profile.profile_resume_filename ? 'Replace resume' : 'Add your resume'} />
+              <Dropzone compact onFile={uploadResume} busy={resumeUploading} title={profile.profile_resume_filename ? 'Upload a new primary resume' : 'Add your resume'} />
               {resumeError && <Notice className="mt-3">{resumeError}</Notice>}
             </Card>
           </Appear>
