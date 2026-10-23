@@ -20,13 +20,19 @@ export function PageLoader() {
   );
 }
 
-/** Renders children only for signed-in users (and only for HR when hrOnly is set). */
+/** Where each kind of account lives after signing in. */
+export const homeFor = (user) => (user?.is_admin ? '/hr-dashboard' : '/dashboard');
+
+/**
+ * Renders children only for signed-in users of the right kind. HR accounts and candidate
+ * accounts are separate: HR pages are HR-only, and candidate pages are candidate-only.
+ */
 function ProtectedRoute({ children, hrOnly = false }) {
   const { user, loading } = useAuth();
 
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/auth" replace />;
-  if (hrOnly && !user.is_admin) return <Navigate to="/dashboard" replace />;
+  if (hrOnly !== Boolean(user.is_admin)) return <Navigate to={homeFor(user)} replace />;
   return children;
 }
 

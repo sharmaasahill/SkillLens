@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../api';
 import { useAuth } from '../contexts/AuthContext';
+import { homeFor } from '../components/ProtectedRoute';
 
 function Auth() {
   const [searchParams] = useSearchParams();
@@ -23,7 +24,6 @@ function Auth() {
     return () => { if (hadDark) root.classList.add('dark'); };
   }, []);
 
-  const homeFor = (account) => (account.is_admin ? '/hr-dashboard' : '/dashboard');
 
   const handleSubmit = async (e) => {
     e.preventDefault();

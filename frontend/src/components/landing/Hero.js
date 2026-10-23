@@ -12,7 +12,7 @@ const easeOutCubic = (t) => 1 - (1 - t) ** 3;
  * rises in from below with its lid already swinging open, the display wakes up,
  * and the salary estimate counts up on screen. It is never shown sitting closed.
  */
-function Hero({ signedIn }) {
+function Hero({ signedIn, home = '/dashboard' }) {
   const ref = useRef(null);
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] });
@@ -61,7 +61,7 @@ function Hero({ signedIn }) {
             transition={{ duration: 1, ease: EASE, delay: 0.7 }}
           >
             <Link
-              to={signedIn ? '/dashboard' : '/auth?mode=signup'}
+              to={signedIn ? home : '/auth?mode=signup'}
               className="rounded-full bg-action px-[22px] py-[11px] text-white transition-colors hover:bg-action-hover"
             >
               {signedIn ? 'Open dashboard' : 'Get started'}

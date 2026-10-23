@@ -1,7 +1,8 @@
 """Resume library: uploads, analysis (optionally against a job description) and the primary resume."""
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import current_user, jwt_required
+from flask_jwt_extended import current_user
 
+from ..security import candidate_required
 from ..services import resumes
 from ..services.serializers import resume_entry
 
@@ -27,7 +28,7 @@ def _analysis_response(resume, analysis, message):
 
 
 @bp.post('/upload-resume')
-@jwt_required()
+@candidate_required(activity=True)
 def upload_resume():
     """Multipart: file (PDF), optional make_primary, optional jd_text or jd_file."""
     jd_text = resumes.jd_text_from_request(request.form, request.files)
@@ -38,7 +39,7 @@ def upload_resume():
 
 
 @bp.post('/resumes/<int:resume_id>/analyze')
-@jwt_required()
+@candidate_required(activity=True)
 def analyze_saved(resume_id):
     """Analyze a saved resume again. Accepts JSON {jd_text} or multipart jd_text / jd_file. JD is optional."""
     form = request.form if request.form or request.files else (request.get_json(silent=True) or {})
@@ -48,14 +49,14 @@ def analyze_saved(resume_id):
 
 
 @bp.put('/resumes/<int:resume_id>/primary')
-@jwt_required()
+@candidate_required
 def make_primary(resume_id):
     resume = resumes.set_primary(current_user, resume_id)
     return jsonify({'message': f'{resume.filename} is now your primary resume', 'resume': resume_entry(resume)})
 
 
 @bp.get('/resume-history')
-@jwt_required()
+@candidate_required
 def resume_history():
     items = resumes.list_resumes(current_user)
     primary = resumes.primary_resume(current_user)
@@ -68,7 +69,7 @@ def resume_history():
 
 
 @bp.delete('/resume-history/<int:resume_id>')
-@jwt_required()
+@candidate_required
 def delete_resume(resume_id):
     resumes.delete_resume(current_user, resume_id)
     return jsonify({'message': 'Resume deleted successfully'})

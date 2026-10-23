@@ -32,6 +32,9 @@ def create_hr_user():
             sys.exit("Database tables are missing. Run `flask --app app db upgrade` first.")
 
         user = User.query.filter_by(email=email).first()
+        if user is not None and not user.is_admin:
+            sys.exit(f"{email} is a candidate account. Candidate and HR accounts are kept separate; "
+                     "use a different HR_EMAIL.")
         action = "updated" if user else "created"
         if user is None:
             user = User(email=email, full_name=name)

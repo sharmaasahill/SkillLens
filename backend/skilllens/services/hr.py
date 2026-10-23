@@ -7,9 +7,11 @@ import json
 import math
 from collections import Counter
 
-from sqlalchemy import case, func, or_, select
+from datetime import datetime
 
-from models.database import ProfileHistory, Resume, User
+from sqlalchemy import and_, case, func, or_, select
+
+from models.database import CandidateReview, ProfileHistory, Resume, User
 
 from ..errors import ApiError
 from ..extensions import db
@@ -37,17 +39,44 @@ def _resume_aggregates():
     )
 
 
+def _removed_condition():
+    """Removed by HR and not active since. Activity after removal brings a candidate back."""
+    return and_(CandidateReview.hidden_at.is_not(None),
+                or_(User.last_active_at.is_(None), User.last_active_at <= CandidateReview.hidden_at))
+
+
+def _review_dict(review, user):
+    if review is None:
+        return {'status': None, 'note': None, 'removed': False, 'returned': False, 'updated_at': None}
+    removed = bool(review.hidden_at and (not user.last_active_at or user.last_active_at <= review.hidden_at))
+    return {
+        'status': review.status,
+        'note': review.note,
+        'removed': removed,
+        # Was removed, then used SkillLens again, so they are back in the list
+        'returned': bool(review.hidden_at and not removed),
+        'updated_at': review.updated_at.isoformat() if review.updated_at else None,
+    }
+
+
 def search_candidates(q):
     """Filtered, sorted, paginated candidate list. `q` is a validated HRUserQuery."""
     agg = _resume_aggregates()
     latest = Resume.__table__.alias('latest_resume')
 
     stmt = (
-        select(User, agg.c.resume_count, latest.c.score)
+        select(User, agg.c.resume_count, latest.c.score, CandidateReview)
         .outerjoin(agg, agg.c.user_id == User.id)
         .outerjoin(latest, latest.c.id == agg.c.latest_id)
+        .outerjoin(CandidateReview, CandidateReview.user_id == User.id)
         .where(User.is_admin.is_(False))
     )
+    removed = _removed_condition()
+    stmt = stmt.where(removed if q.view == 'removed' else or_(CandidateReview.user_id.is_(None), ~removed))
+    if q.status == 'none':
+        stmt = stmt.where(or_(CandidateReview.status.is_(None), CandidateReview.status == ''))
+    elif q.status:
+        stmt = stmt.where(CandidateReview.status == q.status)
 
     if q.job_role:
         stmt = stmt.where(_ci_contains(User.current_work, q.job_role))
@@ -80,6 +109,7 @@ def search_candidates(q):
     order = {
         'name': [User.full_name.asc().nulls_last()],
         'experience': [User.total_experience.desc().nulls_last()],
+        'activity': [User.last_active_at.desc().nulls_last()],
         'score': [latest.c.score.desc().nulls_last()],
         'created_at': [User.created_at.desc().nulls_last()],
     }[q.sort]
@@ -99,11 +129,13 @@ def search_candidates(q):
                 continue
 
     users = []
-    for user, resume_count, latest_score in rows:
+    for user, resume_count, latest_score, review in rows:
         data = user_profile(user)
         data.update({
             'resume_count': resume_count or 0,
             'latest_score': latest_score,
+            'review': _review_dict(review, user),
+            'last_active_at': user.last_active_at.isoformat() if user.last_active_at else None,
             'all_skills': [s for s, _ in skills_by_user[user.id].most_common(TOP_SKILLS_PER_USER)],
         })
         users.append(data)
@@ -127,6 +159,7 @@ def candidate_details(user_id):
                .order_by(ProfileHistory.changed_at.desc()).limit(10).all())
 
     data = user_profile(user)
+    data['review'] = _review_dict(db.session.get(CandidateReview, user.id), user)
     data['resume_history'] = [{
         'id': r.id,
         'filename': r.filename,
@@ -151,9 +184,43 @@ def candidate(user_id):
     return user
 
 
+def _review_for(user_id, hr_user):
+    candidate(user_id)
+    review = db.session.get(CandidateReview, user_id)
+    if review is None:
+        review = CandidateReview(user_id=user_id)
+        db.session.add(review)
+    review.updated_by = hr_user.id
+    review.updated_at = datetime.utcnow()
+    return review
+
+
+def update_review(user_ids, hr_user, status=..., note=..., remove=None):
+    """Set status and/or note, or remove/restore, for one or more candidates. `...` means unchanged."""
+    for user_id in user_ids:
+        review = _review_for(user_id, hr_user)
+        if status is not ...:
+            review.status = status or None
+        if note is not ...:
+            review.note = (note or '').strip() or None
+        if remove is True:
+            review.hidden_at = datetime.utcnow()
+        elif remove is False:
+            review.hidden_at = None
+    db.session.commit()
+    return [{'id': uid, 'review': _review_dict(db.session.get(CandidateReview, uid), db.session.get(User, uid))} for uid in user_ids]
+
+
 def stats():
     candidates = User.is_admin.is_(False)
+    status_counts = dict(db.session.execute(
+        select(CandidateReview.status, func.count()).where(CandidateReview.status.is_not(None)).group_by(CandidateReview.status)
+    ).all())
+    removed_count = db.session.scalar(
+        select(func.count()).select_from(CandidateReview).join(User, User.id == CandidateReview.user_id).where(_removed_condition()))
     return {
+        'status_counts': status_counts,
+        'removed_count': removed_count or 0,
         'total_users': db.session.scalar(select(func.count(User.id)).where(candidates)),
         'total_resumes': db.session.scalar(select(func.count(Resume.id))),
         'users_with_profiles': db.session.scalar(

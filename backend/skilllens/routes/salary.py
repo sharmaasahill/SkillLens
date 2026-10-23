@@ -1,9 +1,9 @@
 """Salary estimates for India, in INR per year."""
 from flask import Blueprint, jsonify
-from flask_jwt_extended import jwt_required
 
 from ..errors import ApiError
 from ..schemas import SalaryRequest
+from ..security import candidate_required
 from ..services import ml
 from . import json_body
 
@@ -26,7 +26,7 @@ def _input(data):
 
 @bp.post('/predict')
 @bp.post('/predict-salary')
-@jwt_required()
+@candidate_required(activity=True)
 def predict_quick():
     data = json_body(SalaryRequest).model_dump()
     result = _predict(ml.salary_model().predict_quick, data)
@@ -34,7 +34,7 @@ def predict_quick():
 
 
 @bp.post('/predict-salary-advanced')
-@jwt_required()
+@candidate_required(activity=True)
 def predict_advanced():
     data = json_body(SalaryRequest).model_dump()
     result = _predict(ml.salary_model().predict_advanced, data)
@@ -42,7 +42,7 @@ def predict_advanced():
 
 
 @bp.post('/compare-predictions')
-@jwt_required()
+@candidate_required(activity=True)
 def compare():
     data = json_body(SalaryRequest).model_dump()
     model = ml.salary_model()
@@ -66,7 +66,7 @@ def compare():
 
 
 @bp.get('/salary-options')
-@jwt_required()
+@candidate_required
 def salary_options():
     """Cities, work modes and job titles (every title seen in 3+ Indian postings) for the salary form."""
     return jsonify({'success': True, **ml.salary_model().options(), 'job_titles': _job_titles()})
@@ -85,7 +85,7 @@ def _job_titles():
 
 
 @bp.get('/model-info')
-@jwt_required()
+@candidate_required
 def model_info():
     """How the model was trained and how accurate it is on companies it never saw."""
     return jsonify({'success': True, **ml.salary_model().info()})

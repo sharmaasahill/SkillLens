@@ -139,7 +139,9 @@ class HRUserQuery(_Schema):
     max_experience: Optional[float] = Field(None, ge=0, le=60)
     min_score: Optional[float] = Field(None, ge=0, le=100)
     has_resume: Optional[Literal['true', 'false']] = None
-    sort: Literal['created_at', 'name', 'experience', 'score'] = 'created_at'
+    sort: Literal['created_at', 'name', 'experience', 'score', 'activity'] = 'created_at'
+    view: Literal['active', 'removed'] = 'active'
+    status: Optional[Literal['shortlisted', 'contacted', 'interviewing', 'hired', 'rejected', 'none']] = None
     page: int = Field(1, ge=1)
     per_page: int = Field(12, ge=1, le=100)
 
@@ -150,3 +152,19 @@ class HRUserQuery(_Schema):
         if isinstance(data, dict):
             return {key: value for key, value in data.items() if _blank_to_none(value) is not None}
         return data
+
+
+REVIEW_STATUSES = Literal['shortlisted', 'contacted', 'interviewing', 'hired', 'rejected']
+
+
+class CandidateReviewRequest(_Schema):
+    """Change one candidate's HR status or note. Send only what changes; status null clears it."""
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    status: Optional[REVIEW_STATUSES] = None
+    note: Optional[str] = Field(None, max_length=2000)
+
+
+class BulkReviewRequest(_Schema):
+    user_ids: List[int] = Field(min_length=1, max_length=200)
+    action: Literal['remove', 'restore', 'status']
+    status: Optional[REVIEW_STATUSES] = None

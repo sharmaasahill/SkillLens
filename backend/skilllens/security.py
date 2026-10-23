@@ -34,3 +34,27 @@ def hr_required(fn):
         return fn(*args, **kwargs)
 
     return wrapper
+
+
+def candidate_required(fn=None, *, activity=False):
+    """Require a signed-in candidate. HR accounts cannot use candidate tools.
+
+    With activity=True, a successful request also records the candidate as active, which brings
+    them back to the HR portal if HR had removed them earlier.
+    """
+    def decorate(view):
+        @wraps(view)
+        def wrapper(*args, **kwargs):
+            verify_jwt_in_request()
+            if current_user is None:
+                raise ApiError('Please sign in again.', 401)
+            if current_user.is_admin:
+                raise ApiError('HR accounts cannot use candidate tools. Sign in with a candidate account.', 403)
+            response = view(*args, **kwargs)
+            if activity:
+                from datetime import datetime
+                current_user.last_active_at = datetime.utcnow()
+                db.session.commit()
+            return response
+        return wrapper
+    return decorate(fn) if fn else decorate

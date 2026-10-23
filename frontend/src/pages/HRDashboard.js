@@ -1,15 +1,36 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import api from '../api';
+import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
 import {
-  Badge, Button, Card, Chip, EmptyState, Meter, Notice, Segmented, SelectField, Skeleton, StatTile, TextField, EASE, cx,
+  Badge, Button, Card, Chip, EmptyState, Meter, Notice, Segmented, SelectField, Skeleton, StatTile, TextArea, TextField, EASE, cx,
 } from '../components/ui/primitives';
 import { Modal, useFeedback } from '../components/ui/overlays';
 import { scoreTone } from '../components/ui/tones';
 import { dateLabel, downloadBlob, toCsv } from '../lib/format';
 
 const PER_PAGE = 12;
+const STATUSES = [
+  { value: 'shortlisted', label: 'Shortlisted', tone: 'green' },
+  { value: 'contacted', label: 'Contacted', tone: 'blue' },
+  { value: 'interviewing', label: 'Interviewing', tone: 'purple' },
+  { value: 'hired', label: 'Hired', tone: 'teal' },
+  { value: 'rejected', label: 'Rejected', tone: 'red' },
+];
+const STATUS_BY_VALUE = Object.fromEntries(STATUSES.map((st) => [st.value, st]));
+const STATUS_OPTIONS = [{ value: '', label: 'No status' }, ...STATUSES.map(({ value, label }) => ({ value, label }))];
+
+function StatusBadges({ review }) {
+  const st = STATUS_BY_VALUE[review?.status];
+  if (!st && !review?.returned && !review?.note) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {st && <Badge toneName={st.tone}>{st.label}</Badge>}
+      {review?.returned && <Badge toneName="orange">Active again</Badge>}
+      {review?.note && <Badge toneName="gray">Note</Badge>}
+    </div>
+  );
+}
 const AVATAR_GRADIENTS = [
   'from-[#30b0c7] to-[#007aff]', 'from-[#34c759] to-[#30b0c7]', 'from-[#ff9500] to-[#ff2d55]',
   'from-[#af52de] to-[#5856d6]', 'from-[#ff2d55] to-[#af52de]', 'from-[#5856d6] to-[#007aff]',
@@ -34,7 +55,7 @@ function ScoreBadge({ score }) {
   return <Badge toneName={scoreTone(score)}>{Math.round(score)}%</Badge>;
 }
 
-function CandidateCard({ user, selected, onToggle, onView, onDownload, index }) {
+function CandidateCard({ user, selected, onToggle, onView, onDownload, onStatus, onRemove, removedView, index }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
@@ -60,7 +81,9 @@ function CandidateCard({ user, selected, onToggle, onView, onDownload, index }) 
         />
       </div>
 
-      <div className="mt-5 space-y-2 text-[14px] text-ink/85">
+      <div className="mt-3 min-h-[24px]"><StatusBadges review={user.review} /></div>
+
+      <div className="mt-3 space-y-1.5 text-[14px] text-ink/85">
         {user.current_work && <p>{user.current_work}</p>}
         {user.current_company && <p className="text-graphite">{user.current_company}</p>}
         {user.total_experience ? <p className="text-graphite">{user.total_experience} years experience</p> : null}
@@ -74,22 +97,31 @@ function CandidateCard({ user, selected, onToggle, onView, onDownload, index }) 
         </div>
       )}
 
-      <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl bg-mist p-3 text-center">
+      <div className="mt-auto pt-5" />
+      <div className="grid grid-cols-3 gap-2 rounded-2xl bg-mist p-3 text-center">
         <div>
-          <p className="text-[17px] font-semibold tabular-nums">{user.resume_count}</p>
+          <p className="flex h-6 items-center justify-center text-[17px] font-semibold tabular-nums">{user.resume_count}</p>
           <p className="text-[11px] text-graphite">Resumes</p>
         </div>
         <div>
-          <ScoreBadge score={user.latest_score} />
-          <p className="mt-0.5 text-[11px] text-graphite">Latest score</p>
+          <div className="flex h-6 items-center justify-center"><ScoreBadge score={user.latest_score} /></div>
+          <p className="text-[11px] text-graphite">Primary score</p>
         </div>
         <div>
-          <p className="text-[13px] font-semibold">{user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</p>
+          <p className="flex h-6 items-center justify-center text-[13px] font-semibold tabular-nums">{user.created_at ? new Date(user.created_at).toLocaleDateString('en-IN') : 'N/A'}</p>
           <p className="text-[11px] text-graphite">Joined</p>
         </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-2">
+      <SelectField
+        aria-label={`Status for ${user.full_name || user.email}`}
+        className="mt-4"
+        value={user.review?.status || ''}
+        onChange={(e) => onStatus(user, e.target.value)}
+        options={STATUS_OPTIONS}
+      />
+
+      <div className="mt-3 flex flex-wrap gap-2">
         <Button size="sm" className="flex-1" onClick={() => onView(user)}>View details</Button>
         {user.profile_resume_filename && (
           <Button size="sm" variant="secondary" onClick={() => onDownload(user.id)}>
@@ -101,12 +133,15 @@ function CandidateCard({ user, selected, onToggle, onView, onDownload, index }) 
             LinkedIn
           </a>
         )}
+        <Button size="sm" variant={removedView ? 'secondary' : 'danger'} onClick={() => onRemove(user, !removedView)}>
+          {removedView ? 'Restore' : 'Remove'}
+        </Button>
       </div>
     </motion.div>
   );
 }
 
-function CandidateTable({ users, selectedUsers, onToggle, allSelected, onToggleAll, onView, onDownload }) {
+function CandidateTable({ users, selectedUsers, onToggle, allSelected, onToggleAll, onView, onDownload, onStatus, onRemove, removedView }) {
   return (
     <Card className="overflow-hidden !p-0">
       <div className="overflow-x-auto">
@@ -119,6 +154,7 @@ function CandidateTable({ users, selectedUsers, onToggle, allSelected, onToggleA
               <th className="px-5 py-3 font-medium">Location</th>
               <th className="px-5 py-3 font-medium">Experience</th>
               <th className="px-5 py-3 font-medium">Score</th>
+              <th className="px-5 py-3 font-medium">Status</th>
               <th className="px-5 py-3 font-medium">Skills</th>
               <th className="px-5 py-3 font-medium">Actions</th>
             </tr>
@@ -145,6 +181,10 @@ function CandidateTable({ users, selectedUsers, onToggle, allSelected, onToggleA
                 <td className="whitespace-nowrap px-5 py-4 text-ink">{user.current_location || 'N/A'}</td>
                 <td className="whitespace-nowrap px-5 py-4 text-ink">{user.total_experience ? `${user.total_experience} years` : 'N/A'}</td>
                 <td className="px-5 py-4"><ScoreBadge score={user.latest_score} /></td>
+                <td className="min-w-[170px] px-5 py-4">
+                  <SelectField aria-label={`Status for ${user.full_name || user.email}`} value={user.review?.status || ''} onChange={(e) => onStatus(user, e.target.value)} options={STATUS_OPTIONS} />
+                  {user.review?.returned && <p className="mt-1 text-[12px] text-orange-ink">Active again</p>}
+                </td>
                 <td className="px-5 py-4">
                   <div className="flex max-w-xs flex-wrap gap-1">
                     {user.all_skills?.slice(0, 3).map((s) => <Chip key={s} toneName="teal" className="!px-2 !py-0.5 !text-[12px]">{s}</Chip>)}
@@ -156,6 +196,9 @@ function CandidateTable({ users, selectedUsers, onToggle, allSelected, onToggleA
                     <button type="button" onClick={() => onView(user)} className="text-action-link hover:underline">View</button>
                     {user.profile_resume_filename && <button type="button" onClick={() => onDownload(user.id)} className="text-green-ink hover:underline">Resume</button>}
                     {user.linkedin_url && <a href={user.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-ink hover:underline">LinkedIn</a>}
+                    <button type="button" onClick={() => onRemove(user, !removedView)} className={removedView ? 'text-ink hover:underline' : 'text-red-ink hover:underline'}>
+                      {removedView ? 'Restore' : 'Remove'}
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -176,7 +219,40 @@ function DetailRow({ label, value }) {
   );
 }
 
-function CandidateDetails({ details }) {
+function ReviewPanel({ details, onSaved }) {
+  const { notify } = useFeedback();
+  const [status, setStatus] = useState(details.review?.status || '');
+  const [note, setNote] = useState(details.review?.note || '');
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    setSaving(true);
+    try {
+      const { data } = await api.patch(`/hr/candidates/${details.id}/review`, { status: status || null, note });
+      onSaved(details.id, data.review);
+      notify('Saved');
+    } catch (err) {
+      notify(errorMessage(err, 'Could not save'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <section className="rounded-[20px] bg-mist p-5">
+      <h3 className="mb-3 text-[13px] font-semibold text-teal-ink">Team review</h3>
+      <div className="grid gap-4 sm:grid-cols-[200px_1fr]">
+        <SelectField label="Status" value={status} onChange={(e) => setStatus(e.target.value)} options={STATUS_OPTIONS} />
+        <TextArea label="Private note" rows={3} maxLength={2000} value={note} onChange={(e) => setNote(e.target.value)}
+          placeholder="Only HR can see this. For example: strong SQL, ask about notice period" />
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <p className="text-[12px] text-silver">{details.review?.updated_at ? `Last updated ${dateLabel(details.review.updated_at)}` : 'Not reviewed yet'}</p>
+        <Button size="sm" onClick={save} loading={saving}>Save review</Button>
+      </div>
+    </section>
+  );
+}
+
+function CandidateDetails({ details, onSaved }) {
   if (!details) {
     return <div className="space-y-4"><Skeleton className="h-20" /><Skeleton className="h-32" /><Skeleton className="h-32" /></div>;
   }
@@ -189,6 +265,8 @@ function CandidateDetails({ details }) {
           <p className="text-[14px] text-graphite">{[details.current_work, details.current_company].filter(Boolean).join(' at ') || details.email}</p>
         </div>
       </div>
+
+      <ReviewPanel details={details} onSaved={onSaved} />
 
       <section>
         <h3 className="mb-3 text-[13px] font-semibold text-orange-ink">Personal information</h3>
@@ -246,7 +324,10 @@ function CandidateDetails({ details }) {
                   <p className="truncate text-[14px] font-medium">{resume.filename}</p>
                   <p className="text-[12px] text-silver">{dateLabel(resume.uploaded_at)}{resume.skills?.length ? `, ${resume.skills.length} skills` : ''}</p>
                 </div>
-                <ScoreBadge score={resume.score} />
+                <div className="flex items-center gap-2">
+                  {resume.is_primary && <Badge toneName="green">Primary</Badge>}
+                  <ScoreBadge score={resume.score} />
+                </div>
               </li>
             ))}
           </ul>
@@ -320,7 +401,8 @@ const HRDashboard = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [userDetails, setUserDetails] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterBy, setFilterBy] = useState('all');
+  const [view, setView] = useState('active'); // 'active' | 'removed'
+  const [statusFilter, setStatusFilter] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
   const [error, setError] = useState('');
 
@@ -361,7 +443,7 @@ const HRDashboard = () => {
     const timer = setTimeout(() => fetchHRData(page), delay);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, sortBy, searchTerm, reloadKey]);
+  }, [page, sortBy, searchTerm, reloadKey, view, statusFilter]);
 
   const fetchHRData = async (pageToLoad = page) => {
     setRefreshing(true);
@@ -376,6 +458,8 @@ const HRDashboard = () => {
       if (minScore) params.append('min_score', minScore);
       if (hasResume) params.append('has_resume', hasResume);
       if (searchTerm.trim()) params.append('search', searchTerm.trim());
+      params.append('view', view);
+      if (statusFilter) params.append('status', statusFilter);
       params.append('sort', sortBy);
       params.append('page', pageToLoad);
       params.append('per_page', PER_PAGE);
@@ -444,9 +528,52 @@ const HRDashboard = () => {
 
   const reload = () => { setPage(1); setReloadKey((k) => k + 1); };
 
+  const applyReview = (id, review) => {
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, review } : u)));
+    setUserDetails((d) => (d && d.id === id ? { ...d, review } : d));
+  };
+
+  const changeStatus = async (user, status) => {
+    try {
+      const { data } = await api.patch(`/hr/candidates/${user.id}/review`, { status: status || null });
+      applyReview(user.id, data.review);
+      fetchSummary();
+    } catch (err) {
+      notify(errorMessage(err, 'Could not update status'), 'error');
+    }
+  };
+
+  const setRemoved = async (user, remove) => {
+    try {
+      await api.post(`/hr/candidates/${user.id}/${remove ? 'remove' : 'restore'}`);
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+      setPagination((p) => ({ ...p, total: Math.max(0, p.total - 1) }));
+      setSelectedUsers((prev) => prev.filter((id) => id !== user.id));
+      notify(remove
+        ? `${user.full_name || user.email} removed. They come back if they use SkillLens again.`
+        : `${user.full_name || user.email} restored`);
+      fetchSummary();
+    } catch (err) {
+      notify(errorMessage(err, 'Could not update candidate'), 'error');
+    }
+  };
+
+  const bulk = async (action, status) => {
+    if (!selectedUsers.length) return;
+    try {
+      await api.post('/hr/candidates/bulk', { user_ids: selectedUsers, action, status: status || null });
+      notify(`Updated ${selectedUsers.length} candidate${selectedUsers.length === 1 ? '' : 's'}`);
+      setSelectedUsers([]);
+      setReloadKey((k) => k + 1);
+      fetchSummary();
+    } catch (err) {
+      notify(errorMessage(err, 'Bulk update failed'), 'error');
+    }
+  };
+
   const clearAllFilters = () => {
     setSearchTerm('');
-    setFilterBy('all');
+    setStatusFilter('');
     setJobRoleFilter('');
     setLocationFilter('');
     setCompanyFilter('');
@@ -458,12 +585,7 @@ const HRDashboard = () => {
     reload();
   };
 
-  const filteredUsers = users.filter((user) => (
-    filterBy === 'all'
-    || (filterBy === 'with_resume' && user.profile_resume_filename)
-    || (filterBy === 'without_resume' && !user.profile_resume_filename)
-    || (filterBy === 'high_score' && user.latest_score >= 75)
-  ));
+  const filteredUsers = users;
 
   const exportToCSV = () => {
     const pool = selectedUsers.length ? filteredUsers.filter((u) => selectedUsers.includes(u.id)) : filteredUsers;
@@ -476,6 +598,8 @@ const HRDashboard = () => {
       Location: user.current_location || 'N/A',
       Experience: user.total_experience ? `${user.total_experience} years` : 'N/A',
       Score: user.latest_score || 'N/A',
+      Status: STATUS_BY_VALUE[user.review?.status]?.label || '',
+      Note: user.review?.note || '',
       Skills: user.all_skills ? user.all_skills.join(', ') : 'N/A',
       HasResume: user.profile_resume_filename ? 'Yes' : 'No',
     })));
@@ -510,19 +634,19 @@ const HRDashboard = () => {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         {loading && !stats.total_users ? [0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-[112px]" />) : (
           <>
-            <StatTile label="Total users" value={stats.total_users || 0} toneName="teal" />
-            <StatTile label="With resume" value={stats.users_with_resume || 0} toneName="green" />
-            <StatTile label="Total resumes" value={stats.total_resumes || 0} toneName="purple" />
-            <StatTile label="Average score" value={`${stats.average_score || 0}%`} toneName={scoreTone(stats.average_score || 0)} />
-            <StatTile label="Complete profiles" value={stats.users_with_profiles || 0} toneName="orange" />
+            <StatTile label="Candidates" value={stats.total_users || 0} toneName="teal" hint={`${stats.users_with_resume || 0} with a resume`} />
+            <StatTile label="Average score" value={`${stats.average_score || 0}%`} toneName={scoreTone(stats.average_score || 0)} hint={`${stats.total_resumes || 0} resumes`} />
+            <StatTile label="Shortlisted" value={stats.status_counts?.shortlisted || 0} toneName="green" hint={`${stats.status_counts?.interviewing || 0} interviewing`} />
+            <StatTile label="Hired" value={stats.status_counts?.hired || 0} toneName="purple" hint={`${stats.status_counts?.contacted || 0} contacted`} />
+            <StatTile label="Removed" value={stats.removed_count || 0} toneName="orange" hint="Hidden from this list" />
           </>
         )}
       </div>
 
       {/* Toolbar */}
       <Card className="mt-6 !p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
-          <div className="relative flex-1">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_auto_180px_170px_auto] xl:items-center">
+          <div className="relative md:col-span-2 xl:col-span-1">
             <input
               type="search"
               value={searchTerm}
@@ -533,30 +657,34 @@ const HRDashboard = () => {
             />
           </div>
           <Segmented
-            label="Quick filter"
-            value={filterBy}
-            onChange={setFilterBy}
+            label="Candidate list"
+            value={view}
+            onChange={(v) => { setView(v); setPage(1); setSelectedUsers([]); }}
             options={[
-              { value: 'all', label: 'All' }, { value: 'with_resume', label: 'With resume' },
-              { value: 'without_resume', label: 'No resume' }, { value: 'high_score', label: 'Score 75+' },
+              { value: 'active', label: 'Candidates' },
+              { value: 'removed', label: `Removed${stats.removed_count ? ` (${stats.removed_count})` : ''}` },
             ]}
           />
-          <div className="flex flex-wrap items-center gap-3">
-            <SelectField
-              aria-label="Sort by"
-              value={sortBy}
-              onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
-              options={[
-                { value: 'created_at', label: 'Newest first' }, { value: 'name', label: 'Name' },
-                { value: 'experience', label: 'Experience' }, { value: 'score', label: 'Latest score' },
-              ]}
-              className="w-40"
-            />
-            <Button variant={showAdvancedFilters ? 'dark' : 'secondary'} onClick={() => setShowAdvancedFilters((v) => !v)} aria-expanded={showAdvancedFilters}>
-              Filters
-              {activeFilterCount > 0 && <span className="rounded-full bg-teal px-1.5 text-[11px] text-white">{activeFilterCount}</span>}
-            </Button>
-          </div>
+          <SelectField
+            aria-label="Filter by status"
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            options={[{ value: 'none', label: 'No status' }, ...STATUSES.map(({ value, label }) => ({ value, label }))]}
+            placeholder="Any status"
+          />
+          <SelectField
+            aria-label="Sort by"
+            value={sortBy}
+            onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
+            options={[
+              { value: 'created_at', label: 'Newest first' }, { value: 'activity', label: 'Recently active' },
+              { value: 'name', label: 'Name' }, { value: 'experience', label: 'Experience' }, { value: 'score', label: 'Score' },
+            ]}
+          />
+          <Button variant={showAdvancedFilters ? 'dark' : 'secondary'} onClick={() => setShowAdvancedFilters((v) => !v)} aria-expanded={showAdvancedFilters}>
+            Filters
+            {activeFilterCount > 0 && <span className="rounded-full bg-teal px-1.5 text-[11px] text-white">{activeFilterCount}</span>}
+          </Button>
         </div>
 
         <motion.div
@@ -585,12 +713,20 @@ const HRDashboard = () => {
       {/* Action bar */}
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 text-[14px]">
-          <span className="font-medium text-ink">{pagination.total} candidates found</span>
+          <span className="font-medium text-ink">{pagination.total} {view === 'removed' ? 'removed candidates' : 'candidates found'}</span>
           {selectedUsers.length > 0 && <Badge toneName="teal">{selectedUsers.length} selected</Badge>}
           {refreshing && !loading && <span className="text-[13px] text-silver">Updating...</span>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {selectedUsers.length > 0 && <Button size="sm" variant="ghost" onClick={clearSelection}>Clear selection</Button>}
+          {selectedUsers.length > 0 && (
+            <>
+              <SelectField aria-label="Mark selected as" value="" onChange={(e) => e.target.value && bulk('status', e.target.value)} options={STATUSES.map(({ value, label }) => ({ value, label }))} placeholder="Mark selected as" className="w-48" />
+              <Button size="sm" variant={view === 'removed' ? 'secondary' : 'danger'} onClick={() => bulk(view === 'removed' ? 'restore' : 'remove')}>
+                {view === 'removed' ? 'Restore selected' : 'Remove selected'}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={clearSelection}>Clear selection</Button>
+            </>
+          )}
           <Button size="sm" variant="secondary" onClick={selectAllUsers}>Select all</Button>
           <Button size="sm" variant="secondary" onClick={() => { fetchHRData(page); fetchSummary(); }}>Refresh</Button>
           <Segmented
@@ -610,12 +746,16 @@ const HRDashboard = () => {
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-80" />)}</div>
         ) : filteredUsers.length === 0 ? (
           <Card>
-            <EmptyState title="No users found">Try adjusting your search or filter criteria.</EmptyState>
+            <EmptyState title={view === 'removed' ? 'No removed candidates' : 'No candidates found'}>
+              {view === 'removed'
+                ? 'Candidates you remove appear here. They return to the main list on their own when they use SkillLens again.'
+                : 'Try adjusting your search or filter criteria.'}
+            </EmptyState>
           </Card>
         ) : viewMode === 'grid' ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filteredUsers.map((user, i) => (
-              <CandidateCard key={user.id} index={i} user={user} selected={selectedUsers.includes(user.id)} onToggle={toggleUserSelection} onView={openDetails} onDownload={downloadUserResume} />
+              <CandidateCard key={user.id} index={i} user={user} selected={selectedUsers.includes(user.id)} onToggle={toggleUserSelection} onView={openDetails} onDownload={downloadUserResume} onStatus={changeStatus} onRemove={setRemoved} removedView={view === 'removed'} />
             ))}
           </div>
         ) : (
@@ -627,6 +767,9 @@ const HRDashboard = () => {
             onToggleAll={allSelected ? clearSelection : selectAllUsers}
             onView={openDetails}
             onDownload={downloadUserResume}
+            onStatus={changeStatus}
+            onRemove={setRemoved}
+            removedView={view === 'removed'}
           />
         )}
       </div>
@@ -665,7 +808,7 @@ const HRDashboard = () => {
       )}
 
       <Modal open={Boolean(selectedUser)} onClose={closeDetails} title="Candidate details" size="md">
-        <CandidateDetails details={userDetails} />
+        <CandidateDetails details={userDetails} onSaved={applyReview} />
       </Modal>
 
       <Modal open={showAnalytics} onClose={() => setShowAnalytics(false)} title="Analytics" size="xl">

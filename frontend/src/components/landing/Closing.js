@@ -27,7 +27,7 @@ export function Numbers() {
   );
 }
 
-export function CallToAction({ signedIn }) {
+export function CallToAction({ signedIn, home = '/dashboard' }) {
   return (
     <section className="px-5 pb-[16vh] pt-[6vh] text-center" aria-labelledby="cta-title">
       <Reveal>
@@ -38,7 +38,7 @@ export function CallToAction({ signedIn }) {
       <Reveal delay={0.12}>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-[17px]">
           <Link
-            to={signedIn ? '/dashboard' : '/auth?mode=signup'}
+            to={signedIn ? home : '/auth?mode=signup'}
             className="rounded-full bg-action px-[22px] py-[11px] text-white transition-colors hover:bg-action-hover"
           >
             {signedIn ? 'Open dashboard' : 'Create a free account'}

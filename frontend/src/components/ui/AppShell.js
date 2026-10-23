@@ -138,7 +138,7 @@ function AppShell({ children, wide = false }) {
         scrolled ? 'border-black/[0.08] bg-white/80 backdrop-blur-xl backdrop-saturate-[1.8]' : 'border-transparent bg-[#fbfbfd]'
       )}>
         <nav aria-label="Main" className={cx('mx-auto flex h-14 items-center justify-between gap-4 px-5', wide ? 'max-w-[1280px]' : 'max-w-[1120px]')}>
-          <NavLink to={user?.is_admin ? '/hr-dashboard' : '/dashboard'} className="font-display text-[19px] font-semibold tracking-tight text-ink">
+          <NavLink to="/" className="font-display text-[19px] font-semibold tracking-tight text-ink">
             Skill<span className="text-graphite">Lens</span>
           </NavLink>
           <div className="hidden md:block"><NavLinks links={links} /></div>

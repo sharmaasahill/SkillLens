@@ -25,7 +25,9 @@ class User(db.Model):
     # Profile resume fields
     profile_resume_filename = db.Column(db.String(255))  # Original name of the current profile resume
     profile_resume_path = db.Column(db.String(255))  # Unique storage path (relative to the upload folder)
-    profile_resume_uploaded_at = db.Column(db.DateTime)  # When profile resume was uploaded
+    profile_resume_uploaded_at = db.Column(db.DateTime)
+    # Last time the candidate uploaded/analyzed a resume, matched jobs or checked a salary
+    last_active_at = db.Column(db.DateTime)  # When profile resume was uploaded
     skills_summary = db.Column(db.Text)  # Key skills from profile resume
     education = db.Column(db.String(300))  # Education background
     certifications = db.Column(db.Text)  # Professional certifications
@@ -113,3 +115,18 @@ class ApiUsage(db.Model):
     calls = db.Column(db.Integer, nullable=False, default=0)
 
     __table_args__ = (db.UniqueConstraint('provider', 'day', name='uq_api_usage_provider_day'),)
+
+
+class CandidateReview(db.Model):
+    """What the HR team has decided about a candidate. One row per candidate, shared by the team."""
+    __tablename__ = 'candidate_reviews'
+
+    STATUSES = ('shortlisted', 'contacted', 'interviewing', 'hired', 'rejected')
+
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+    status = db.Column(db.String(20))
+    note = db.Column(db.Text)
+    # Removed from the HR portal at this time. The candidate returns once they are active again after it.
+    hidden_at = db.Column(db.DateTime)
+    updated_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

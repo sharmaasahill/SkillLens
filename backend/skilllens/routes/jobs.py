@@ -2,13 +2,14 @@
 import os
 
 from flask import Blueprint, current_app, jsonify, request
-from flask_jwt_extended import current_user, jwt_required
+from flask_jwt_extended import current_user
 
 from models.database import Resume
 
 from ..errors import ApiError
 from ..extensions import limiter
 from ..schemas import JobsBySkillsRequest, LiveJobsRequest, MarketAnalysisRequest, RecommendJobsRequest
+from ..security import candidate_required
 from ..services import live_jobs, ml, resumes, storage
 from . import json_body
 
@@ -33,7 +34,7 @@ def _resume_skills_and_text(resume):
 
 
 @bp.post('/recommend-jobs')
-@jwt_required()
+@candidate_required(activity=True)
 def recommend_jobs():
     params = json_body(RecommendJobsRequest)
     resume = _latest_resume(current_user)
@@ -87,7 +88,7 @@ def recommend_jobs():
 
 
 @bp.post('/job-market-analysis')
-@jwt_required()
+@candidate_required
 def job_market_analysis():
     skills = json_body(MarketAnalysisRequest).skills
     if not skills:
@@ -103,13 +104,13 @@ def job_market_analysis():
 
 
 @bp.get('/job-categories')
-@jwt_required()
+@candidate_required
 def job_categories():
     return jsonify({'success': True, 'categories': ml.job_recommender().get_job_categories()})
 
 
 @bp.get('/job-locations')
-@jwt_required()
+@candidate_required
 def job_locations():
     return jsonify({'success': True, 'locations': ml.job_recommender().get_locations()})
 
@@ -135,7 +136,7 @@ def recommend_jobs_by_skills():
 
 
 @bp.post('/live-jobs')
-@jwt_required()
+@candidate_required(activity=True)
 def live_job_search():
     """Current openings from Adzuna/Careerjet for the primary resume's top skills. Called on demand only."""
     params = json_body(LiveJobsRequest)

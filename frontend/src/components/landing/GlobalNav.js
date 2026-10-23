@@ -18,7 +18,7 @@ export function Wordmark({ className = '' }) {
   );
 }
 
-function GlobalNav({ signedIn }) {
+function GlobalNav({ signedIn, home = '/dashboard' }) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -57,7 +57,7 @@ function GlobalNav({ signedIn }) {
 
         <div className="flex items-center gap-4">
           {signedIn ? (
-            <Link to="/dashboard" className="rounded-full bg-action px-3.5 py-1 text-[12px] font-medium text-white transition-colors hover:bg-action-hover">
+            <Link to={home} className="rounded-full bg-action px-3.5 py-1 text-[12px] font-medium text-white transition-colors hover:bg-action-hover">
               Open dashboard
             </Link>
           ) : (

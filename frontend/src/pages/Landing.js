@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { homeFor } from '../components/ProtectedRoute';
 import GlobalNav from '../components/landing/GlobalNav';
 import Hero from '../components/landing/Hero';
 import Statement from '../components/landing/Statement';
@@ -13,6 +14,7 @@ import { CallToAction, Footer, Numbers } from '../components/landing/Closing';
 function Landing() {
   const { user } = useAuth();
   const signedIn = Boolean(user);
+  const home = homeFor(user);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -32,16 +34,16 @@ function Landing() {
       <a href="#salary" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-14 focus:z-[60] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:shadow">
         Skip to content
       </a>
-      <GlobalNav signedIn={signedIn} />
+      <GlobalNav signedIn={signedIn} home={home} />
       <main>
-        <Hero signedIn={signedIn} />
+        <Hero signedIn={signedIn} home={home} />
         <Statement />
         <SalarySection />
         <ResumeSection />
         <JobsSection />
         <HRSection />
         <Numbers />
-        <CallToAction signedIn={signedIn} />
+        <CallToAction signedIn={signedIn} home={home} />
       </main>
       <Footer />
     </div>

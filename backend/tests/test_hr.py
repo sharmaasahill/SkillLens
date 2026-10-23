@@ -101,3 +101,44 @@ def test_stats_and_analytics(client, hr_session):
     assert analytics['experience_distribution'] == {'0-2': 2, '3-5': 1, '6-10': 0, '10+': 0}
     assert sum(analytics['score_distribution'].values()) == 8
     assert client.get('/hr/job-roles').get_json()['job_roles'] == ['Data Analyst', 'Software Engineer']
+
+
+def _ids(client, view='active'):
+    return {u['id'] for u in client.get(f'/hr/all-users?view={view}').get_json()['users']}
+
+
+def test_hr_can_mark_note_and_remove_without_deleting(app, client, hr_session, make_client):
+    from models.database import User
+
+    cand = create_user('cand@example.com', full_name='Cand')
+    r = client.patch(f'/hr/candidates/{cand.id}/review', headers=hr_session, json={'status': 'shortlisted', 'note': 'Strong SQL'})
+    assert r.get_json()['review']['status'] == 'shortlisted'
+    assert client.get('/hr/all-users?status=shortlisted').get_json()['total_users'] == 1
+    assert client.get('/hr/stats').get_json()['status_counts'] == {'shortlisted': 1}
+
+    client.post(f'/hr/candidates/{cand.id}/remove', headers=hr_session)
+    assert cand.id not in _ids(client) and cand.id in _ids(client, 'removed')
+    assert db.session.get(User, cand.id) is not None  # the account itself is untouched
+
+    # The candidate uses SkillLens again, so they come back on their own
+    candidate = make_client()
+    headers = login(candidate, 'cand@example.com')
+    assert candidate.post('/predict', headers=headers,
+                          json={'job_title': 'Data Analyst', 'years_of_experience': 2}).status_code == 200
+    users = client.get('/hr/all-users').get_json()['users']
+    back = next(u for u in users if u['id'] == cand.id)
+    assert back['review']['returned'] and back['review']['status'] == 'shortlisted'
+
+    client.post('/hr/candidates/bulk', headers=hr_session, json={'user_ids': [cand.id], 'action': 'remove'})
+    client.post('/hr/candidates/bulk', headers=hr_session, json={'user_ids': [cand.id], 'action': 'restore'})
+    assert cand.id in _ids(client)
+
+
+def test_candidate_and_hr_accounts_stay_separate(client, hr_session):
+    # HR cannot use candidate tools...
+    assert client.post('/predict', headers=hr_session, json={'job_title': 'Analyst', 'years_of_experience': 1}).status_code == 403
+    assert client.get('/resume-history').status_code == 403
+    assert client.get('/profile').status_code == 403
+    # ...and HR cannot review another HR account as a candidate
+    hr2 = create_user('hr2@example.com', is_admin=True)
+    assert client.post(f'/hr/candidates/{hr2.id}/remove', headers=hr_session).status_code == 404
