@@ -107,6 +107,46 @@ function JdMatch({ match, overall, atsScore }) {
   );
 }
 
+// One colour per area of the skill map
+const AREA_COLORS = {
+  'Programming languages': '#007aff', Backend: '#5856d6', Frontend: '#af52de', Mobile: '#ff2d55', Databases: '#30b0c7',
+  Cloud: '#ff9500', 'DevOps & infrastructure': '#34c759', 'Testing & QA': '#248a3d', 'APIs & security': '#d70015',
+  'AI & machine learning': '#8944ab', 'Data & analytics': '#0071a4', Design: '#ff2d55',
+};
+
+/** Skills grouped by area. How strongly a skill is set shows how often the resume mentions it. */
+function SkillMap({ groups }) {
+  return (
+    <div>
+      {groups.map((group, gi) => (
+        <Rise key={group.category} delay={Math.min(gi, 8) * 0.04} amount={0.1}>
+          <div className="grid gap-3 border-b border-black/[0.06] py-5 first:pt-0 last:border-0 md:grid-cols-[210px_minmax(0,1fr)] md:gap-8">
+            <p className="flex items-baseline gap-2.5 pt-1 text-[13px] font-semibold text-ink">
+              <span className="h-2 w-2 shrink-0 self-center rounded-full" style={{ background: AREA_COLORS[group.category] || '#86868b' }} aria-hidden="true" />
+              {group.category}
+              <span className="font-medium tabular-nums text-silver">{group.skills.length}</span>
+            </p>
+            <ul className="flex flex-wrap gap-x-5 gap-y-1.5">
+              {group.skills.map((skill) => (
+                <li
+                  key={skill.name}
+                  title={`Mentioned ${skill.mentions} time${skill.mentions === 1 ? '' : 's'}`}
+                  className={cx(
+                    'font-display text-[18px] tracking-tight md:text-[19px]',
+                    skill.mentions >= 3 ? 'font-semibold text-ink' : skill.mentions === 2 ? 'font-medium text-ink/80' : 'text-ink/55'
+                  )}
+                >
+                  {skill.name}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Rise>
+      ))}
+    </div>
+  );
+}
+
 function Results({ analysis, fileName }) {
   const ats = analysis.ats_analysis || {};
   const score = ats.score ?? 0;
@@ -180,8 +220,16 @@ function Results({ analysis, fileName }) {
       </Section>
 
       {skills.length > 0 && (
-        <Section index="03" title="Skills we found" note={`${skills.length} recognised. Recruiters search for these exact words.`}>
-          <WordCloud words={skills} colorFor={(w, i) => SKILL_COLORS[i % SKILL_COLORS.length]} />
+        <Section
+          index="03"
+          title="Skills we found"
+          note={analysis.skill_groups?.length
+            ? `${skills.length} skills in ${analysis.skill_groups.length} areas. Darker ones come up more often in your resume.`
+            : `${skills.length} recognised. Recruiters search for these exact words.`}
+        >
+          {analysis.skill_groups?.length
+            ? <SkillMap groups={analysis.skill_groups} />
+            : <WordCloud words={skills} colorFor={(w, i) => SKILL_COLORS[i % SKILL_COLORS.length]} />}
         </Section>
       )}
 

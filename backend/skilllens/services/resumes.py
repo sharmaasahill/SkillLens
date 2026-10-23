@@ -143,6 +143,10 @@ def reanalyze(user, resume_id, jd_text=None):
     if not (resume.raw_text or '').strip():
         raise ApiError('This resume has no stored text. Upload it again to analyze it.', 400)
     analysis = analyze_text(resume.raw_text)
+    # Keep the library in step with the latest rules, so matching and HR see the same skills and score
+    resume.set_skills(analysis['skills'])
+    resume.score = analysis['ats_analysis']['score']
+    db.session.commit()
     return resume, with_jd(analysis, analysis['text'], analysis['skills'], jd_text)
 
 

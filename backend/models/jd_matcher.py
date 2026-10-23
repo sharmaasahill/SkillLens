@@ -16,9 +16,13 @@ import re
 import zipfile
 from collections import Counter
 
+from . import skills_taxonomy as taxonomy
 from .resume_analyzer import (
-    DEGREE_RE, INDIAN_CITIES, KEYWORD_PATTERNS, SKILL_PATTERNS, ResumeAnalyzer, _match_terms, extract_text_from_pdf,
+    DEGREE_RE, INDIAN_CITIES, KEYWORD_PATTERNS, ResumeAnalyzer, _match_terms, extract_text_from_pdf, find_skill_keys,
 )
+
+# How industry keywords that are not in the skills taxonomy are shown
+KEYWORD_LABELS = {'api': 'APIs', 'b2b': 'B2B', 'b2c': 'B2C', 'nosql': 'NoSQL', 'etl': 'ETL'}
 
 MAX_JD_CHARS = 20_000
 MIN_JD_WORDS = 15
@@ -86,21 +90,37 @@ def clean_jd(text):
 # Matching
 # ---------------------------------------------------------------------------
 
+def _terms_by_line(lines):
+    """The skill keys and industry keywords on each line, all as comparison keys."""
+    out = []
+    for line in lines:
+        terms = set(find_skill_keys(line))
+        terms.update(taxonomy.skill_key(k) for k in _match_terms(line, KEYWORD_PATTERNS))
+        out.append(terms)
+    return out
+
+
+def _label(term):
+    """Display form of a skill key or keyword."""
+    if taxonomy.key_for(term):
+        return taxonomy.display_name(term)
+    return KEYWORD_LABELS.get(term, term[:1].upper() + term[1:])
+
+
 def _skill_priority(jd, skills):
     """Split JD skills into must-have and nice-to-have, by the wording of the line they appear on."""
     lines = jd.split('\n')
-    patterns = {term: pattern for term, pattern in SKILL_PATTERNS + KEYWORD_PATTERNS}
+    terms_on = _terms_by_line(lines)
     must, nice = [], []
     section_nice = False
     for skill in skills:
-        pattern = patterns[skill]
         verdict = None
-        for line in lines:
+        for line, terms in zip(lines, terms_on):
             if re.match(r'(?i)^\s*(nice|good|preferred|bonus|plus|desirable)', line) and len(line) < 60:
                 section_nice = True
             elif re.match(r'(?i)^\s*(requirements?|must|required|qualifications?|what you)', line) and len(line) < 60:
                 section_nice = False
-            if pattern.search(line):
+            if skill in terms:
                 if NICE_HINTS.search(line) or (section_nice and not MUST_HINTS.search(line)):
                     verdict = verdict or 'nice'
                 else:
@@ -196,10 +216,12 @@ def _title(jd):
 def match(resume_text, jd_text, resume_skills=None):
     jd = clean_jd(jd_text)
     resume_lower = resume_text.lower()
-    resume_skills = set(resume_skills if resume_skills is not None else _match_terms(resume_text, SKILL_PATTERNS))
-    resume_skills |= set(_match_terms(resume_text, KEYWORD_PATTERNS))
+    # Everything is compared by key, so "PostgreSQL", "postgres" and "Postgres DB" are the same skill
+    resume_skills = {taxonomy.skill_key(s) for s in (resume_skills or [])} | set(find_skill_keys(resume_text))
+    resume_skills |= {taxonomy.skill_key(k) for k in _match_terms(resume_text, KEYWORD_PATTERNS)}
 
-    jd_skills = list(dict.fromkeys(_match_terms(jd, SKILL_PATTERNS) + _match_terms(jd, KEYWORD_PATTERNS)))
+    jd_skills = list(dict.fromkeys(
+        find_skill_keys(jd) + [taxonomy.skill_key(k) for k in _match_terms(jd, KEYWORD_PATTERNS)]))
     must, nice = _skill_priority(jd, jd_skills)
     matched_must = [s for s in must if s in resume_skills]
     matched_nice = [s for s in nice if s in resume_skills]
@@ -257,8 +279,10 @@ def match(resume_text, jd_text, resume_skills=None):
         breakdown.append({'key': key, 'label': label, 'score': round(points, 1),
                           'max': round(maximum * 100 / available, 1), 'detail': detail})
 
-    missing_must = [s for s in must if s not in resume_skills]
-    missing_nice = [s for s in nice if s not in resume_skills]
+    missing_must = [_label(s) for s in must if s not in resume_skills]
+    missing_nice = [_label(s) for s in nice if s not in resume_skills]
+    matched_must = [_label(s) for s in matched_must]
+    matched_nice = [_label(s) for s in matched_nice]
     missing_kw = [k for k in keywords if k not in found_kw][:10]
     suggestions = []
     if missing_must:

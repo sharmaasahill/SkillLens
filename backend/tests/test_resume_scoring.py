@@ -36,17 +36,17 @@ def test_every_lost_point_is_explained():
 
 
 def test_skills_are_matched_as_whole_words():
-    assert extract_skills_simple(FALSE_POSITIVE_TEXT) == ['communication']
-    assert 'r' in extract_skills_simple('Skills: Python, R, SQL')
-    assert 'go' in extract_skills_simple('Built services in Go and Golang')
-    assert 'c++' in extract_skills_simple('Languages: C++, Java')
-    assert 'node.js' in extract_skills_simple('Backend in NodeJS')
+    assert extract_skills_simple(FALSE_POSITIVE_TEXT) == ['Communication']
+    assert 'R' in extract_skills_simple('Skills: Python, R, SQL')
+    assert 'Go' in extract_skills_simple('Built services in Go and Golang')
+    assert 'C++' in extract_skills_simple('Languages: C++, Java')
+    assert 'Node.js' in extract_skills_simple('Backend in NodeJS')
 
 
 def test_letter_spaced_headings_do_not_create_fake_skills():
     text = 'E X P E R I E N C E\nC E R T I F I C A T I O N S\nCopywriter for brands'
     result = analyze_text(text)
-    assert 'r' not in result['skills']
+    assert 'R' not in result['skills']
     assert 'experience' in result['ats_analysis']['found_sections']
 
 
@@ -81,7 +81,7 @@ def test_indian_resume_conventions():
 
     result = analyze_text(INDIAN_ACCOUNTANT)
     skills = set(result['skills'])
-    assert {'tally', 'gst', 'tds', 'bank reconciliation', 'mis', 'excel'} <= skills
+    assert {'Tally', 'GST', 'TDS', 'Bank reconciliation', 'MIS', 'Excel'} <= skills
     ats = result['ats_analysis']
     contact = next(p for p in ats['breakdown'] if p['key'] == 'contact')
     assert contact['score'] == 10  # +91 number with dashes is recognised
@@ -96,4 +96,4 @@ def test_indian_resume_conventions():
 
 def test_short_acronyms_do_not_match_ordinary_words():
     skills = extract_skills_simple('I sap energy, lean on my team and miss deadlines rarely. Ragged edges.')
-    assert not {'sap', 'lean', 'mis', 'rag'} & set(skills)
+    assert not {'SAP', 'Lean', 'MIS', 'RAG'} & set(skills)

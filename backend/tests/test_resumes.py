@@ -144,8 +144,8 @@ def test_job_description_is_optional_and_adds_a_match_score(client, user_session
     matched = client.post(f'/resumes/{resume.id}/analyze', headers=user_session, json={'jd_text': jd}).get_json()
     m = matched['jd_match']
     assert m['score'] >= 70 and m['job_title'] == 'Senior Data Scientist'
-    assert {'python', 'sql', 'scikit-learn', 'aws'} <= set(m['must_have']['matched'])
-    assert 'kubernetes' in m['nice_to_have']['matched'] and 'airflow' in m['nice_to_have']['missing']
+    assert {'Python', 'SQL', 'scikit-learn', 'AWS'} <= set(m['must_have']['matched'])
+    assert 'Kubernetes' in m['nice_to_have']['matched'] and 'Apache Airflow' in m['nice_to_have']['missing']
     assert m['experience']['required']['min'] == 5
     assert matched['overall_score'] == round(0.4 * matched['ats_analysis']['score'] + 0.6 * m['score'], 1)
 

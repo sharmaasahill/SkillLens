@@ -20,6 +20,8 @@ from datetime import datetime
 
 import PyPDF2
 
+from . import skills_taxonomy as taxonomy
+
 try:
     import pdfplumber
     PDFPLUMBER_AVAILABLE = True
@@ -32,59 +34,8 @@ logger = logging.getLogger(__name__)
 # Vocabulary
 # ---------------------------------------------------------------------------
 
-SKILLS = [
-    # Programming languages
-    "python", "java", "javascript", "typescript", "c++", "c#", "go", "ruby", "php", "swift", "kotlin", "r", "sql",
-    "bash", "rust", "scala", "perl", "matlab", "julia",
-    # Web development
-    "react", "angular", "vue", "next.js", "node.js", "express", "django", "flask", "spring", "fastapi", "laravel",
-    "asp.net", "graphql", "rest api", "html", "css", "sass", "bootstrap", "tailwind", "jquery",
-    # Data science and ML
-    "tensorflow", "pytorch", "scikit-learn", "keras", "xgboost", "pandas", "numpy", "matplotlib", "seaborn", "plotly",
-    "jupyter", "spark", "hadoop", "hive", "pyspark", "scipy", "statsmodels",
-    # Cloud and DevOps
-    "aws", "azure", "gcp", "docker", "kubernetes", "terraform", "jenkins", "gitlab ci", "github actions", "git",
-    "linux", "ansible", "puppet", "chef", "prometheus", "grafana", "elk stack",
-    # Databases
-    "mongodb", "mysql", "postgresql", "sqlite", "redis", "cassandra", "elasticsearch", "neo4j", "dynamodb", "oracle",
-    "sql server",
-    # AI and ML specialised
-    "nlp", "computer vision", "deep learning", "llm", "bert", "gpt", "huggingface", "mlops", "feature engineering",
-    "reinforcement learning", "transfer learning", "gan", "cnn", "rnn", "lstm",
-    # Business intelligence
-    "power bi", "tableau", "looker", "qlik", "excel", "bigquery", "snowflake", "redshift", "databricks", "alteryx", "sas",
-    # Soft skills
-    "leadership", "communication", "problem solving", "teamwork", "critical thinking", "agile", "scrum",
-    "collaboration", "project management", "time management", "adaptability", "creativity",
-    # Security
-    "cybersecurity", "penetration testing", "security analysis", "network security", "cryptography", "siem", "soc",
-    "vulnerability assessment",
-    # Mobile
-    "android", "ios", "react native", "flutter", "xamarin", "mobile app development",
-    # Testing
-    "unit testing", "integration testing", "end-to-end testing", "selenium", "jest", "pytest", "junit", "cypress",
-    "test automation",
-    # Data and marketing
-    "seo", "sem", "analytics", "data analysis", "data visualization", "data reporting", "data modeling",
-    "data warehousing", "data integration", "data cleansing", "data transformation", "data governance",
-    "digital marketing", "google ads", "meta ads", "social media marketing", "content writing", "email marketing",
-    # Generative AI
-    "generative ai", "langchain", "rag", "prompt engineering", "vector databases", "openai api",
-    # Enterprise and tools common in Indian job postings
-    "sap", "sap fico", "sap mm", "sap sd", "sap abap", "sap hana", "salesforce", "servicenow", "zoho", "jira",
-    "confluence", "figma", "adobe photoshop", "adobe illustrator", "canva", "ms office", "vlookup", "pivot tables",
-    "spring boot", "microservices", "hibernate", ".net", "asp.net", "kafka", "airflow",
-    # Finance and accounting (India)
-    "tally", "gst", "tds", "income tax", "bank reconciliation", "accounts payable", "accounts receivable",
-    "payroll", "mis", "financial analysis", "budgeting", "auditing", "ifrs", "ind as",
-    # Sales, HR and operations
-    "b2b sales", "b2c sales", "lead generation", "crm", "channel sales", "key account management", "telecalling",
-    "customer service", "recruitment", "talent acquisition", "hr operations", "onboarding", "supply chain",
-    "procurement", "vendor management", "inventory management", "six sigma", "lean",
-    # Engineering and manufacturing
-    "autocad", "solidworks", "catia", "revit", "staad pro", "plc", "scada", "embedded c", "vlsi", "verilog",
-    "quality control", "ansys",
-]
+# Skills come from the taxonomy in skills_taxonomy.py (display names, categories and spellings).
+# The keywords below feed the separate "industry keywords" half of the skills score.
 
 INDUSTRY_KEYWORDS = [
     # Finance, sales, HR and operations, so non-tech resumes are scored fairly
@@ -103,56 +54,26 @@ INDUSTRY_KEYWORDS = [
     'infrastructure as code', 'cloud architecture', 'serverless',
 ]
 
-# Other ways people write the same skill
+# Other ways people write the same keyword
 ALIASES = {
-    'node.js': ['nodejs', 'node js'],
-    'next.js': ['nextjs'],
-    'react': ['react.js', 'reactjs'],
-    'vue': ['vue.js', 'vuejs'],
     'scikit-learn': ['sklearn', 'scikit learn'],
-    'postgresql': ['postgres'],
     'kubernetes': ['k8s'],
     'machine learning': ['ml engineering'],
     'ci/cd': ['ci cd', 'continuous integration'],
     'a/b testing': ['ab testing', 'a b testing'],
 }
 
-# Short or everyday words that only count as a skill when written the way the tool is named
+# Short or everyday words that only count as a keyword when written the way the term is used
 CASE_SENSITIVE = {
-    'r': r'(?<![A-Za-z0-9])R(?![A-Za-z0-9&\'.\-])',
-    'go': r'(?<![A-Za-z0-9])(?:Go(?![\-a-z])|Golang|golang)(?![A-Za-z0-9])',
-    'spring': r'\bSpring(?:\s?Boot)?\b',
-    'excel': r'\b(?:MS\s)?Excel\b',
-    'express': r'\bExpress(?:\.js)?\b',
-    'oracle': r'\bOracle\b',
-    'gan': r'\bGANs?\b',
-    'soc': r'\bSOC\b',
-    'sas': r'\bSAS\b',
-    'hive': r'\bHive\b',
-    'jest': r'\bJest\b',
-    'bert': r'\bBERT\b',
-    'chef': r'\bChef\b',
-    'puppet': r'\bPuppet\b',
-    'swift': r'\bSwift\b',
-    'rust': r'\bRust\b',
-    'julia': r'\bJulia\b',
-    'looker': r'\bLooker\b',
-    'flutter': r'\bFlutter\b',
     'rest': r'\bREST(?:ful)?\b',
     'api': r'\bAPIs?\b',
     'logging': r'\blogging\b',
     'monitoring': r'\bmonitoring\b',
-    # Acronyms that are also ordinary words or word fragments
-    'sap': r'\bSAP\b',
     'mis': r'\bMIS\b',
-    'rag': r'\bRAG\b',
-    'lean': r'\bLean\b',
-    'plc': r'\bPLC\b',
     'gst': r'\bGST\b',
     'tds': r'\bTDS\b',
     'crm': r'\bCRM\b',
     'audit': r'(?i)\baudit(?:s|ing|ed)?\b',
-    'ind as': r'\bInd[ -]?AS\b',
 }
 
 
@@ -178,7 +99,6 @@ def _compile_terms(terms):
     return compiled
 
 
-SKILL_PATTERNS = _compile_terms(SKILLS)
 KEYWORD_PATTERNS = _compile_terms(INDUSTRY_KEYWORDS)
 
 STRONG_VERBS = [
@@ -322,9 +242,227 @@ def _match_terms(text, patterns):
     return [term for term, pattern in patterns if pattern.search(text)]
 
 
+# ----- Skills -----
+#
+# Two passes over the resume:
+#  1. Running text: every spelling of every known skill, whole words only. When spellings overlap
+#     the longest wins, so "Spring Boot" is not also counted as "Spring", nor "React Native" as "React".
+#  2. Skill lists ("Languages: Python, Java", "Python, AWS (Lambda, S3, EC2)"): each item is looked up
+#     on its own, with the list's label as context ("Lambda" under AWS is AWS Lambda). Items the
+#     taxonomy does not know are kept as written when the line is clearly a skills list.
+
+_BULLET_RE = re.compile(r'^[\s\u2022\u25cf\u25aa\u25e6\u25a0\u25a1\u27a2\u27a4\u25ba\u2023\u2043*\-\u2013\u00b7]+')
+_LABEL_RE = re.compile(r'^(?P<label>[A-Za-z][A-Za-z0-9 &/+.()\'\-]{0,38}?)\s*(?::|\s[\u2013\u2014-]\s)\s*(?P<items>\S.*)$')
+_LIST_SEPARATORS = ',;|\u2022\u00b7'
+_AND_RE = re.compile(r'\s+(?:and|&)\s+', re.IGNORECASE)
+_DATE_RE = re.compile(r'(?i)\b(?:19|20)\d{2}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d')
+_NOT_A_SKILL = set('''
+and or etc others other more many various basic basics beginner intermediate advanced expert proficient familiar
+knowledge working good strong excellent fundamentals concepts skills skill tools frameworks libraries languages
+experience years year present current using with including include like such as the a an of in on for to
+'''.split()) | {'working knowledge', 'hands on', 'many more', 'and more', 'and others', 'etc.'}
+
+# Labels that introduce a skills list, and the category to file unfamiliar items under
+_LABEL_CATEGORIES = [
+    (r'spoken|human language', 'Spoken languages'),
+    (r'language', 'Programming languages'),
+    (r'mobile|android|ios', 'Mobile'),
+    (r'front|ui\b|web', 'Frontend'),
+    (r'back|server|framework|librar|runtime', 'Backend'),
+    (r'database|\bdbs?\b|storage|orm|persistence', 'Databases'),
+    (r'cloud|aws|azure|gcp|amazon|google', 'Cloud'),
+    (r'devops|build|delivery|deploy|infra|ci\b|cd\b|container|version|operating|\bos\b|platform', 'DevOps & infrastructure'),
+    (r'test|qa\b|quality', 'Testing & QA'),
+    (r'api|security|auth', 'APIs & security'),
+    (r'\bai\b|\bml\b|machine|deep|llm|gen ?ai|nlp|vision|intelligence', 'AI & machine learning'),
+    (r'data|analytic|\bbi\b|visuali|report', 'Data & analytics'),
+    (r'design|ux|creative', 'Design'),
+    (r'erp|crm|office|software|productivity', 'Business software'),
+    (r'account|finance|tax', 'Finance & accounting'),
+    (r'sales|marketing', 'Sales & marketing'),
+    (r'soft|interpersonal|personal skills', 'Soft skills'),
+    (r'skill|tech|tool|stack|competenc|expertise|proficienc|other|misc|additional|core|area|concept|method|practice|integration', 'Other'),
+]
+_LABEL_CATEGORIES = [(re.compile(p, re.IGNORECASE), c) for p, c in _LABEL_CATEGORIES]
+_NOT_SKILL_LABEL = re.compile(
+    r'(?i)\b(?:email|e-mail|phone|mobile no|contact|address|linkedin|github|portfolio|website|date|dob|birth|'
+    r'cgpa|gpa|percentage|marks|location|nationality|gender|interests?|hobbies|references?|declaration|'
+    r'duration|period|role|designation|company|client|team size|objective)\b')
+_CLOUD_CONTEXT = {'aws': ['aws', 'amazon'], 'amazon': ['amazon', 'aws'], 'azure': ['azure', 'microsoft azure'],
+                  'gcp': ['google cloud', 'gcp', 'google'], 'google': ['google', 'google cloud']}
+
+
+def _text_hits(text):
+    """Known skills in running text: {key: [mentions, first position]}, longest spelling wins on overlap."""
+    hits = {}
+    for start, _end, key in taxonomy.scan(text):
+        hits.setdefault(key, [0, start])[0] += 1
+    return hits
+
+
+def _split_items(text):
+    """Split a list on commas, semicolons, pipes and bullets, but not inside brackets."""
+    items, depth, buf = [], 0, []
+    for ch in text:
+        if ch in '([{':
+            depth += 1
+        elif ch in ')]}':
+            depth = max(0, depth - 1)
+        if depth == 0 and ch in _LIST_SEPARATORS:
+            items.append(''.join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+    items.append(''.join(buf))
+    return [i.strip(' .\t') for i in items if i.strip(' .\t')]
+
+
+def _contexts(parent):
+    """Prefixes to try for items of a list ("Lambda" under "AWS" -> "aws lambda", "amazon lambda")."""
+    if not parent:
+        return []
+    words = [w for w in taxonomy.norm(parent).split() if len(w) > 1 and w not in _NOT_A_SKILL]
+    out = [taxonomy.norm(parent)] + words
+    for w in words:
+        out += _CLOUD_CONTEXT.get(w, [])
+    return list(dict.fromkeys(out))
+
+
+def _plausible_skill(item):
+    """Whether an unfamiliar list item looks like a skill name rather than a phrase, date or contact detail."""
+    low = item.lower()
+    words = item.split()
+    return (2 <= len(item) <= 40 and len(words) <= 4 and re.search(r'[A-Za-z]', item)
+            and (item[0].isalnum() or item[0] == '.') and low not in _NOT_A_SKILL
+            and not any(w.lower() in ('and', 'with', 'using', 'for', 'of', 'in', 'to') for w in words[1:-1])
+            and not re.search(r'@|https?:|www\.|\.com\b', low) and not _DATE_RE.search(item)
+            and sum(c.isdigit() for c in item) <= len(item) / 2)
+
+
+def _classify(item, contexts):
+    """('known', [keys]) for recognised skills, ('unknown', item) for a plausible new skill, or None."""
+    item = re.sub(r'^(?:and|&)\s+', '', item.strip(), flags=re.IGNORECASE).strip(' .')
+    if not item:
+        return None
+    key = taxonomy.key_for(item)
+    if key is None:
+        for prefix in contexts:
+            key = taxonomy.key_for(f'{prefix} {item}')
+            if key:
+                break
+    if key:
+        return 'known', [key]
+    # "Python and Java", "OpenAPI/Swagger": try the parts
+    for splitter in (_AND_RE, re.compile(r'\s*/\s*')):
+        parts = [p for p in splitter.split(item) if p.strip()]
+        if len(parts) > 1:
+            results = [_classify(p, contexts) for p in parts]
+            if all(results):
+                keys = [k for kind, val in results if kind == 'known' for k in val]
+                unknown = [val for kind, val in results if kind == 'unknown']
+                if keys and not unknown:
+                    return 'known', keys
+                if keys:
+                    return 'mixed', (keys, unknown)
+    inner = list(_text_hits(item))
+    if inner:
+        return 'known', inner
+    return ('unknown', item) if _plausible_skill(item) else None
+
+
+def _list_line_skills(line):
+    """Skills from one line if it is a skills list. Returns [(key_or_None, name, category)] or []."""
+    line = _BULLET_RE.sub('', line).strip()
+    if len(line) < 3:
+        return []
+    label, body = None, line
+    m = _LABEL_RE.match(line)
+    if m and len(m.group('label').split()) <= 4:
+        label, body = m.group('label').strip(), m.group('items')
+        if _NOT_SKILL_LABEL.search(label):
+            return []
+    leaves = []  # (text, contexts, parent text)
+    for item in _split_items(body):
+        pm = re.match(r'^(.*?)\s*\((.+)\)\s*$', item)
+        if pm and pm.group(1).strip():
+            parent = pm.group(1).strip()
+            leaves.append((parent, _contexts(label), None))
+            for child in _split_items(pm.group(2)):
+                leaves.append((child, _contexts(parent) + _contexts(label), parent))
+        else:
+            leaves.append((re.sub(r'\s*\([^)]*\)\s*$', '', item), _contexts(label), None))
+    if not leaves or (label is None and len(leaves) < 3):
+        return []
+
+    classified = [(_classify(text, ctx), parent) for text, ctx, parent in leaves]
+    known = sum(1 for c, _ in classified if c and c[0] in ('known', 'mixed'))
+    label_category = next((c for p, c in _LABEL_CATEGORIES if label and p.search(label)), None)
+    if label is not None:
+        is_list = label_category is not None or (known >= 2 and known >= 0.5 * len(leaves))
+    else:
+        # A bare line of items ("Next.js, React, TypeScript, Prisma") counts when most are known skills
+        is_list = known >= 2 and known >= 0.6 * len(leaves) and all(len(t.split()) <= 4 for t, _, _ in leaves)
+    if not is_list:
+        return []
+
+    out = []
+    for c, parent in classified:
+        if not c:
+            continue
+        kind, value = c
+        keys, unknown = (value, []) if kind == 'known' else ([], [value]) if kind == 'unknown' else value
+        out += [(k, taxonomy.SKILLS[k].name, taxonomy.SKILLS[k].category) for k in keys]
+        parent_category = taxonomy.category_of(parent) if parent else None
+        out += [(None, u, parent_category or label_category or 'Other') for u in unknown]
+    return out
+
+
+def extract_skills(text):
+    """Every skill in a resume, most mentioned first: [{'name', 'key', 'category', 'mentions'}]."""
+    hits = _text_hits(text)
+    extra = {}  # skills only visible through lists: key -> [name, category, mentions, first position]
+    offset = 0
+    for line in text.split('\n'):
+        if ',' in line or ';' in line or '|' in line or ':' in line or '\u2022' in line:
+            for key, name, category in _list_line_skills(line):
+                k = key or taxonomy.norm(name)
+                if key and key in hits:
+                    continue  # already counted from the running text
+                entry = extra.setdefault(k, [name, category, 0, offset])
+                entry[2] += 1
+        offset += len(line) + 1
+
+    skills = []
+    for key, (mentions, first) in hits.items():
+        s = taxonomy.SKILLS[key]
+        skills.append({'name': s.name, 'key': key, 'category': s.category, 'mentions': mentions, 'first': first})
+    for k, (name, category, mentions, first) in extra.items():
+        if k in taxonomy.SKILLS:
+            name, category = taxonomy.SKILLS[k].name, taxonomy.SKILLS[k].category
+        skills.append({'name': name, 'key': k, 'category': category, 'mentions': mentions, 'first': first})
+    skills.sort(key=lambda s: (-s['mentions'], s['first']))
+    for s in skills:
+        del s['first']
+    return skills
+
+
+def group_skills(skills):
+    """Skills grouped by category, in taxonomy order: [{'category', 'skills': [{'name', 'mentions'}]}]."""
+    groups = {}
+    for s in skills:
+        groups.setdefault(s['category'], []).append({'name': s['name'], 'mentions': s['mentions']})
+    order = {c: i for i, c in enumerate(taxonomy.CATEGORIES)}
+    return [{'category': c, 'skills': items} for c, items in sorted(groups.items(), key=lambda g: order.get(g[0], len(order)))]
+
+
+def find_skill_keys(text):
+    """Keys of known skills in running text, in order of first mention (used for job descriptions)."""
+    return [key for key, _ in sorted(_text_hits(text).items(), key=lambda item: item[1][1])]
+
+
 def extract_skills_simple(text):
-    """Skills from the known vocabulary, matched as whole words."""
-    return _match_terms(text, SKILL_PATTERNS)
+    """Display names of every skill in the text, most mentioned first."""
+    return [s['name'] for s in extract_skills(text)]
 
 
 def analyze_action_verbs(text):
@@ -473,8 +611,14 @@ def analyze_text(text):
     if not text or not text.strip():
         raise ValueError('No text could be extracted from the resume')
     text = _normalise(text)
-    skills = extract_skills_simple(text)
-    return {'skills': skills, 'text': text, 'ats_analysis': check_ats_compatibility(text, skills)}
+    found = extract_skills(text)
+    skills = [s['name'] for s in found]
+    return {
+        'skills': skills,
+        'skill_groups': group_skills(found),
+        'text': text,
+        'ats_analysis': check_ats_compatibility(text, skills),
+    }
 
 
 def extract_skills_from_resume(file_path):

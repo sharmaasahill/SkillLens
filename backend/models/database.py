@@ -2,6 +2,8 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import json
 
+from .skills_taxonomy import display_name
+
 # Create the SQLAlchemy instance
 db = SQLAlchemy()
 
@@ -89,13 +91,14 @@ class Resume(db.Model):
     is_primary = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
     def get_skills(self):
-        """Convert JSON string to list of skills"""
-        if self.skills:
-            try:
-                return json.loads(self.skills)
-            except:
-                return []
-        return []
+        """Stored skills under their display names. Older rows hold lower-case names ("postgresql")."""
+        if not self.skills:
+            return []
+        try:
+            stored = json.loads(self.skills)
+        except (TypeError, ValueError):
+            return []
+        return list(dict.fromkeys(display_name(s) for s in stored if isinstance(s, str)))
 
     def set_skills(self, skills_list):
         """Convert list of skills to JSON string"""

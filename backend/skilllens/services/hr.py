@@ -9,9 +9,10 @@ from collections import Counter
 
 from datetime import datetime
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, func, literal, or_, select
 
 from models.database import CandidateReview, ProfileHistory, Resume, User
+from models.skills_taxonomy import display_name, skill_key
 
 from ..errors import ApiError
 from ..extensions import db
@@ -23,6 +24,20 @@ TOP_SKILLS_PER_USER = 10
 def _ci_contains(column, text):
     """Case-insensitive substring match with LIKE wildcards escaped."""
     return func.lower(column).contains(text.lower(), autoescape=True)
+
+
+def _has_skill(skill):
+    """Candidates with exactly this skill on a resume or in their skills summary ("Java" is not "JavaScript")."""
+    skill = skill.strip()
+    # Resume.skills is a JSON list; older rows store the lower-case key ("rest api") instead of "REST APIs"
+    names = {skill.lower(), display_name(skill).lower(), skill_key(skill)}
+    on_resume = select(Resume.id).where(
+        Resume.user_id == User.id,
+        or_(*(func.lower(Resume.skills).contains(json.dumps(n), autoescape=True) for n in names)),
+    ).exists()
+    summary = literal(',') + func.replace(func.lower(func.coalesce(User.skills_summary, '')), ', ', ',') + literal(',')
+    in_summary = or_(*(summary.contains(f',{n},', autoescape=True) for n in names))
+    return or_(on_resume, in_summary)
 
 
 def _resume_aggregates():
@@ -85,7 +100,7 @@ def search_candidates(q):
     if q.company:
         stmt = stmt.where(_ci_contains(User.current_company, q.company))
     if q.skills:
-        stmt = stmt.where(_ci_contains(User.skills_summary, q.skills))
+        stmt = stmt.where(_has_skill(q.skills))
     if q.search:
         stmt = stmt.where(or_(
             _ci_contains(User.full_name, q.search),
@@ -124,7 +139,7 @@ def search_candidates(q):
             select(Resume.user_id, Resume.skills).where(Resume.user_id.in_(user_ids))
         ):
             try:
-                skills_by_user[user_id].update(set(json.loads(skills_json or '[]')))
+                skills_by_user[user_id].update({display_name(s) for s in json.loads(skills_json or '[]')})
             except (TypeError, ValueError):
                 continue
 
@@ -243,7 +258,7 @@ def top_skills(limit=50):
     counts = Counter()
     for skills_json in db.session.scalars(select(Resume.skills).where(Resume.skills.is_not(None))):
         try:
-            counts.update(json.loads(skills_json))
+            counts.update({display_name(s) for s in json.loads(skills_json)})
         except (TypeError, ValueError):
             continue
     return [skill for skill, _ in counts.most_common(limit)]

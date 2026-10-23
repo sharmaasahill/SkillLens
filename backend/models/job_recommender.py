@@ -8,13 +8,14 @@ with a sparse jobs-by-skills matrix, so a request takes a few milliseconds.
 import logging
 import re
 from collections import Counter
+from functools import lru_cache
 from typing import Any, Dict, List
 from urllib.parse import quote
 
 import numpy as np
 import scipy.sparse as sp
 
-from . import india_data
+from . import india_data, skills_taxonomy
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +60,17 @@ _CATEGORY_RE = [(name, re.compile(pattern)) for name, pattern in CATEGORY_RULES]
 MAX_PER_COMPANY = 2
 
 
+@lru_cache(maxsize=131072)
 def canonical_skill(skill: str) -> str:
+    """One key per skill however it is written, shared with the resume analyzer's taxonomy."""
     s = re.sub(r'\s+', ' ', str(skill).lower()).strip(' .,;')
+    s = skills_taxonomy.key_for(s) or s
     return SKILL_ALIASES.get(s, s)
+
+
+def skill_label(tag: str) -> str:
+    """How a posting's skill tag is shown ("spring boot" -> "Spring Boot")."""
+    return skills_taxonomy.display_name(tag, fallback='sentence')
 
 
 def categorize(title_norm: str) -> str:
@@ -202,8 +211,9 @@ class JobRecommender:
             if tag and key not in seen:
                 seen.add(key)
                 tags.append(tag)
-        matched = [t for t in tags if canonical_skill(t) in user_set]
-        missing = [t for t in tags if canonical_skill(t) not in user_set][:5]
+        matched = [skill_label(t) for t in tags if canonical_skill(t) in user_set]
+        missing = [skill_label(t) for t in tags if canonical_skill(t) not in user_set][:5]
+        tags = [skill_label(t) for t in tags]
         salary = None
         if row['salary_min'] >= india_data.MIN_SALARY and row['salary_max'] > 0:
             salary = {'min': int(row['salary_min']), 'max': int(row['salary_max']), 'currency': 'INR', 'period': 'year'}
@@ -299,10 +309,10 @@ class JobRecommender:
                 'avg_experience_level': f'{median_exp:g}+ yrs' if median_exp else 'Fresher',
             }
         user_set = {canonical_skill(s) for s in user_skills}
-        gaps = [s for s in self._related_skills(user_set) if s not in user_set][:5]
+        gaps = [skill_label(s) for s in self._related_skills(user_set) if s not in user_set][:5]
         return {
             'user_skills_demand': demand,
-            'trending_skills': self._trending,
+            'trending_skills': [skill_label(s) for s in self._trending],
             'total_jobs_analyzed': total,
             'skill_gap_analysis': gaps,
             'source': india_data.SOURCE,

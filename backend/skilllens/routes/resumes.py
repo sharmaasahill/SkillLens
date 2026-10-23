@@ -19,6 +19,7 @@ def _analysis_response(resume, analysis, message):
         'id': resume.id,
         'is_primary': bool(resume.is_primary),
         'skills': analysis.get('skills'),  # original format (list or categorized dict)
+        'skill_groups': analysis.get('skill_groups'),
         'text': analysis.get('text', ''),
         'ats_analysis': analysis.get('ats_analysis', {}),
         'jd_match': analysis.get('jd_match'),
