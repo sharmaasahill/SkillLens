@@ -7,6 +7,11 @@ from dotenv import load_dotenv
 # Load backend/.env before the config module reads environment variables
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
 
+# scikit-learn's helper library (joblib/loky) tries to count physical CPU cores by running a Windows
+# tool (wmic) that newer Windows versions no longer have, and prints a long warning when that fails.
+# Giving it a core limit up front skips that lookup. A value in backend/.env still wins.
+os.environ.setdefault('LOKY_MAX_CPU_COUNT', str(max(1, (os.cpu_count() or 2) - 1)))
+
 from flask import Flask  # noqa: E402
 
 from .config import Config  # noqa: E402
