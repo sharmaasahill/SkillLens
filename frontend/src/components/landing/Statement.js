@@ -29,7 +29,8 @@ function Statement() {
   };
 
   return (
-    <section className="px-5 py-[18vh]" aria-label="About SkillLens">
+    // Phones get fixed, smaller spacing; screen-height spacing left large empty bands on a tall phone
+    <section className="px-5 pb-8 pt-16 md:py-[18vh]" aria-label="About SkillLens">
       <p
         ref={ref}
         className="mx-auto max-w-[984px] font-display text-[32px] font-semibold leading-[1.18] tracking-tight text-ink md:text-[56px] md:leading-[1.1]"

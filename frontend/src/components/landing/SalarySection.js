@@ -1,6 +1,6 @@
-import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
-import { CountUp, EASE, Reveal, money } from './motion';
+import React, { useRef } from 'react';
+import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
+import { CountUp, Reveal, money } from './motion';
 
 // Real outputs for: Data Scientist, 5 years, Bengaluru, Python + SQL + Machine Learning
 const BASIC = 1823000;
@@ -12,26 +12,27 @@ const MEDIAN_ERROR = 22.5;
 const TRAINED_ON = 31566;
 
 function ModelBar({ label, detail, value, tone, delay }) {
+  const ref = useRef(null);
   const reduce = useReducedMotion();
+  // The bar fills as it comes up the screen and empties again when you scroll back up
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.95', 'start 0.6'] });
+  const scaleX = useTransform(scrollYProgress, [Math.min(0.4, delay * 2), 1], [0, 1]);
   return (
-    <div>
+    <div ref={ref}>
       <div className="flex items-baseline justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="text-[17px] font-semibold text-ink">{label}</p>
           <p className="text-[14px] text-graphite">{detail}</p>
         </div>
-        <p className="font-display text-[28px] font-semibold tracking-tight text-ink md:text-[32px]">
+        {/* Never split "₹15.9 LPA" over two lines */}
+        <p className="shrink-0 whitespace-nowrap font-display text-[26px] font-semibold tracking-tight text-ink md:text-[32px]">
           <CountUp value={value} format={money} />
         </p>
       </div>
       <div className="mt-4 h-[10px] overflow-hidden rounded-full bg-[#e8e8ed]">
         <motion.div
           className={`h-full origin-left rounded-full ${tone}`}
-          style={{ width: `${(value / SCALE_MAX) * 100}%` }}
-          initial={reduce ? false : { scaleX: 0 }}
-          whileInView={{ scaleX: 1 }}
-          viewport={{ once: true, amount: 0.8 }}
-          transition={{ duration: 1.4, ease: EASE, delay }}
+          style={{ width: `${(value / SCALE_MAX) * 100}%`, scaleX: reduce ? 1 : scaleX }}
         />
       </div>
     </div>
@@ -42,7 +43,9 @@ function SalarySection() {
   const difference = ((ADVANCED - BASIC) / BASIC) * 100;
 
   return (
-    <section id="salary" className="scroll-mt-12 px-5 py-[14vh]" aria-labelledby="salary-title">
+    // On phones and tablets the resume card that follows sits as close to these cards as they sit
+    // to each other (20px), so the three read as one stack
+    <section id="salary" className="scroll-mt-12 px-5 pb-5 pt-12 md:pt-[14vh] lg:pb-[14vh]" aria-labelledby="salary-title">
       <div className="mx-auto max-w-[984px]">
         <Reveal>
           <p className="text-[17px] font-semibold text-green-ink md:text-[21px]">Salary</p>
@@ -60,7 +63,7 @@ function SalarySection() {
         </Reveal>
 
         <div className="mt-16 grid gap-5 md:grid-cols-[1.25fr_1fr]">
-          <Reveal className="rounded-[28px] bg-mist p-8 md:p-12" amount={0.3}>
+          <Reveal className="rounded-[28px] bg-mist p-8 md:p-12">
             <p className="text-[14px] font-medium uppercase tracking-[0.08em] text-silver">Example estimate</p>
             <p className="mt-1 text-[17px] text-graphite">Data Scientist, 5 years, Bengaluru</p>
             <div className="mt-10 space-y-9">
@@ -73,7 +76,7 @@ function SalarySection() {
             </p>
           </Reveal>
 
-          <Reveal className="relative flex flex-col justify-between overflow-hidden rounded-[28px] bg-green-soft p-8 md:p-12" delay={0.1} amount={0.3}>
+          <Reveal className="relative flex flex-col justify-between overflow-hidden rounded-[28px] bg-green-soft p-8 md:p-12" delay={0.1}>
             <div>
               <p className="text-[14px] font-medium uppercase tracking-[0.08em] text-green-ink">Likely range</p>
               <p className="mt-4 font-display text-[40px] font-semibold leading-none tracking-tight text-ink md:text-[48px]">

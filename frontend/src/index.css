@@ -1,3 +1,21 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+  /*
+   * A pinned scene shorter than the screen (used on phones and tablets). It stays centred in the
+   * space under the 3rem navigation bar while you scroll through its section. Because it is only
+   * as tall as its content, the next section follows straight after it, with no empty screen-height
+   * gap. Set --scene-h to the scene's height in px.
+   */
+  .sticky-center {
+    top: max(3.5rem, calc(3rem + (100vh - 3rem - var(--scene-h, 0px)) / 2));
+  }
+  @supports (height: 100svh) {
+    /* svh ignores the phone browser's sliding address bar, so the scene does not jump */
+    .sticky-center {
+      top: max(3.5rem, calc(3rem + (100svh - 3rem - var(--scene-h, 0px)) / 2));
+    }
+  }
+}

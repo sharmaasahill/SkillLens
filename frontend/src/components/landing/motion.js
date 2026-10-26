@@ -1,67 +1,74 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { animate, motion, useInView, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 
 // Apple's product pages use this curve for almost every transition
 export const EASE = [0.28, 0.11, 0.32, 1];
 
-/** Fades and lifts its children into place the first time they scroll into view. */
-export function Reveal({ children, delay = 0, y = 32, as = 'div', className = '', amount = 0.4 }) {
+/*
+ * Every landing animation is tied to the scroll position, not to a clock: scroll down and it
+ * moves forward, stop and it stops, scroll up and it plays backwards. This works the same with a
+ * mouse wheel, a trackpad or a finger.
+ */
+
+/**
+ * Fades and lifts its children into place as they come up the screen. `delay` starts it a little
+ * later in the scroll, so neighbours arrive one after another.
+ */
+export function Reveal({ children, delay = 0, y = 32, as = 'div', className = '' }) {
+  const ref = useRef(null);
   const reduce = useReducedMotion();
   const Component = motion[as];
+  // From the moment its top enters the screen until it is about a quarter of the way up
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.98', 'start 0.72'] });
+  const start = Math.min(0.5, delay * 2);
+  const opacity = useTransform(scrollYProgress, [start, 1], [0, 1]);
+  const lift = useTransform(scrollYProgress, [start, 1], [y, 0]);
   return (
-    <Component
-      className={className}
-      initial={reduce ? false : { opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount }}
-      transition={{ duration: 0.9, ease: EASE, delay }}
-    >
+    <Component ref={ref} className={className} style={reduce ? undefined : { opacity, y: lift }}>
       {children}
     </Component>
   );
 }
 
-/** Counts up to `value` once visible. Renders the final value immediately for reduced motion. */
-export function CountUp({ value, duration = 1.6, format = (n) => Math.round(n).toLocaleString('en-IN'), className = '' }) {
+/** Counts from zero up to `value` as it scrolls up the screen, and back down when you scroll up. */
+export function CountUp({ value, format = (n) => Math.round(n).toLocaleString('en-IN'), className = '' }) {
   const ref = useRef(null);
-  const inView = useInView(ref, { once: true, amount: 0.6 });
   const reduce = useReducedMotion();
-  const [display, setDisplay] = useState(reduce ? value : 0);
-
-  useEffect(() => {
-    if (!inView || reduce) {
-      if (reduce) setDisplay(value);
-      return undefined;
-    }
-    const controls = animate(0, value, { duration, ease: EASE, onUpdate: setDisplay });
-    return () => controls.stop();
-  }, [inView, reduce, value, duration]);
-
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.95', 'start 0.55'] });
+  const text = useTransform(scrollYProgress, (p) => format(p * value));
   return (
-    <span ref={ref} className={`tabular-nums ${className}`}>
-      {format(display)}
-    </span>
+    <motion.span ref={ref} className={`tabular-nums ${className}`}>
+      {reduce ? format(value) : text}
+    </motion.span>
   );
 }
+
+function useElementSize(read) {
+  const ref = useRef(null);
+  const [size, setSize] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const measure = () => setSize(read(el));
+    const observer = new ResizeObserver(measure);
+    observer.observe(el, { box: 'border-box' });
+    measure();
+    return () => observer.disconnect();
+  }, [read]);
+  return [ref, size];
+}
+
+const readWidth = (el) => el.offsetWidth;
+const readHeight = (el) => el.offsetHeight;
 
 /**
  * Tracks an element's full width, padding included, for scroll-driven layouts that depend on real sizes.
  * (The content width alone leaves out the padding, so a sliding track stopped short of its last card.)
  */
-export function useElementWidth() {
-  const ref = useRef(null);
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return undefined;
-    const measure = () => setWidth(el.offsetWidth);
-    const observer = new ResizeObserver(measure);
-    observer.observe(el, { box: 'border-box' });
-    measure();
-    return () => observer.disconnect();
-  }, []);
-  return [ref, width];
-}
+export const useElementWidth = () => useElementSize(readWidth);
+
+/** Tracks an element's full height. */
+export const useElementHeight = () => useElementSize(readHeight);
 
 /** True while a CSS media query matches, updating when the window changes size. */
 export function useMediaQuery(query) {
@@ -80,11 +87,10 @@ export function useMediaQuery(query) {
 }
 
 /**
- * Pinned, scroll-driven scenes need a screen that is wide and tall enough to hold the whole scene.
- * On phones and short laptop windows the sections fall back to normal page flow, so nothing is cut
- * off or drawn over the next section.
+ * Large screens (laptops and up) have room for the big pinned scenes: a full-screen stage that
+ * stays put while you scroll through it. Phones and tablets get a version sized to their screen.
  */
-export const useScrollScenes = () => useMediaQuery('(min-width: 768px) and (min-height: 600px)');
+export const useWideScreen = () => useMediaQuery('(min-width: 1024px) and (min-height: 600px)');
 
 /** Annual salary in lakhs per annum: 1586000 -> "₹15.9 LPA". */
 export const money = (n) => `₹${(Number(n) / 100000).toFixed(1)} LPA`;

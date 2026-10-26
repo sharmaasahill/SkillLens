@@ -1,10 +1,14 @@
 # SkillLens
 
-> A full-stack career platform for India: salary estimates in lakhs per annum, ATS resume scoring with an AI coach (Google Gemini), and market fit against 97,000+ Indian job postings from 2025, plus a private admin dashboard.
+> A full-stack career platform for India: salary estimates in lakhs per annum, ATS resume scoring with an AI coach (Google Gemini), market fit against 97,000+ Indian job postings from 2025, live job search across 14 sources, and a private admin dashboard.
+
+**Live site:** https://skilllens-ljqu.onrender.com (free hosting: the first visit after 15 idle minutes takes about a minute to wake up)
 
 ![React](https://img.shields.io/badge/frontend-React-blue?style=flat&logo=react)
 ![Flask](https://img.shields.io/badge/backend-Flask-green?style=flat&logo=flask)
 ![Python](https://img.shields.io/badge/ML-Python-yellow?style=flat&logo=python)
+![PostgreSQL](https://img.shields.io/badge/database-PostgreSQL-336791?style=flat&logo=postgresql)
+![Docker](https://img.shields.io/badge/deploy-Docker-2496ED?style=flat&logo=docker)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ---
@@ -13,10 +17,16 @@
 
 - **Salary Predictor (India)** - Estimates annual CTC in INR from job title, years of experience, city, work mode and skills. Trained on 31,566 salaries disclosed in Naukri.com postings. Shows how much each input moved the estimate.
 - **Advanced estimate** - Blends the linear model with gradient-boosted trees and adds a likely range and a wide range from quantile models, side by side with the quick estimate.
-- **Resume Analyzer** - Extracts skills from PDF resumes with an 870-skill taxonomy (including Indian-market skills such as Tally, GST, SAP), reads Indian degrees and CGPA, calculates an ATS score, and flags personal details recruiters do not need.
+- **Resume Analyzer** - Extracts skills from PDF resumes with an 870-skill taxonomy (including Indian-market skills such as Tally, GST, SAP), reads Indian degrees and CGPA, calculates an ATS score, and flags personal details recruiters do not need. Paste or upload a job description to also get a match score, the must-have skills you are missing and the words to add.
 - **AI coach (optional, Google Gemini)** - What a recruiter takes away in 6 seconds, rewrites of the weakest bullets with [placeholders] instead of invented numbers, likely interview questions, and requirement-by-requirement fit against a job description. Personal details are removed before sending, every answer is checked against the resume (made-up quotes and new numbers are dropped), results are saved so repeats are free, and daily limits protect the free quota. The ATS score never comes from AI.
 - **Market fit** - For a target role, the skills Indian employers ask for (share of hiring companies, from the 2025 postings) and which of them the resume shows.
 - **Recruiter checks** - Repeated opening verbs, skills listed but never shown in a job or project, overlapping roles and gaps, first-person writing. No AI needed.
+- **Live job search** - Fresh openings from job boards (JSearch/Google for Jobs, Jooble, Adzuna, Careerjet, TheirStack), Apify scrapers (Naukri, LinkedIn, Wellfound), 45 company career pages (Greenhouse, Lever, Ashby) and remote boards (Remotive, Himalayas, Remote OK), de-duplicated and ranked against your resume with the skills you have and the ones each job also asks for.
+- **Resume library** - Keep up to 5 resumes and pick a primary one, which drives salary suggestions and job ranking. PDFs are stored in the database, so they survive hosts that wipe the disk on restart.
+- **Professional Profile** - Users maintain a profile (work, education, skills, links) with a profile resume and change history.
+- **Admin Dashboard** - One admin account (set in settings) can search and filter users by role, location, company, experience, skills and score, track them through stages, keep private notes, view analytics, export CSV and download resumes. Regular users never see it, and its code is only downloaded after an admin sign-in.
+- **Secure auth** - One sign-in page for everyone and two roles: users and a single admin. httpOnly cookie sessions with short-lived access tokens, silent refresh, CSRF protection and rate-limited login. Press and hold the eye to see a password; sign-up asks for the password twice and shows live whether they match.
+- **Scroll-driven landing page** - Clean white, Apple-inspired UI built with Tailwind CSS and Framer Motion. Every landing animation follows the scroll: it moves while you scroll, stops when you stop and plays backwards when you scroll up, on laptops, tablets and phones. Fully responsive, and respects the "reduce motion" setting.
 
 ### How the ATS score works
 
@@ -33,10 +43,6 @@ Every resume is scored out of 100 on seven parts, and every lost point comes wit
 | ATS-safe formatting | 10 | No tables, image references, page-number footers or icon glyphs |
 
 After changing the scoring rules, rescore stored resumes with `flask --app app rescore-resumes` (add `--dry-run` to preview).
-- **Professional Profile** - Users maintain a profile (work, education, skills, links) with a profile resume and change history.
-- **Admin Dashboard** - One admin account (set in settings) can search and filter users by role, location, company, experience, skills and score, keep private notes, view analytics, and download resumes. Regular users never see it.
-- **Secure auth** - httpOnly cookie sessions with short-lived access tokens, silent refresh, CSRF protection, rate-limited login, one sign-in page, and two roles: users and a single admin.
-- **Live job search** - Fresh openings from job boards (JSearch/Google for Jobs, Jooble, Adzuna, TheirStack), Apify scrapers (Naukri, LinkedIn, Wellfound), 45 company career pages (Greenhouse, Lever, Ashby) and remote boards (Remotive, Himalayas, Remote OK), de-duplicated and ranked against your resume with the skills you have and the ones each job also asks for.
 
 ### Data and accuracy
 
@@ -72,7 +78,6 @@ The Jobs page searches live openings from up to 14 sources at once and ranks the
 | [Remotive](https://remotive.com), [Himalayas](https://himalayas.app), [Remote OK](https://remoteok.com) | none (Himalayas key optional) | Free | Remote jobs open to India |
 
 Every job links back to its source, as Remotive, Himalayas and Remote OK require. Apify scrapers read LinkedIn, Naukri and Wellfound pages without those sites' permission; use them for your own search and keep the daily caps low.
-- Clean white, Apple-inspired UI with scroll animations, built with Tailwind CSS and Framer Motion. Fully responsive.
 
 ---
 
@@ -81,21 +86,27 @@ Every job links back to its source, as Remotive, Himalayas and Remote OK require
 **Frontend**
 - React 19, React Router
 - Tailwind CSS
-- Framer Motion
+- Framer Motion (scroll-linked animations)
 - Axios
 - Jest + React Testing Library
 
 **Backend**
 - Flask (app factory + blueprints), Flask-JWT-Extended, Flask-SQLAlchemy, Flask-Migrate (Alembic), Flask-Limiter, Flask-CORS
 - Pydantic request validation
-- SQLite
+- SQLite locally, PostgreSQL in production (psycopg 3)
 - PyPDF2 for PDF text extraction
+- Gunicorn
 - pytest
 
 **ML**
 - scikit-learn (Ridge, HistGradientBoostingRegressor with quantile loss, TfidfVectorizer, TruncatedSVD)
 - scipy sparse matrices for market fit, pandas, numpy, joblib
 - Google Gemini over its REST API with schema-checked JSON answers (optional)
+
+**Hosting**
+- Docker (one container serves the API and the React build from the same address)
+- [Render](https://render.com) free web service
+- [Neon](https://neon.tech) free PostgreSQL
 
 ---
 
@@ -121,7 +132,7 @@ flask --app app db upgrade     # create/upgrade the database tables
 python app.py
 ```
 
-Run backend commands from inside the `backend` folder.
+Run backend commands from inside the `backend` folder. Locally everything is saved in SQLite (`backend/instance/salary_predictor.db`); the live site uses its own PostgreSQL database, so local test accounts never reach it.
 
 **Upgrading a database created before migrations existed:** mark it as the baseline once, then upgrade:
 
@@ -143,23 +154,37 @@ cp .env.example .env           # optional: change REACT_APP_API_URL
 npm start
 ```
 
+### Maintenance commands
+
+Run from the `backend` folder:
+
+| Command | What it does |
+| --- | --- |
+| `flask --app app db upgrade` | Create or update the database tables |
+| `flask --app app reset-data` | Delete every account and all user data in the database `DATABASE_URL` points to (asks first; `--yes` skips the question). Paid-API usage counters are kept |
+| `flask --app app rescore-resumes` | Re-score stored resumes after changing the scoring rules (`--dry-run` to preview) |
+| `flask --app app check-job-sources` | Show which job sources are set up (`--paid` also tests keyed sources) |
+| `flask --app app build-india-data` | Rebuild the dataset and retrain the salary model |
+
+To run a command against the live database from your computer, set `DATABASE_URL` for that one command, for example `DATABASE_URL="postgresql://..." flask --app app reset-data`.
+
 ---
 
 ## Running Tests
 
 ```bash
 cd backend
-pytest                         # API, auth, storage, admin queries, salary and job models
+pytest                         # API, auth, admin, storage, salary, resume and job models
 
 cd frontend
-npm test -- --watchAll=false   # API client, auth flow, route guards
+npm test -- --watchAll=false   # API client, sign-in, route guards, formatting
 ```
 
 ---
 
 ## Configuration
 
-All settings come from environment files that are excluded from git. Copy the `.env.example` files and fill in your own values.
+All settings come from environment files that are excluded from git. Copy the `.env.example` files and fill in your own values. On Render, the same variables are set under **Environment**.
 
 **backend/.env**
 
@@ -167,17 +192,19 @@ All settings come from environment files that are excluded from git. Copy the `.
 | --- | --- |
 | `JWT_SECRET_KEY` | Required. Signs login tokens. Generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `JWT_ACCESS_MINUTES`, `JWT_REFRESH_DAYS` | Session lifetime (defaults 15 minutes / 7 days) |
-| `JWT_COOKIE_SECURE`, `JWT_COOKIE_SAMESITE` | Set `true` / `None` when serving over HTTPS on separate domains |
-| `DATABASE_URL` | SQLAlchemy URL, defaults to SQLite in `backend/instance/` |
-| `UPLOAD_FOLDER` | Resume storage folder, defaults to `backend/uploaded_resumes` |
-| `CORS_ORIGINS` | Comma-separated frontend origins allowed to call the API |
+| `JWT_COOKIE_SECURE`, `JWT_COOKIE_SAMESITE` | Set `JWT_COOKIE_SECURE=true` on HTTPS (the live site). Use `JWT_COOKIE_SAMESITE=None` only if the frontend and API are on different domains |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | The one admin account (see Admin Account). Admin sign-in is off until `ADMIN_PASSWORD` is set |
+| `DATABASE_URL` | SQLAlchemy URL, defaults to SQLite in `backend/instance/`. A Neon/PostgreSQL `postgresql://` link works as is |
+| `UPLOAD_FOLDER` | Working copies of resume PDFs, defaults to `backend/uploaded_resumes` (the database keeps the real copy) |
+| `CORS_ORIGINS` | Comma-separated frontend origins allowed to call the API (only needed when the frontend runs on another address, as with `npm start`) |
+| `PROXY_COUNT` | Proxies in front of the app. `1` on Render, so rate limits see each visitor's real IP |
 | `RATELIMIT_STORAGE_URI` | `memory://` locally; a Redis URI when running several workers |
 | `AUTH_RATE_LIMIT` | Limit for login and register |
 | `PRELOAD_MODELS` | Load ML models at startup (`true`) or on first use |
+| `GUNICORN_THREADS` | Threads in the production server (default 8) |
 | `FLASK_DEBUG` | `true` for local development only |
 | `FLASK_HOST`, `FLASK_PORT` | Bind address, defaults to `127.0.0.1:5000` |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | The one admin account (see Admin Account) |
-| `JSEARCH_API_KEY`, `APIFY_TOKEN`, `JOOBLE_API_KEY`, `THEIRSTACK_API_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `CAREERJET_API_KEY` | Optional live job sources (see Live job search) |
+| `JSEARCH_API_KEY`, `APIFY_TOKEN`, `JOOBLE_API_KEY`, `THEIRSTACK_API_KEY`, `HIMALAYAS_API_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `CAREERJET_API_KEY` | Optional live job sources (see Live job search) |
 | `JOB_LIMIT_<SOURCE>`, `JOB_SOURCES_DISABLED`, `JOB_SEARCH_USER_DAILY_LIMIT` | Daily caps per source and per user, and keyless sources to turn off |
 | `GEMINI_API_KEY`, `GEMINI_MODELS` | Optional AI coach; free key from [Google AI Studio](https://aistudio.google.com). Models are tried in order |
 | `AI_DAILY_LIMIT`, `AI_USER_DAILY_LIMIT` | AI reviews per day for the site and per user (default 40 and 10) |
@@ -186,7 +213,7 @@ All settings come from environment files that are excluded from git. Copy the `.
 
 | Variable | Purpose |
 | --- | --- |
-| `REACT_APP_API_URL` | Backend base URL, defaults to `http://localhost:5000` |
+| `REACT_APP_API_URL` | Backend base URL. Defaults to `http://localhost:5000` with `npm start`, and to the site's own address in a production build |
 
 Frontend variables are bundled into the public JavaScript, so never put secrets there.
 
@@ -201,11 +228,29 @@ Flask serves `frontend/build`, so after building, the whole app is available at 
 
 ---
 
+## Deployment
+
+The live site runs as one Docker container on Render, with its database on Neon. Serving the React build and the API from the same address keeps the login cookies first-party, so no cross-site cookie setup is needed.
+
+- **`Dockerfile`** builds the React app (Node 22, no source maps), installs the Python backend (3.11), runs `flask --app app db upgrade`, then starts Gunicorn.
+- **`backend/gunicorn.conf.py`** uses one worker with 8 threads (the ML models, caches and job-search threads live in memory and fit Render's 512 MB free plan) and a 180-second timeout for AI reviews. Models load in the background, so the site answers immediately.
+- **Resume PDFs** are saved in the `stored_files` table. Render's disk is wiped on every restart; a missing file is rewritten from the database when it is next needed.
+
+Steps:
+
+1. Create a free PostgreSQL database on [Neon](https://neon.tech) and copy its connection string (pooling off).
+2. On [Render](https://render.com), create a **Web Service** from this GitHub repo with language **Docker** and the **Free** plan.
+3. Under **Environment**, set `DATABASE_URL` (the Neon link), `JWT_SECRET_KEY`, `JWT_COOKIE_SECURE=true`, `PROXY_COUNT=1`, `ADMIN_PASSWORD`, and any API keys you use.
+4. Deploy. Every push to `master` redeploys, and new migrations run automatically on start.
+5. Optional: point a free uptime monitor at `/health` every 5 minutes, so the free service does not sleep.
+
+---
+
 ## Architecture
 
 - **App factory:** `skilllens.create_app()` builds the app, so tests create isolated instances with their own database and upload folder.
-- **Blueprints** in `skilllens/routes/` handle HTTP only: auth, profile, resumes, salary, jobs, admin, frontend.
-- **Services** in `skilllens/services/` hold the business logic. `ml.py` loads each model once per process. `storage.py` saves uploads as `users/<id>/<uuid>.pdf`, so files from different users can never collide. `admin.py` aggregates in SQL, so a page of users costs a fixed number of queries. `admin_account.py` keeps the single admin account in step with ADMIN_EMAIL and ADMIN_PASSWORD.
+- **Blueprints** in `skilllens/routes/` handle HTTP only: auth, profile, resumes, salary, jobs, admin (`/api/admin/...`), frontend.
+- **Services** in `skilllens/services/` hold the business logic. `ml.py` loads each model once per process. `storage.py` saves uploads as `users/<id>/<uuid>.pdf` (so files from different users can never collide) with a copy in the database. `admin.py` aggregates in SQL, so a page of users costs a fixed number of queries. `admin_account.py` keeps the single admin account in step with `ADMIN_EMAIL` and `ADMIN_PASSWORD`. `jobs/` holds the 14 job sources, ranking and background search. `quota.py` enforces daily limits for paid APIs.
 - **Schemas** in `skilllens/schemas.py` validate every request body and admin query string. Invalid input returns `400` with per-field details.
 - **Errors** always come back as JSON: `{"error": "...", "details": [...]}`.
 - **Auth:** tokens live in httpOnly cookies that JavaScript cannot read. Write requests send an `X-CSRF-TOKEN` header. The frontend client (`src/api.js`) refreshes expired sessions automatically.
@@ -214,9 +259,9 @@ Flask serves `frontend/build`, so after building, the whole app is available at 
 
 ## Admin Account
 
-There is one sign-in page for everyone. Signing in with `ADMIN_EMAIL` and `ADMIN_PASSWORD` opens the admin dashboard; every other email is a regular user, and nobody can register the admin email. The admin account is created on its first sign-in, so it works on a fresh local or live database with no setup script. Changing `ADMIN_PASSWORD` takes effect on the next admin sign-in.
+There is one sign-in page for everyone. Signing in with `ADMIN_EMAIL` and `ADMIN_PASSWORD` opens the admin dashboard; every other email is a regular user, and nobody can register the admin email. The admin account is created on its first sign-in, so it works on a fresh local or live database with no setup script. Only one account can be admin: any other account marked as admin becomes a regular user on the next admin sign-in. Changing `ADMIN_PASSWORD` takes effect on the next admin sign-in.
 
-`flask --app app reset-data` deletes every account and all user data in the database `DATABASE_URL` points to (local SQLite by default).
+The admin cannot use the user tools (salary, resume, jobs), and users get "Access denied" from every admin page and API.
 
 ---
 
@@ -224,22 +269,27 @@ There is one sign-in page for everyone. Signing in with `ADMIN_EMAIL` and `ADMIN
 
 ```
 SkillLens/
+  Dockerfile                One container: builds React, serves it and the API with Gunicorn
+  .dockerignore             Keeps secrets and local data out of the image
   backend/
     app.py                  Entry point (creates the app, runs the dev server)
+    gunicorn.conf.py        Production server settings
     requirements.txt        Runtime dependencies (requirements-dev.txt adds pytest)
     skilllens/
       __init__.py           create_app() factory
       config.py             Settings from environment variables
       schemas.py            Request validation
       security.py           JWT user loading, admin-only and user-only decorators
-      routes/               Blueprints
-      services/             Business logic, model registry, file storage
+      cli.py                Maintenance commands (reset-data, rescore-resumes, ...)
+      routes/               Blueprints (auth, profile, resumes, salary, jobs, admin, frontend)
+      services/             Business logic, model registry, file storage, admin, job search
     migrations/             Alembic database migrations
     tests/                  pytest suite
     .env.example            Backend settings template
     instance/               SQLite database (created at runtime, not in git)
     data/
       india_jobs.csv.gz     Cleaned Naukri.com 2025 postings (CC BY-NC-SA 4.0)
+      company_boards.json   Company career pages searched for live jobs
       raw/                  Raw download (not in git)
     models/
       database.py           SQLAlchemy models
@@ -247,23 +297,26 @@ SkillLens/
       salary_model.py       Indian salary models (training and prediction)
       india_salary_model.pkl  Trained salary model
       resume_analyzer.py    Resume parsing and ATS scoring
+      jd_matcher.py         Resume against job description matching
       job_market.py         Market fit: what postings for a role ask for
       skills_taxonomy.py    870 skills with display names, categories and spellings
       resume_checks.py      Recruiter checks (verbs, unproven skills, timeline)
-    uploaded_resumes/       Uploaded PDFs (created at runtime, not in git)
+    uploaded_resumes/       Working copies of uploaded PDFs (created at runtime, not in git)
   frontend/
     .env.example            Frontend settings template
     public/
     src/
-      App.js
+      App.js                Routes (user pages, admin page)
       api.js                Axios client: cookies, CSRF, silent token refresh
-      config.js             Reads REACT_APP_API_URL
+      config.js             API address
       components/
-        landing/            Animated landing page sections
-        ui/                 Design system: buttons, cards, fields, modals, toasts, app shell
+        landing/            Scroll-driven landing page sections
+        jobs/               Job results and source picker
+        resume/             AI coach, market fit, recruiter checks
+        ui/                 Design system: buttons, fields, password field, modals, toasts, app shell
       contexts/             Auth state
       lib/                  Formatting, dashboard stats and resume insight rules
-      pages/
+      pages/                Landing, Auth, Dashboard, Salary, Resume, Jobs, Profile, Admin
   README.md
 ```
 
@@ -278,4 +331,5 @@ The code is licensed under the MIT License. The bundled dataset (`backend/data/i
 ## Acknowledgements
 
 - [Indian Job Market Dataset 2025](https://www.kaggle.com/datasets/shivamshrivastava21/indian-job-market-dataset-2025-2026) by Shivam Shrivastava, licensed CC BY-NC-SA 4.0. Mirrored for download by [JasobantaParida/Indian-Job-Market-Intelligence](https://github.com/JasobantaParida/Indian-Job-Market-Intelligence).
-- React, Tailwind CSS and Flask
+- Google Gemini, and the job sources listed under Live job search
+- React, Tailwind CSS, Framer Motion, Flask and scikit-learn

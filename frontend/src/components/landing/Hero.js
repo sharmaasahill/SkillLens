@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion, useMotionValue, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 import Laptop from './Laptop';
 import ScreenUI from './ScreenUI';
-import { EASE } from './motion';
+import { EASE, useElementHeight, useMediaQuery } from './motion';
 import { LensMark } from '../ui/studio';
 
 const easeOutCubic = (t) => 1 - (1 - t) ** 3;
@@ -104,6 +104,12 @@ function BrandWord({ reduce }) {
 function Hero({ signedIn, home = '/dashboard' }) {
   const ref = useRef(null);
   const reduce = useReducedMotion();
+  // Tablets and up: a full-screen stage. Phones: the laptop is short and wide, so a full-screen stage
+  // left a big empty band under it. There the stage is only as tall as the caption and laptop, and is
+  // held in the middle of the screen, so the next section follows straight after it.
+  const fullScreen = useMediaQuery('(min-width: 768px)');
+  const compact = !reduce && !fullScreen;
+  const [stageRef, stageHeight] = useElementHeight();
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] });
   const still = useMotionValue(1);
   const p = reduce ? still : scrollYProgress;
@@ -128,7 +134,11 @@ function Hero({ signedIn, home = '/dashboard' }) {
 
   return (
     <section ref={ref} id="top" className={reduce ? 'relative' : 'relative h-[300vh]'} aria-labelledby="hero-title">
-      <div className={`${reduce ? '' : 'sticky top-0 h-screen'} flex flex-col items-center overflow-hidden`}>
+      <div
+        ref={stageRef}
+        className={`${reduce ? 'overflow-hidden' : compact ? 'sticky-center sticky overflow-x-clip' : 'sticky top-0 h-screen overflow-hidden'} flex flex-col items-center`}
+        style={compact ? { '--scene-h': `${stageHeight}px` } : undefined}
+      >
         {/* Headline */}
         <motion.div
           className={`${reduce ? 'relative py-28' : 'absolute inset-0 pt-12'} z-10 flex flex-col items-center justify-center px-6 text-center`}
@@ -165,7 +175,7 @@ function Hero({ signedIn, home = '/dashboard' }) {
 
         {/* Laptop */}
         <motion.div
-          className="relative my-auto w-[min(94vw,1240px,calc((100vh-210px)*1.62))] md:mb-0 md:mt-auto md:pb-[8vh]"
+          className="relative order-2 my-auto w-[min(94vw,1240px,calc((100vh-210px)*1.62))] md:mb-0 md:mt-auto md:pb-[8vh]"
           style={{ y: reduce ? 0 : laptopY, opacity: reduce ? 1 : laptopOpacity }}
           aria-hidden="true"
         >
@@ -179,9 +189,10 @@ function Hero({ signedIn, home = '/dashboard' }) {
           </Laptop>
         </motion.div>
 
-        {/* Caption above the open laptop, taking over from the headline */}
+        {/* Caption above the open laptop, taking over from the headline. On phones it sits just above the
+            laptop; on larger screens at the top of the stage. */}
         <motion.p
-          className="absolute inset-x-0 top-[calc(3rem+4vh)] px-6 text-center text-[17px] text-graphite md:text-[21px]"
+          className={`${fullScreen && !reduce ? 'absolute inset-x-0 top-[calc(3rem+4vh)]' : 'relative order-1 mb-6 pt-2'} px-6 text-center text-[17px] text-graphite md:text-[21px]`}
           style={{ opacity: captionOpacity, y: captionY }}
         >
           A Data Scientist in Bengaluru with five years. <span className="text-ink">Estimated at ₹15.9 LPA.</span>
