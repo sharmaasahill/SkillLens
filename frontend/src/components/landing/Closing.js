@@ -63,8 +63,9 @@ export function Footer() {
         <p className="border-b border-hairline pb-4 leading-[1.6]">
           Salary estimates come from models trained on salaries disclosed in Naukri.com postings from September and
           October 2025, and are a starting point, not an offer. Market fit on the resume page uses the same postings
-          to show what employers ask for; they are not open jobs. AI resume reviews are written by Google Gemini after
-          your name, phone, email and links are removed.{' '}
+          to show what employers ask for; they are not open jobs. Live jobs come from each listed source and link back
+          to it; only your search words are sent. AI resume reviews are written by Google Gemini after your name,
+          phone, email and links are removed.{' '}
           <a href="https://www.kaggle.com/datasets/shivamshrivastava21/indian-job-market-dataset-2025-2026" target="_blank" rel="noopener noreferrer" className="underline">
             Indian Job Market Dataset 2025
           </a>{' '}by Shivam Shrivastava, CC BY-NC-SA 4.0.
@@ -74,7 +75,7 @@ export function Footer() {
           <nav aria-label="Footer" className="grid grid-cols-2 gap-x-16 gap-y-2 sm:grid-cols-3">
             <a href="#salary" className="hover:underline">Salary predictor</a>
             <a href="#resume" className="hover:underline">Resume analyzer</a>
-            <a href="#jobs" className="hover:underline">Jobs (coming soon)</a>
+            <a href="#jobs" className="hover:underline">Live jobs</a>
             <a href="#hr" className="hover:underline">For HR teams</a>
             <Link to="/auth" className="hover:underline">Sign in</Link>
             <Link to="/auth?mode=signup" className="hover:underline">Create account</Link>

@@ -95,17 +95,19 @@ class SalaryRequest(_Schema):
 
 # ---------- Jobs ----------
 
-_Skill = Field(min_length=1, max_length=60)
-
-
-class LiveJobsRequest(_Schema):
-    skills: List[str] = Field(default_factory=list, max_length=40)
+class JobSearchRequest(_Schema):
+    """A live job search. Only role, city, days and remote_only are sent to job sources."""
+    role: str = Field(min_length=2, max_length=100)
     city: Optional[str] = Field(None, max_length=60)
+    days: Literal[1, 3, 7, 14, 30] = 14
+    remote_only: bool = False
+    sources: List[str] = Field(default_factory=list, max_length=30)
 
     @field_validator('city', mode='before')
     @classmethod
     def blank_city(cls, value):
-        return _blank_to_none(value)
+        value = _blank_to_none(value)
+        return None if isinstance(value, str) and value.lower() in ('anywhere', 'india', 'anywhere in india') else value
 
 
 class MarketFitRequest(_Schema):

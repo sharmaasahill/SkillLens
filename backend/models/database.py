@@ -150,3 +150,30 @@ class AiResult(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (db.UniqueConstraint('user_id', 'cache_key', name='uq_ai_results_user_key'),)
+
+
+class JobSearch(db.Model):
+    """One live job search a user started. Results come from JobSourceResult rows, one per source."""
+    __tablename__ = 'job_searches'
+
+    id = db.Column(db.String(32), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    query = db.Column(db.Text, nullable=False)  # JSON: role, city, days, remote_only
+    results = db.Column(db.Text, nullable=False)  # JSON: source -> JobSourceResult id, or a status such as "limit"
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class JobSourceResult(db.Model):
+    """Jobs one source returned for one search query. Shared by everyone who searches the same thing, until it expires."""
+    __tablename__ = 'job_source_results'
+
+    id = db.Column(db.Integer, primary_key=True)
+    source = db.Column(db.String(30), nullable=False)
+    query_key = db.Column(db.String(64), nullable=False)
+    status = db.Column(db.String(12), nullable=False, default='running')  # running, done, error
+    jobs = db.Column(db.Text)
+    error = db.Column(db.String(300))
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    finished_at = db.Column(db.DateTime)
+
+    __table_args__ = (db.Index('ix_job_source_results_lookup', 'source', 'query_key'),)

@@ -43,12 +43,27 @@ class Config:
     RATELIMIT_HEADERS_ENABLED = True
     AUTH_RATE_LIMIT = os.environ.get('AUTH_RATE_LIMIT', '5 per minute;30 per hour')
 
-    # Optional live job listings for India (free keys; see backend/.env.example)
+    # Live job search sources (see backend/.env.example). Sources without a key are skipped.
+    JSEARCH_API_KEY = os.environ.get('JSEARCH_API_KEY', '').strip()
+    JSEARCH_VIA = os.environ.get('JSEARCH_VIA', 'openwebninja').strip()  # or "rapidapi"
+    APIFY_TOKEN = os.environ.get('APIFY_TOKEN', '').strip()
+    APIFY_NAUKRI_ACTOR = os.environ.get('APIFY_NAUKRI_ACTOR', 'valig/naukri-jobs-scraper').strip()
+    APIFY_LINKEDIN_ACTOR = os.environ.get('APIFY_LINKEDIN_ACTOR', 'valig/linkedin-jobs-scraper').strip()
+    APIFY_WELLFOUND_ACTOR = os.environ.get('APIFY_WELLFOUND_ACTOR', 'blackfalcondata/wellfound-scraper').strip()
+    APIFY_RESULTS_PER_RUN = int(os.environ.get('APIFY_RESULTS_PER_RUN', '25'))
+    APIFY_MAX_USD_PER_RUN = float(os.environ.get('APIFY_MAX_USD_PER_RUN', '0.15'))
+    JOOBLE_API_KEY = os.environ.get('JOOBLE_API_KEY', '').strip()
+    JOOBLE_HOST = os.environ.get('JOOBLE_HOST', 'in.jooble.org').strip()
+    THEIRSTACK_API_KEY = os.environ.get('THEIRSTACK_API_KEY', '').strip()
+    THEIRSTACK_RESULTS = int(os.environ.get('THEIRSTACK_RESULTS', '10'))
+    HIMALAYAS_API_KEY = os.environ.get('HIMALAYAS_API_KEY', '').strip()
     ADZUNA_APP_ID = os.environ.get('ADZUNA_APP_ID', '')
     ADZUNA_APP_KEY = os.environ.get('ADZUNA_APP_KEY', '')
     CAREERJET_API_KEY = os.environ.get('CAREERJET_API_KEY', '')
-    # Most calls each live-jobs provider may receive per day, across all users
-    LIVE_JOBS_DAILY_LIMIT = int(os.environ.get('LIVE_JOBS_DAILY_LIMIT', '20'))
+    # Turn off sources that need no key, e.g. "remoteok,lever"
+    JOB_SOURCES_DISABLED = _list('JOB_SOURCES_DISABLED', '')
+    JOB_SEARCH_USER_DAILY_LIMIT = int(os.environ.get('JOB_SEARCH_USER_DAILY_LIMIT', '30'))
+    JOB_SEARCH_SYNC = False  # tests run sources inline instead of in background threads
 
     # Optional AI resume review with Google Gemini (free key from https://aistudio.google.com)
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
@@ -66,5 +81,9 @@ class TestingConfig(Config):
     JWT_SECRET_KEY = 'test-secret-key-that-is-long-enough-for-hs256'
     SQLALCHEMY_DATABASE_URI = 'sqlite://'
     RATELIMIT_ENABLED = False
-    ADZUNA_APP_ID = ADZUNA_APP_KEY = CAREERJET_API_KEY = ''  # tests never call external APIs
+    # Tests never call outside services: keyed sources are off and keyless ones are disabled
+    ADZUNA_APP_ID = ADZUNA_APP_KEY = CAREERJET_API_KEY = ''
+    JSEARCH_API_KEY = APIFY_TOKEN = JOOBLE_API_KEY = THEIRSTACK_API_KEY = HIMALAYAS_API_KEY = ''
+    JOB_SOURCES_DISABLED = ['greenhouse', 'lever', 'ashby', 'remotive', 'himalayas', 'remoteok']
+    JOB_SEARCH_SYNC = True
     GEMINI_API_KEY = ''

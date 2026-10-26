@@ -56,3 +56,46 @@ def register_commands(app: Flask):
         click.echo(f"Trained on {m['trained_on_rows']:,} salaries. On held-out companies: "
                    f"median error {m['quick']['median_error_pct']}%, "
                    f"{m['quick']['within_25_pct']}% of estimates within 25%.")
+
+    @app.cli.command('check-job-sources')
+    @click.option('--role', default='Software Engineer', show_default=True, help='Role to search for.')
+    @click.option('--city', default='Bengaluru', show_default=True, help='City to search in ("" for anywhere in India).')
+    @click.option('--only', default='', help='Comma-separated sources to check, e.g. "jsearch,apify_naukri".')
+    @click.option('--paid', is_flag=True, help='Also check sources with a limited free quota (each uses one search).')
+    def check_job_sources(role, city, only, paid):
+        """Check which live job sources are set up and answering, with one small search each.
+
+        Without --paid, only sources with no quota are called (career pages and remote boards);
+        keyed sources are listed as set up or not. Nothing is saved.
+        """
+        import time
+
+        from .services import quota
+        from .services.jobs import sources
+        from .services.jobs.common import SourceError
+
+        chosen = {s.strip() for s in only.split(',') if s.strip()}
+        search = {'role': role, 'city': city, 'days': 14, 'remote_only': False}
+        click.echo(f'Searching for "{role}" in {city or "India"}, last 14 days\n')
+        for name, src in sources.SOURCES.items():
+            if chosen and name not in chosen:
+                continue
+            label = f'{src.label} ({name})'.ljust(34)
+            if not sources.configured(src):
+                missing = ', '.join(k for k in src.needs if not app.config.get(k)) or 'turned off in JOB_SOURCES_DISABLED'
+                click.echo(f'{label} not set up: add {missing}' if src.needs else f'{label} off: {missing}')
+                continue
+            if src.needs and not paid and not chosen:
+                click.echo(f'{label} key found (run with --paid to test; uses 1 of {sources.daily_limit(src)} daily searches)')
+                continue
+            if src.needs and not quota.take(f'jobs-{name}', sources.daily_limit(src)):
+                click.echo(f"{label} skipped: today's {sources.daily_limit(src)} searches are used up")
+                continue
+            started = time.perf_counter()
+            try:
+                jobs = sources.fetch(name, search)
+                took = time.perf_counter() - started
+                sample = f' e.g. "{jobs[0]["title"]}" at {jobs[0]["company"]}' if jobs else ''
+                click.echo(f'{label} OK: {len(jobs)} jobs in {took:.1f}s{sample}')
+            except SourceError as exc:
+                click.echo(f'{label} FAILED: {exc.message}')

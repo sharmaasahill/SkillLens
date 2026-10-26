@@ -36,7 +36,7 @@ After changing the scoring rules, rescore stored resumes with `flask --app app r
 - **Professional Profile** - Users maintain a profile (work, education, skills, links) with a profile resume and change history.
 - **HR Dashboard** - HR users can search and filter candidates by role, location, company, experience, skills and score, view analytics, and download resumes.
 - **Secure auth** - httpOnly cookie sessions with short-lived access tokens, silent refresh, CSRF protection, rate-limited login and separate User and HR roles.
-- **Jobs (coming soon)** - Live job search ranked against your resume. Matching against the 2025 dataset was removed because those postings have expired.
+- **Live job search** - Fresh openings from job boards (JSearch/Google for Jobs, Jooble, Adzuna, TheirStack), Apify scrapers (Naukri, LinkedIn, Wellfound), 45 company career pages (Greenhouse, Lever, Ashby) and remote boards (Remotive, Himalayas, Remote OK), de-duplicated and ranked against your resume with the skills you have and the ones each job also asks for.
 
 ### Data and accuracy
 
@@ -56,14 +56,22 @@ To rebuild the data and retrain (downloads the 83 MB raw file into `backend/data
 flask --app app build-india-data
 ```
 
-### Optional live job listings
+### Live job search
 
-The backend can fetch current openings from these providers (`POST /api/live-jobs`), kept for the upcoming live job search. Only search keywords (your top three skills) and a city are sent, never resume text.
+The Jobs page searches live openings from up to 14 sources at once and ranks them against your primary resume (skills 50, role 25, experience 15, freshness 10). Only the role, city and date range are sent to sources, never resume text. Results are cached and shared (1 to 24 hours per source), the same job from two sources is shown once, and each source has a daily cap that protects its free quota. Check your setup with `flask --app app check-job-sources` (add `--paid` to test keyed sources).
 
-| Provider | Cost | Notes |
-| --- | --- | --- |
-| [Adzuna](https://developer.adzuna.com/) (`ADZUNA_APP_ID`, `ADZUNA_APP_KEY`) | Free key | Permitted for personal and academic use; commercial use needs a licence after a 14-day trial |
-| [Careerjet](https://www.careerjet.com/partners/api/) (`CAREERJET_API_KEY`) | Free publisher key | Each listing links to the employer's page |
+| Source | Key | Free plan | What it covers |
+| --- | --- | --- | --- |
+| [JSearch](https://www.openwebninja.com/api/jsearch) (Google for Jobs) | `JSEARCH_API_KEY` | 200 searches a month | LinkedIn, Indeed, Glassdoor and other sites Google for Jobs indexes |
+| [Apify](https://apify.com) scrapers | `APIFY_TOKEN` | $5 of credit a month | Naukri, LinkedIn and Wellfound (about $0.01 to $0.08 a search) |
+| [Jooble](https://in.jooble.org/api/about) | `JOOBLE_API_KEY` | 500 searches per key, in total | Indian job sites |
+| [TheirStack](https://theirstack.com) | `THEIRSTACK_API_KEY` | Signup credits, 1 per job | Tech jobs across boards and career sites |
+| [Adzuna](https://developer.adzuna.com/) | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | Small quota | Indian listings; personal and academic use |
+| [Careerjet](https://www.careerjet.com/partners/api/) | `CAREERJET_API_KEY` | Free publisher key | Indian listings; needs your live website |
+| Greenhouse, Lever, Ashby | none | Free | Career pages of 45 companies hiring in India (edit `backend/data/company_boards.json`) |
+| [Remotive](https://remotive.com), [Himalayas](https://himalayas.app), [Remote OK](https://remoteok.com) | none (Himalayas key optional) | Free | Remote jobs open to India |
+
+Every job links back to its source, as Remotive, Himalayas and Remote OK require. Apify scrapers read LinkedIn, Naukri and Wellfound pages without those sites' permission; use them for your own search and keep the daily caps low.
 - Clean white, Apple-inspired UI with scroll animations, built with Tailwind CSS and Framer Motion. Fully responsive.
 
 ---
@@ -170,7 +178,8 @@ All settings come from environment files that are excluded from git. Copy the `.
 | `FLASK_DEBUG` | `true` for local development only |
 | `FLASK_HOST`, `FLASK_PORT` | Bind address, defaults to `127.0.0.1:5000` |
 | `HR_EMAIL`, `HR_PASSWORD`, `HR_NAME` | HR account created by `create_hr_user.py` |
-| `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `CAREERJET_API_KEY` | Optional live job listings (see above) |
+| `JSEARCH_API_KEY`, `APIFY_TOKEN`, `JOOBLE_API_KEY`, `THEIRSTACK_API_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `CAREERJET_API_KEY` | Optional live job sources (see Live job search) |
+| `JOB_LIMIT_<SOURCE>`, `JOB_SOURCES_DISABLED`, `JOB_SEARCH_USER_DAILY_LIMIT` | Daily caps per source and per user, and keyless sources to turn off |
 | `GEMINI_API_KEY`, `GEMINI_MODELS` | Optional AI coach; free key from [Google AI Studio](https://aistudio.google.com). Models are tried in order |
 | `AI_DAILY_LIMIT`, `AI_USER_DAILY_LIMIT` | AI reviews per day for the site and per user (default 40 and 10) |
 
