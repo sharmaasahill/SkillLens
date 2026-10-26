@@ -8,7 +8,7 @@ import { useFeedback } from '../components/ui/overlays';
 import { pdfError } from '../components/ui/Dropzone';
 import { CountNumber, EASE, Orbit, RevealText, Rise, Section } from '../components/ui/studio';
 import { editFormFrom, profileCompletion } from '../lib/careerStats';
-import { dateLabel, dateTimeLabel, downloadBlob } from '../lib/format';
+import { WRAP, breakable, dateLabel, dateTimeLabel, downloadBlob } from '../lib/format';
 
 const SECTIONS = [
   {
@@ -222,7 +222,7 @@ function Profile() {
         {profile.profile_resume_filename ? (
           <div className="flex flex-wrap items-baseline justify-between gap-4 border-b border-black/[0.07] pb-6">
             <div className="min-w-0">
-              <p className="truncate font-display text-[24px] font-semibold tracking-tight">{profile.profile_resume_filename}</p>
+              <p className={`font-display text-[20px] font-semibold leading-[1.25] tracking-tight md:text-[24px] ${WRAP}`}>{breakable(profile.profile_resume_filename)}</p>
               <p className="text-[14px] text-graphite">Added {profile.profile_resume_uploaded_at ? dateLabel(profile.profile_resume_uploaded_at) : 'recently'}</p>
             </div>
             <Button variant="outline" size="sm" onClick={downloadResume}>Download</Button>

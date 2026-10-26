@@ -8,6 +8,7 @@ import { Combobox, Select } from '../components/ui/Select';
 import { CountNumber, EASE, Rise, Section } from '../components/ui/studio';
 import JobRow from '../components/jobs/JobRow';
 import SourcePicker from '../components/jobs/SourcePicker';
+import { breakable } from '../lib/format';
 
 const CITIES = ['Bengaluru', 'Hyderabad', 'Pune', 'Mumbai', 'Chennai', 'Gurugram', 'Noida', 'Delhi', 'Kolkata', 'Ahmedabad',
   'Navi Mumbai', 'Thane', 'Kochi', 'Jaipur', 'Chandigarh', 'Indore', 'Coimbatore', 'Thiruvananthapuram', 'Bhubaneswar', 'Lucknow'];
@@ -204,7 +205,7 @@ function JobRecommender() {
               </Rise>
 
               {jobs.length > 0 ? (
-                <Section index="01" title="Ranked for you" note={setup?.resume_filename ? `Scored against ${setup.resume_filename}: skills, role, experience and how recent it is.` : 'Add a resume to rank by fit.'}>
+                <Section index="01" title="Ranked for you" note={setup?.resume_filename ? `Scored against ${breakable(setup.resume_filename)}: skills, role, experience and how recent it is.` : 'Add a resume to rank by fit.'}>
                   {jobs.map((job, i) => <JobRow key={job.id} job={job} rank={i} attribution={result.attribution} />)}
                 </Section>
               ) : running ? (

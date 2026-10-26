@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
-import { motion, useMotionValue, useReducedMotion, useScroll, useTransform } from 'framer-motion';
-import { Reveal } from './motion';
+import React, { useEffect, useRef } from 'react';
+import { animate, motion, useInView, useMotionValue, useReducedMotion, useScroll, useTransform } from 'framer-motion';
+import { Reveal, useScrollScenes } from './motion';
 
 const SCORE = 82;
 const RING = 2 * Math.PI * 52;
@@ -75,13 +75,29 @@ function ResumeLine({ line, index, progress }) {
   );
 }
 
-/** Sticky scene: a scanner reads down a resume while the ATS score fills and checks tick in. */
+/**
+ * A scanner reads down a resume while the ATS score fills and checks tick in.
+ * On large screens scrolling drives it inside a pinned scene. On phones and short windows the whole
+ * scene is taller than the screen, so pinning it made it spill over the sections around it: there it
+ * sits in normal page flow and plays once, by itself, when it comes into view.
+ */
 function ResumeSection() {
   const ref = useRef(null);
   const reduce = useReducedMotion();
+  const scenes = useScrollScenes();
+  const pinned = scenes && !reduce;
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] });
   const still = useMotionValue(1);
-  const p = reduce ? still : scrollYProgress;
+  const played = useMotionValue(0);
+  const inView = useInView(ref, { once: true, amount: 0.2 });
+
+  useEffect(() => {
+    if (pinned || reduce || !inView) return undefined;
+    const controls = animate(played, 1, { duration: 3.2, ease: 'linear' });
+    return () => controls.stop();
+  }, [pinned, reduce, inView, played]);
+
+  const p = reduce ? still : pinned ? scrollYProgress : played;
 
   const scanTop = useTransform(p, [0.1, 0.75], ['0%', '100%']);
   const scanOpacity = useTransform(p, [0.08, 0.12, 0.72, 0.78], [0, 1, 1, 0]);
@@ -90,8 +106,8 @@ function ResumeSection() {
   const scoreText = useTransform(score, (v) => Math.round(v));
 
   return (
-    <section id="resume" ref={ref} className={`scroll-mt-12 ${reduce ? '' : 'h-[260vh]'}`} aria-labelledby="resume-title">
-      <div className={`${reduce ? 'py-[14vh]' : 'sticky top-0 flex h-screen items-center'} px-5`}>
+    <section id="resume" ref={ref} className={`scroll-mt-12 ${pinned ? 'h-[260vh]' : ''}`} aria-labelledby="resume-title">
+      <div className={`${pinned ? 'sticky top-0 flex h-screen items-center' : 'py-[14vh]'} px-5`}>
         <div className="mx-auto grid w-full max-w-[984px] items-center gap-12 md:grid-cols-2 md:gap-20">
           {/* Resume paper */}
           <div className="relative mx-auto w-full max-w-[420px] md:mx-0" aria-hidden="true">
@@ -113,13 +129,13 @@ function ResumeSection() {
           <div>
             <Reveal>
               <p className="text-[17px] font-semibold text-blue-ink md:text-[21px]">Resume</p>
-              <h2 id="resume-title" className="mt-2 font-display text-[40px] font-semibold leading-[1.08] tracking-tighter2 text-ink md:text-[56px]">
+              <h2 id="resume-title" className="mt-2 font-display text-[36px] font-semibold leading-[1.08] tracking-tighter2 text-ink md:text-[48px] lg:text-[56px]">
                 Read like a recruiter. Scored like a machine.
               </h2>
             </Reveal>
 
-            <div className="mt-10 flex items-center gap-6">
-              <div className="relative h-[120px] w-[120px] shrink-0">
+            <div className="mt-8 flex items-center gap-5 md:gap-6">
+              <div className="relative h-[104px] w-[104px] shrink-0 md:h-[120px] md:w-[120px]">
                 <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" aria-hidden="true">
                   <circle cx="60" cy="60" r="52" fill="none" stroke="#e8e8ed" strokeWidth="10" />
                   <motion.circle
@@ -134,13 +150,13 @@ function ResumeSection() {
                   <span className="mt-1 text-[11px] text-silver">ATS score</span>
                 </div>
               </div>
-              <p className="text-[17px] leading-[1.5] text-graphite">
+              <p className="text-[15px] leading-[1.5] text-graphite md:text-[17px]">
                 Upload a PDF. SkillLens pulls out your skills, checks the sections an applicant tracking
                 system looks for, and tells you exactly what to fix.
               </p>
             </div>
 
-            <ul className="mt-10 space-y-4" aria-label="Sample checks">
+            <ul className="mt-8 space-y-3 md:space-y-4" aria-label="Sample checks">
               {CHECKS.map((item) => (
                 <Check key={item.label} item={item} progress={p} />
               ))}

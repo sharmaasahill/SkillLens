@@ -6,7 +6,7 @@ import { Button, Notice, Skeleton, cx } from '../components/ui/primitives';
 import { Select } from '../components/ui/Select';
 import { useFeedback } from '../components/ui/overlays';
 import { CountNumber, EASE, Line, MiniRing, Section, WordCloud, arcPath, scoreColor } from '../components/ui/studio';
-import { dateLabel, downloadBlob, toCsv } from '../lib/format';
+import { WRAP, breakable, dateLabel, downloadBlob, toCsv } from '../lib/format';
 
 const PER_PAGE = 12;
 const TEAL = '#30b0c7';
@@ -568,7 +568,7 @@ function UserDetails({ user, details, onSaved, onDownload, onRemove }) {
                   <li key={resume.id} className="flex items-center gap-4 border-b border-black/[0.06] py-3.5 last:border-0">
                     <MiniRing value={resume.score ?? null} size={38} stroke={3.5} />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-medium text-ink">{resume.filename}</p>
+                      <p className={`text-[15px] font-medium leading-[1.35] text-ink ${WRAP}`}>{breakable(resume.filename)}</p>
                       <p className="text-[13px] text-silver">{dateLabel(resume.uploaded_at)}{resume.skills?.length ? ` · ${resume.skills.length} skills` : ''}</p>
                     </div>
                     {resume.is_primary && <span className="text-[13px] font-medium text-green-ink">Primary</span>}

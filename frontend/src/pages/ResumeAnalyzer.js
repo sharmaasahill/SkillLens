@@ -6,6 +6,7 @@ import AppShell, { PageHeader } from '../components/ui/AppShell';
 import { Button, Notice, Segmented, Skeleton, Spinner, cx } from '../components/ui/primitives';
 import { Select } from '../components/ui/Select';
 import { pdfError } from '../components/ui/Dropzone';
+import { WRAP, breakable } from '../lib/format';
 import {
   Check, CountNumber, EASE, Glass, Line, Metric, MetricRow, Rise, Section, SegmentDial, WordCloud, ratioColor, scoreColor,
 } from '../components/ui/studio';
@@ -38,8 +39,8 @@ function FileLine({ accept, file, onFile, busy, title, note }) {
         {busy ? <Spinner className="h-5 w-5" /> : <span className="text-[22px] leading-none">{file ? '\u2713' : '+'}</span>}
         {!busy && !file && <span className="absolute inset-0 animate-pulsering rounded-full border border-action/40" aria-hidden="true" />}
       </span>
-      <span className="min-w-0">
-        <span className="block truncate font-display text-[19px] font-semibold tracking-tight text-ink">{file ? file.name : over ? 'Drop to add' : title}</span>
+      <span className="min-w-0 flex-1">
+        <span className={cx('block font-display text-[19px] font-semibold leading-[1.3] tracking-tight text-ink', WRAP)}>{file ? breakable(file.name) : over ? 'Drop to add' : title}</span>
         <span className="block text-[14px] text-graphite">{note}</span>
       </span>
     </label>
@@ -58,7 +59,7 @@ function JdMatch({ match, overall, atsScore }) {
   return (
     <>
       <Rise>
-        <div className="grid items-center gap-12 pb-14 md:grid-cols-[auto_1fr] md:gap-16">
+        <div className="grid grid-cols-1 items-center gap-12 pb-14 md:grid-cols-[auto_minmax(0,1fr)] md:gap-16">
           <SegmentDial size={300} parts={parts.map((p) => ({ ...p, max: p.max, score: p.score }))} toneFor={ratioColor}>
             <p className="text-[12px] font-medium uppercase tracking-[0.12em] text-silver">JD match</p>
             <p className="font-display text-[80px] font-semibold leading-none tracking-tighter2"><CountNumber value={match.score} /></p>
@@ -165,7 +166,7 @@ function Results({ analysis, fileName, jd }) {
   return (
     <>
       <Rise>
-        <div className="grid items-center gap-12 pb-14 md:grid-cols-[auto_1fr] md:gap-16">
+        <div className="grid grid-cols-1 items-center gap-12 pb-14 md:grid-cols-[auto_minmax(0,1fr)] md:gap-16">
           {ats.breakdown?.length > 0 && (
             <SegmentDial size={300} parts={ats.breakdown} toneFor={ratioColor}>
               <p className="text-[12px] font-medium uppercase tracking-[0.12em] text-silver">ATS score</p>
@@ -174,7 +175,7 @@ function Results({ analysis, fileName, jd }) {
             </SegmentDial>
           )}
           <div>
-            <p className="truncate text-[14px] text-graphite">{fileName}</p>
+            <p className={cx('text-[14px] text-graphite', WRAP)}>{breakable(fileName)}</p>
             <h2 className="mt-2 font-display text-[36px] font-semibold leading-[1.08] tracking-tight md:text-[48px]">
               {ats.issues?.length ? `${ats.issues.length} things to fix.` : 'Nothing major to fix.'}
             </h2>
@@ -380,7 +381,7 @@ function ResumeAnalyzer() {
   const resumeOptions = library.resumes.map((r) => ({
     value: String(r.id),
     // Zero-width spaces after _ . - let long file names wrap at sensible points
-    label: `${r.filename.replace(/([_.-])/g, '$1\u200b')}${r.is_primary ? ' (primary)' : ''} · ATS ${Math.round(r.score || 0)}`,
+    label: `${breakable(r.filename)}${r.is_primary ? ' (primary)' : ''} · ATS ${Math.round(r.score || 0)}`,
   }));
 
   return (
@@ -393,7 +394,7 @@ function ResumeAnalyzer() {
       />
 
       <Glass innerClassName="!p-0">
-        <div className="grid md:grid-cols-2 md:divide-x md:divide-black/[0.07]">
+        <div className="grid grid-cols-1 md:grid-cols-2 md:divide-x md:divide-black/[0.07]">
           <div className="p-6 md:p-10">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-blue-ink">01 · Resume</p>

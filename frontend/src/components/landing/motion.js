@@ -44,18 +44,47 @@ export function CountUp({ value, duration = 1.6, format = (n) => Math.round(n).t
   );
 }
 
-/** Tracks an element's width, for scroll-driven layouts that depend on real sizes. */
+/**
+ * Tracks an element's full width, padding included, for scroll-driven layouts that depend on real sizes.
+ * (The content width alone leaves out the padding, so a sliding track stopped short of its last card.)
+ */
 export function useElementWidth() {
   const ref = useRef(null);
   const [width, setWidth] = useState(0);
   useEffect(() => {
-    if (!ref.current) return undefined;
-    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
-    observer.observe(ref.current);
+    const el = ref.current;
+    if (!el) return undefined;
+    const measure = () => setWidth(el.offsetWidth);
+    const observer = new ResizeObserver(measure);
+    observer.observe(el, { box: 'border-box' });
+    measure();
     return () => observer.disconnect();
   }, []);
   return [ref, width];
 }
+
+/** True while a CSS media query matches, updating when the window changes size. */
+export function useMediaQuery(query) {
+  const supported = typeof window !== 'undefined' && typeof window.matchMedia === 'function';
+  const [matches, setMatches] = useState(() => supported && window.matchMedia(query).matches);
+  useEffect(() => {
+    if (!supported) return undefined;
+    const list = window.matchMedia(query);
+    const update = () => setMatches(list.matches);
+    update();
+    if (list.addEventListener) list.addEventListener('change', update);
+    else list.addListener(update);
+    return () => (list.removeEventListener ? list.removeEventListener('change', update) : list.removeListener(update));
+  }, [query, supported]);
+  return matches;
+}
+
+/**
+ * Pinned, scroll-driven scenes need a screen that is wide and tall enough to hold the whole scene.
+ * On phones and short laptop windows the sections fall back to normal page flow, so nothing is cut
+ * off or drawn over the next section.
+ */
+export const useScrollScenes = () => useMediaQuery('(min-width: 768px) and (min-height: 600px)');
 
 /** Annual salary in lakhs per annum: 1586000 -> "₹15.9 LPA". */
 export const money = (n) => `₹${(Number(n) / 100000).toFixed(1)} LPA`;

@@ -19,6 +19,16 @@ export const signedPercent = (value, digits = 0) => {
 
 export const percent = (ratio, digits = 0) => `${(Number(ratio || 0) * 100).toFixed(digits)}%`;
 
+/**
+ * A file name that can wrap onto several lines instead of being cut off. Names like
+ * "Sahil_Sharma_Citi_Java_Python_Resume.pdf" have no spaces, so an invisible break point is added
+ * after each _ . and -, and the line breaks there first.
+ */
+export const breakable = (name) => String(name ?? '').replace(/([_.-])/g, '$1\u200b');
+
+/** Classes for text that must wrap, even inside one very long word, rather than overflow. */
+export const WRAP = 'min-w-0 [overflow-wrap:anywhere]';
+
 export const dateLabel = (value) => (value ? new Date(value).toLocaleDateString('en-IN') : '-');
 
 export const dateTimeLabel = (value) => (value ? new Date(value).toLocaleString('en-IN') : '-');

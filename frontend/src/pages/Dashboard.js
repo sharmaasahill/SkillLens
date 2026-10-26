@@ -8,7 +8,7 @@ import { useFeedback } from '../components/ui/overlays';
 import { pdfError } from '../components/ui/Dropzone';
 import { CountNumber, EASE, Marquee, MiniRing, Orbit, Rise, Section } from '../components/ui/studio';
 import { calculateQuickStats, calculateUserStats, normalizeSkills, profileCompletion } from '../lib/careerStats';
-import { dateLabel, firstName, greeting } from '../lib/format';
+import { WRAP, breakable, dateLabel, firstName, greeting } from '../lib/format';
 
 const TOOLS = [
   { to: '/salary-predictor', index: '01', title: 'Salary', line: 'Your CTC in lakhs, from 31,566 real Indian salaries.', a: '#34c759', b: '#30b0c7' },
@@ -80,12 +80,12 @@ function ResumeRow({ resume, i, onDelete, onMakePrimary }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.5, ease: EASE, delay: Math.min(i, 6) * 0.05 }}
-      className="group grid grid-cols-[auto_1fr] items-center gap-x-5 gap-y-2 border-b border-black/[0.07] py-5 md:grid-cols-[auto_minmax(0,1.3fr)_minmax(0,1.6fr)_auto_auto]"
+      className="group grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-5 gap-y-2 border-b border-black/[0.07] py-5 md:grid-cols-[auto_minmax(0,1.3fr)_minmax(0,1.6fr)_auto_auto]"
     >
       <MiniRing value={resume.score} size={52} stroke={4} label="ATS score" />
       <div className="min-w-0">
-        <div className="flex items-center gap-2.5">
-          <p className="truncate text-[16px] font-medium text-ink" title={resume.filename}>{resume.filename}</p>
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <p className={`text-[16px] font-medium leading-[1.35] text-ink ${WRAP}`}>{breakable(resume.filename)}</p>
           {resume.is_primary && (
             <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold text-green-ink">
               <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden="true"><path d="M6 .8l1.6 3.3 3.6.5-2.6 2.5.6 3.6L6 9l-3.2 1.7.6-3.6L.8 4.6l3.6-.5z" fill="currentColor" /></svg>

@@ -1,18 +1,29 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { homeFor } from '../components/ProtectedRoute';
 import { LensMark } from '../components/ui/studio';
+import { PasswordField, PasswordMatch, matchState } from '../components/ui/PasswordField';
+
+const FIELD = 'block w-full rounded-xl border bg-white px-4 py-3.5 text-[17px] text-ink placeholder:text-silver transition focus:outline-none focus:ring-4';
+// The confirm field's border turns green when both passwords match and red when they differ
+const FIELD_TONE = {
+  normal: 'border-hairline focus:border-action focus:ring-action/15',
+  match: 'border-green focus:border-green focus:ring-green/20',
+  mismatch: 'border-red focus:border-red focus:ring-red/15',
+};
 
 function Auth() {
   const [searchParams] = useSearchParams();
   const [isLogin, setIsLogin] = useState(searchParams.get('mode') !== 'signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const confirmRef = useRef(null);
   const navigate = useNavigate();
   const { user, loading: sessionLoading, login, register } = useAuth();
 
@@ -25,9 +36,16 @@ function Auth() {
   }, []);
 
 
+  const match = matchState(password, confirm);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!isLogin && password !== confirm) {
+      setError('The two passwords are different. Type the same password in both fields.');
+      confirmRef.current?.focus();
+      return;
+    }
     setLoading(true);
 
     try {
@@ -46,7 +64,14 @@ function Auth() {
     return <Navigate to={homeFor(user)} replace />;
   }
 
-  const field = 'block w-full rounded-xl border border-hairline bg-white px-4 py-3.5 text-[17px] text-ink placeholder:text-silver transition focus:border-action focus:outline-none focus:ring-4 focus:ring-action/15';
+  const field = `${FIELD} ${FIELD_TONE.normal}`;
+  const confirmTone = match === 'match' || match === 'mismatch' ? FIELD_TONE[match] : FIELD_TONE.normal;
+
+  const switchMode = () => {
+    setIsLogin(!isLogin);
+    setError('');
+    setConfirm('');
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-white font-text text-ink antialiased">
@@ -84,14 +109,26 @@ function Auth() {
               <input id="email" name="email" type="email" required autoComplete="email"
                 className={field} placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
-            <div>
-              <label htmlFor="password" className="sr-only">Password</label>
-              <input id="password" name="password" type="password" required
-                minLength={isLogin ? undefined : 8}
-                autoComplete={isLogin ? 'current-password' : 'new-password'}
-                className={field} placeholder={isLogin ? 'Password' : 'Password (8+ characters)'}
-                value={password} onChange={(e) => setPassword(e.target.value)} />
-            </div>
+            <PasswordField
+              id="password" name="password" label="Password" required
+              minLength={isLogin ? undefined : 8}
+              autoComplete={isLogin ? 'current-password' : 'new-password'}
+              className={field} placeholder={isLogin ? 'Password' : 'Password (8+ characters)'}
+              value={password} onChange={(e) => setPassword(e.target.value)}
+            />
+            {!isLogin && (
+              <div>
+                <PasswordField
+                  ref={confirmRef}
+                  id="confirmPassword" name="confirmPassword" label="Confirm password" required
+                  autoComplete="new-password" placeholder="Confirm password"
+                  className={`${FIELD} ${confirmTone}`}
+                  invalid={match === 'mismatch'} describedBy="password-match"
+                  value={confirm} onChange={(e) => setConfirm(e.target.value)}
+                />
+                <PasswordMatch id="password-match" state={match} />
+              </div>
+            )}
             <button
               type="submit"
               disabled={loading}
@@ -103,7 +140,7 @@ function Auth() {
 
           <p className="mt-8 text-center text-[15px] text-graphite">
             {isLogin ? 'New to SkillLens? ' : 'Already have an account? '}
-            <button type="button" onClick={() => { setIsLogin(!isLogin); setError(''); }} className="text-action-link hover:underline">
+            <button type="button" onClick={switchMode} className="text-action-link hover:underline">
               {isLogin ? 'Create an account' : 'Sign in'}
             </button>
           </p>

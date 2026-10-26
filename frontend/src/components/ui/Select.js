@@ -187,35 +187,72 @@ export function Combobox({ id, value, onChange, suggestions, placeholder, requir
   };
 
   const inline = variant === 'inline';
-  return (
-    // Inline: a hidden copy of the text sits in the same grid cell as the input, so the field is
-    // exactly as wide as what is typed. Words after it move along (and wrap) instead of being covered.
-    <div ref={ref} className={cx('relative', inline && 'inline-grid max-w-full grid-cols-[minmax(0,1fr)] align-baseline', className)}>
-      {inline && (
-        <span aria-hidden="true" className={cx(INLINE, 'invisible col-start-1 row-start-1 overflow-hidden whitespace-pre')}>
+  const field = {
+    id,
+    role: 'combobox',
+    'aria-expanded': open,
+    'aria-controls': listId,
+    'aria-autocomplete': 'list',
+    'aria-activedescendant': open && active >= 0 ? `${listId}-${active}` : undefined,
+    autoComplete: 'off',
+    value,
+    onFocus: () => setOpen(true),
+    placeholder,
+    required,
+    minLength,
+    maxLength,
+  };
+
+  if (inline) {
+    // A one-line input cannot wrap, so a long title ("Business Development Executive") was cut off.
+    // Inline, the field is a textarea that grows with the text: a hidden copy sits in the same grid
+    // cell and sets the size, so the field is exactly as wide as what is typed and wraps onto a new
+    // line when the sentence runs out of room. It still behaves like a single line: Enter submits.
+    const onInlineKey = (e) => {
+      if (e.key === 'Enter' && !(open && active >= 0 && shown[active])) {
+        e.preventDefault();
+        const { form } = e.currentTarget;
+        if (form?.requestSubmit) form.requestSubmit();
+        else form?.querySelector('[type="submit"]')?.click(); // older Safari
+        return;
+      }
+      onKey(e);
+    };
+    return (
+      <div ref={ref} className={cx('relative inline-grid max-w-full grid-cols-[minmax(0,1fr)] align-baseline', className)}>
+        <span aria-hidden="true" className={cx(INLINE, 'invisible col-start-1 row-start-1 whitespace-pre-wrap [overflow-wrap:anywhere]')}>
           {`${value || placeholder || ''}\u00a0`}
         </span>
-      )}
+        <textarea
+          {...field}
+          rows={1}
+          cols={1}
+          onChange={(e) => {
+            // Pasted line breaks become spaces: a job title is one line
+            const text = e.target.value.replace(/[\r\n]+/g, ' ');
+            onChange({ target: { value: text } });
+            setOpen(true);
+            setActive(-1);
+          }}
+          onKeyDown={onInlineKey}
+          className={cx(INLINE, 'col-start-1 row-start-1 h-full w-full min-w-0 resize-none overflow-hidden whitespace-pre-wrap [overflow-wrap:anywhere] placeholder:text-black/25')}
+        />
+        <AnimatePresence>
+          {open && shown.length > 0 && (
+            <OptionList id={listId} items={shown} active={active} selected={value} onPick={pick} onHover={setActive} empty="" />
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref} className={cx('relative', className)}>
       <input
-        id={id}
-        size={inline ? 1 : undefined}
-        role="combobox"
-        aria-expanded={open}
-        aria-controls={listId}
-        aria-autocomplete="list"
-        aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
-        autoComplete="off"
-        value={value}
+        {...field}
         onChange={(e) => { onChange(e); setOpen(true); setActive(-1); }}
-        onFocus={() => setOpen(true)}
         onKeyDown={onKey}
-        placeholder={placeholder}
-        required={required}
-        minLength={minLength}
-        maxLength={maxLength}
-        className={inline
-          ? cx(INLINE, 'col-start-1 row-start-1 w-full min-w-0 placeholder:text-black/25')
-          : 'block w-full rounded-2xl border border-black/[0.08] bg-white/70 px-4 py-3 text-[15px] text-ink placeholder:text-silver backdrop-blur transition focus:border-action/60 focus:bg-white focus:outline-none focus:ring-4 focus:ring-action/10'}
+        className="block w-full rounded-2xl border border-black/[0.08] bg-white/70 px-4 py-3 text-[15px] text-ink placeholder:text-silver backdrop-blur transition focus:border-action/60 focus:bg-white focus:outline-none focus:ring-4 focus:ring-action/10"
       />
       <AnimatePresence>
         {open && shown.length > 0 && (
