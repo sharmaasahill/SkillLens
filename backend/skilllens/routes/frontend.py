@@ -7,7 +7,7 @@ from ..errors import ApiError
 
 bp = Blueprint('frontend', __name__)
 
-API_PREFIXES = ('api/', 'auth/', 'hr/')
+API_PREFIXES = ('api/', 'auth/')
 
 
 @bp.get('/', defaults={'path': ''})

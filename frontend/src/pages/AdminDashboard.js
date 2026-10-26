@@ -99,14 +99,14 @@ function ribbon(heights) {
   return `M ${f(top[0][0])} ${f(top[0][1])} ${curve(top)} L ${f(bottom[0][0])} ${f(bottom[0][1])} ${curve(bottom)} Z`;
 }
 
-/** Hiring pipeline as a flowing stream. Each stage is a filter; the active one is underlined. */
+/** User stages as a flowing stream. Each stage is a filter; the active one is underlined. */
 function Pipeline({ stats, view, statusFilter, onStage, onRemoved }) {
   const reduce = useReducedMotion();
   const total = stats.total_users || 0;
   const counts = stats.status_counts || {};
   const reviewed = Object.values(counts).reduce((a, b) => a + b, 0);
   const stages = [
-    { key: '', label: 'All candidates', count: total, color: TEAL },
+    { key: '', label: 'All users', count: total, color: TEAL },
     ...STATUSES.filter((s) => s.value !== 'rejected').map((s) => ({ key: s.value, label: s.label, count: counts[s.value] || 0, color: s.color })),
   ];
   const extras = [
@@ -121,7 +121,7 @@ function Pipeline({ stats, view, statusFilter, onStage, onRemoved }) {
   const avg = stats.average_score || 0;
 
   return (
-    <section aria-label="Hiring pipeline">
+    <section aria-label="User stages">
       <div className="-mx-6 overflow-x-auto px-6 pb-2 [scrollbar-width:none]">
         <div className="min-w-[640px]">
           <div className="grid" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}>
@@ -233,9 +233,9 @@ function FilterSentence({ f, set, lists, onApply, onClear }) {
   );
 }
 
-/* ---------- Candidate list ---------- */
+/* ---------- User list ---------- */
 
-function CandidateRow({ user, index, selected, onToggle, onView, onDownload, onStatus, onRemove, removedView }) {
+function UserRow({ user, index, selected, onToggle, onView, onDownload, onStatus, onRemove, removedView }) {
   const st = STATUS_BY_VALUE[user.review?.status];
   const meta = [user.current_location, user.total_experience ? `${user.total_experience} yrs` : null, user.email].filter(Boolean).join(' · ');
   return (
@@ -305,7 +305,7 @@ function Pager({ page, pages, onPage }) {
   if (pages <= 1) return null;
   const nums = Array.from({ length: pages }, (_, i) => i + 1).filter((n) => n === 1 || n === pages || Math.abs(n - page) <= 1);
   return (
-    <nav className="mt-10 flex items-center justify-between border-t border-black/[0.07] pt-6" aria-label="Candidate pages">
+    <nav className="mt-10 flex items-center justify-between border-t border-black/[0.07] pt-6" aria-label="User pages">
       <button type="button" onClick={() => onPage(Math.max(1, page - 1))} disabled={page <= 1} className="text-[15px] font-medium text-ink transition-opacity hover:text-teal-ink disabled:opacity-25">
         <span aria-hidden="true">&larr;</span> Previous
       </button>
@@ -400,7 +400,7 @@ function Drawer({ open, onClose, label, children }) {
           >
             <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-32 h-96 w-96 animate-drift rounded-full opacity-30 blur-3xl" style={{ background: 'radial-gradient(closest-side, #30b0c7, transparent)' }} />
             <div className="relative flex items-center justify-between px-7 pt-6 md:px-10">
-              <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-teal-ink">Candidate</p>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-teal-ink">User</p>
               <button type="button" onClick={onClose} aria-label="Close details" className="flex h-10 w-10 items-center justify-center rounded-full text-graphite transition hover:rotate-90 hover:bg-white hover:text-ink hover:shadow-[0_6px_18px_-8px_rgba(0,0,0,0.3)]">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><path d={ICONS.remove} /></svg>
               </button>
@@ -425,7 +425,7 @@ function Block({ title, children, delay = 0 }) {
   );
 }
 
-/** Stage and private note for one candidate. Only HR can see this. */
+/** Stage and private note for one user. Only the admin can see this. */
 function ReviewPanel({ details, onSaved }) {
   const { notify } = useFeedback();
   const [status, setStatus] = useState(details.review?.status || '');
@@ -436,7 +436,7 @@ function ReviewPanel({ details, onSaved }) {
   const save = async () => {
     setSaving(true);
     try {
-      const { data } = await api.patch(`/hr/candidates/${details.id}/review`, { status: status || null, note });
+      const { data } = await api.patch(`/api/admin/users/${details.id}/review`, { status: status || null, note });
       onSaved(details.id, data.review);
       notify('Review saved');
     } catch (err) {
@@ -493,7 +493,7 @@ function Facts({ items }) {
   );
 }
 
-function CandidateDetails({ user, details, onSaved, onDownload, onRemove }) {
+function UserDetails({ user, details, onSaved, onDownload, onRemove }) {
   const removed = Boolean((details || user).review?.removed);
   const score = user.latest_score;
   return (
@@ -671,7 +671,7 @@ function RankedLines({ entries }) {
   );
 }
 
-/** Cities sized by how many candidates live there. */
+/** Cities sized by how many users live there. */
 function CityCloud({ entries }) {
   const reduce = useReducedMotion();
   const max = Math.max(1, ...entries.map(([, v]) => v));
@@ -685,7 +685,7 @@ function CityCloud({ entries }) {
           style={{ fontSize: 17 + (count / max) * 30, color: i === 0 ? '#0071a4' : `rgba(29,29,31,${0.4 + (count / max) * 0.6})` }}
           initial={reduce ? false : { opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
           transition={{ duration: 0.6, ease: EASE, delay: i * 0.05 }}
-          title={`${count} candidate${count === 1 ? '' : 's'}`}
+          title={`${count} user${count === 1 ? '' : 's'}`}
         >
           {city}<sup className="ml-1 align-super text-[12px] font-medium tabular-nums text-silver">{count}</sup>
         </motion.span>
@@ -713,7 +713,7 @@ function ExperienceSpread({ distribution }) {
 
 /* ---------- Page ---------- */
 
-const HRDashboard = () => {
+const AdminDashboard = () => {
   const { notify } = useFeedback();
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({});
@@ -762,12 +762,12 @@ const HRDashboard = () => {
     // Debounce typing in the search box; page, sort and filter changes load almost immediately
     const delay = isFirstLoad.current ? 0 : 300;
     isFirstLoad.current = false;
-    const timer = setTimeout(() => fetchHRData(page), delay);
+    const timer = setTimeout(() => fetchUsers(page), delay);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, sortBy, searchTerm, reloadKey, view, statusFilter]);
 
-  const fetchHRData = async (pageToLoad = page) => {
+  const fetchUsers = async (pageToLoad = page) => {
     setRefreshing(true);
     try {
       const params = new URLSearchParams();
@@ -786,35 +786,35 @@ const HRDashboard = () => {
       params.append('page', pageToLoad);
       params.append('per_page', PER_PAGE);
 
-      // Only the candidate list changes with paging, search and filters
-      const usersResponse = await api.get(`/hr/all-users?${params.toString()}`);
+      // Only the user list changes with paging, search and filters
+      const usersResponse = await api.get(`/api/admin/users?${params.toString()}`);
       setUsers(usersResponse.data.users);
       setPagination({ total: usersResponse.data.total_users, pages: usersResponse.data.pages });
       setError('');
     } catch (err) {
-      if (err.response?.status === 403) setError('Access denied. HR privileges required.');
-      else if (err.response?.status !== 401) setError('Failed to load HR data');
+      if (err.response?.status === 403) setError('Access denied. Admin access required.');
+      else if (err.response?.status !== 401) setError('Failed to load users');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  // Totals and analytics cover every candidate, so they load once, on Refresh and after changes
+  // Totals and analytics cover every user, so they load once, on Refresh and after changes
   const fetchSummary = async () => {
     try {
-      const [statsResponse, analyticsResponse] = await Promise.all([api.get('/hr/stats'), api.get('/hr/analytics')]);
+      const [statsResponse, analyticsResponse] = await Promise.all([api.get('/api/admin/stats'), api.get('/api/admin/analytics')]);
       setStats(statsResponse.data);
       setAnalytics(analyticsResponse.data);
     } catch (err) {
-      if (err.response?.status !== 401) setError('Failed to load HR data');
+      if (err.response?.status !== 401) setError('Failed to load users');
     }
   };
 
   const fetchDropdownData = async () => {
     try {
       const [roles, locs, comps, skillList] = await Promise.all([
-        api.get('/hr/job-roles'), api.get('/hr/locations'), api.get('/hr/companies'), api.get('/hr/skills'),
+        api.get('/api/admin/job-roles'), api.get('/api/admin/locations'), api.get('/api/admin/companies'), api.get('/api/admin/skills'),
       ]);
       setJobRoles(roles.data.job_roles);
       setLocations(locs.data.locations);
@@ -829,7 +829,7 @@ const HRDashboard = () => {
     setSelectedUser(user);
     setUserDetails(null);
     try {
-      const response = await api.get(`/hr/user/${user.id}`);
+      const response = await api.get(`/api/admin/users/${user.id}`);
       setUserDetails(response.data);
     } catch (err) {
       setSelectedUser(null);
@@ -841,7 +841,7 @@ const HRDashboard = () => {
 
   const downloadUserResume = async (userId) => {
     try {
-      const response = await api.get(`/hr/download-profile-resume/${userId}`, { responseType: 'blob' });
+      const response = await api.get(`/api/admin/users/${userId}/resume`, { responseType: 'blob' });
       downloadBlob(response.data, `user_${userId}_resume.pdf`);
     } catch (err) {
       notify('Failed to download resume', 'error');
@@ -859,7 +859,7 @@ const HRDashboard = () => {
 
   const changeStatus = async (user, status) => {
     try {
-      const { data } = await api.patch(`/hr/candidates/${user.id}/review`, { status: status || null });
+      const { data } = await api.patch(`/api/admin/users/${user.id}/review`, { status: status || null });
       applyReview(user.id, data.review);
     } catch (err) {
       notify(errorMessage(err, 'Could not update status'), 'error');
@@ -868,7 +868,7 @@ const HRDashboard = () => {
 
   const setRemoved = async (user, remove) => {
     try {
-      await api.post(`/hr/candidates/${user.id}/${remove ? 'remove' : 'restore'}`);
+      await api.post(`/api/admin/users/${user.id}/${remove ? 'remove' : 'restore'}`);
       setUsers((prev) => prev.filter((u) => u.id !== user.id));
       setPagination((p) => ({ ...p, total: Math.max(0, p.total - 1) }));
       setSelectedUsers((prev) => prev.filter((id) => id !== user.id));
@@ -878,15 +878,15 @@ const HRDashboard = () => {
         : `${nameOf(user)} restored`);
       fetchSummary();
     } catch (err) {
-      notify(errorMessage(err, 'Could not update candidate'), 'error');
+      notify(errorMessage(err, 'Could not update user'), 'error');
     }
   };
 
   const bulk = async (action, status) => {
     if (!selectedUsers.length) return;
     try {
-      await api.post('/hr/candidates/bulk', { user_ids: selectedUsers, action, status: status || null });
-      notify(`Updated ${selectedUsers.length} candidate${selectedUsers.length === 1 ? '' : 's'}`);
+      await api.post('/api/admin/users/bulk', { user_ids: selectedUsers, action, status: status || null });
+      notify(`Updated ${selectedUsers.length} user${selectedUsers.length === 1 ? '' : 's'}`);
       setSelectedUsers([]);
       setReloadKey((k) => k + 1);
       fetchSummary();
@@ -925,7 +925,7 @@ const HRDashboard = () => {
 
   const exportToCSV = () => {
     const pool = selectedUsers.length ? users.filter((u) => selectedUsers.includes(u.id)) : users;
-    if (pool.length === 0) { notify('No candidates to export', 'info'); return; }
+    if (pool.length === 0) { notify('No users to export', 'info'); return; }
     const csv = toCsv(pool.map((user) => ({
       Name: user.full_name || 'N/A',
       Email: user.email,
@@ -939,8 +939,8 @@ const HRDashboard = () => {
       Skills: user.all_skills ? user.all_skills.join(', ') : 'N/A',
       HasResume: user.profile_resume_filename ? 'Yes' : 'No',
     })));
-    downloadBlob(csv, `candidates_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
-    notify(`Exported ${pool.length} candidate${pool.length === 1 ? '' : 's'}`);
+    downloadBlob(csv, `users_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+    notify(`Exported ${pool.length} user${pool.length === 1 ? '' : 's'}`);
   };
 
   const toggleUserSelection = (userId) => setSelectedUsers((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]));
@@ -951,16 +951,16 @@ const HRDashboard = () => {
   const activeFilterCount = [jobRoleFilter, locationFilter, companyFilter, skillsFilter, minExperience, maxExperience, minScore, hasResume].filter(Boolean).length;
   const removedView = view === 'removed';
   const stageLabel = statusFilter === 'none' ? 'not reviewed' : STATUS_BY_VALUE[statusFilter]?.label.toLowerCase();
-  const listTitle = removedView ? 'removed' : stageLabel ? `${stageLabel}` : `candidate${pagination.total === 1 ? '' : 's'}`;
+  const listTitle = removedView ? 'removed' : stageLabel ? `${stageLabel}` : `user${pagination.total === 1 ? '' : 's'}`;
 
   return (
     <AppShell wide toneName="teal">
       <PageHeader
-        eyebrow="Talent desk"
+        eyebrow="Admin"
         toneName="teal"
-        title="Meet your next hire."
+        title="Everyone on SkillLens."
         accent={2}
-        subtitle="Search every SkillLens candidate, move people through your stages, and keep private notes only HR can see."
+        subtitle="Search every SkillLens user, track them through your stages, and keep private notes only you can see."
         actions={(
           <>
             <Button variant="outline" onClick={() => analyticsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Analytics</Button>
@@ -977,7 +977,7 @@ const HRDashboard = () => {
       <div ref={listRef} className="mt-16 scroll-mt-24">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <label className="group relative block w-full max-w-[640px]">
-            <span className="sr-only">Search candidates</span>
+            <span className="sr-only">Search users</span>
             <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-0 top-1/2 h-6 w-6 -translate-y-1/2 text-silver transition-colors group-focus-within:text-teal-ink" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
               <circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.2-4.2" />
             </svg>
@@ -1000,7 +1000,7 @@ const HRDashboard = () => {
               Filters
               {activeFilterCount > 0 && <span className="rounded-full bg-teal px-1.5 text-[12px] font-semibold tabular-nums text-white">{activeFilterCount}</span>}
             </button>
-            <button type="button" onClick={() => { fetchHRData(page); fetchSummary(); }} className="font-medium text-ink hover:text-teal-ink">Refresh</button>
+            <button type="button" onClick={() => { fetchUsers(page); fetchSummary(); }} className="font-medium text-ink hover:text-teal-ink">Refresh</button>
           </div>
         </div>
 
@@ -1057,7 +1057,7 @@ const HRDashboard = () => {
             <p className="font-display text-[40px] font-semibold tracking-tighter2 text-black/20 md:text-[56px]">{removedView ? 'Nobody removed.' : 'Nobody here yet.'}</p>
             <p className="mx-auto mt-4 max-w-[46ch] text-[16px] leading-[1.55] text-graphite">
               {removedView
-                ? 'Candidates you remove appear here. They return to the main list on their own when they use SkillLens again.'
+                ? 'Users you remove appear here. They return to the main list on their own when they use SkillLens again.'
                 : 'Try a different search, another stage, or fewer filters.'}
             </p>
           </div>
@@ -1065,7 +1065,7 @@ const HRDashboard = () => {
           <ul className="mt-2">
             <AnimatePresence initial={false}>
               {users.map((user, i) => (
-                <CandidateRow
+                <UserRow
                   key={user.id} index={i} user={user} selected={selectedUsers.includes(user.id)}
                   onToggle={toggleUserSelection} onView={openDetails} onDownload={downloadUserResume}
                   onStatus={changeStatus} onRemove={setRemoved} removedView={removedView}
@@ -1080,7 +1080,7 @@ const HRDashboard = () => {
 
       {/* Analytics */}
       <div ref={analyticsRef} className="mt-24 scroll-mt-20">
-        <Section index="01" title="Who is applying" note="Most common current roles and where candidates are based.">
+        <Section index="01" title="Who uses SkillLens" note="Most common current roles and where users are based.">
           <div className="grid gap-14 xl:grid-cols-2">
             <RankedLines entries={Object.entries(analytics.job_role_distribution || {}).slice(0, 8)} />
             <CityCloud entries={Object.entries(analytics.location_distribution || {}).slice(0, 10)} />
@@ -1089,7 +1089,7 @@ const HRDashboard = () => {
         <Section index="02" title="Resume quality" note={`ATS scores of all ${stats.total_resumes || 0} saved resumes.`}>
           <ScoreArcs distribution={analytics.score_distribution} average={analytics.average_score} />
         </Section>
-        <Section index="03" title="Seniority" note="Years of experience, from candidate profiles.">
+        <Section index="03" title="Seniority" note="Years of experience, from user profiles.">
           <ExperienceSpread distribution={analytics.experience_distribution} />
         </Section>
       </div>
@@ -1103,13 +1103,13 @@ const HRDashboard = () => {
         onClear={() => setSelectedUsers([])}
       />
 
-      <Drawer open={Boolean(selectedUser)} onClose={closeDetails} label={selectedUser ? `Details for ${nameOf(selectedUser)}` : 'Candidate details'}>
+      <Drawer open={Boolean(selectedUser)} onClose={closeDetails} label={selectedUser ? `Details for ${nameOf(selectedUser)}` : 'User details'}>
         {selectedUser && (
-          <CandidateDetails user={selectedUser} details={userDetails} onSaved={applyReview} onDownload={downloadUserResume} onRemove={setRemoved} />
+          <UserDetails user={selectedUser} details={userDetails} onSaved={applyReview} onDownload={downloadUserResume} onRemove={setRemoved} />
         )}
       </Drawer>
     </AppShell>
   );
 };
 
-export default HRDashboard;
+export default AdminDashboard;

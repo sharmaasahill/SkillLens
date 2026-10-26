@@ -12,7 +12,7 @@ const Profile = lazy(() => import('./pages/Profile'));
 const SalaryPredictor = lazy(() => import('./pages/SalaryPredictor'));
 const JobRecommender = lazy(() => import('./pages/JobRecommender'));
 const ResumeAnalyzer = lazy(() => import('./pages/ResumeAnalyzer'));
-const HRDashboard = lazy(() => import('./pages/HRDashboard'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 
 function App() {
   return (
@@ -25,7 +25,7 @@ function App() {
               <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<Auth />} />
 
-              {/* Candidate routes */}
+              {/* User routes */}
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/account" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/salary-predictor" element={<ProtectedRoute><SalaryPredictor /></ProtectedRoute>} />
@@ -33,8 +33,8 @@ function App() {
               <Route path="/job-recommender" element={<ProtectedRoute><JobRecommender /></ProtectedRoute>} />
               <Route path="/resume-analyzer" element={<ProtectedRoute><ResumeAnalyzer /></ProtectedRoute>} />
 
-              {/* HR routes */}
-              <Route path="/hr-dashboard" element={<ProtectedRoute hrOnly><HRDashboard /></ProtectedRoute>} />
+              {/* Admin route: only the admin account gets past ProtectedRoute */}
+              <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

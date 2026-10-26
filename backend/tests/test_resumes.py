@@ -97,7 +97,7 @@ def test_library_holds_five_resumes_with_one_primary(client, user_session, fake_
     sixth = _upload(client, user_session, name='cv5.pdf')
     assert sixth.status_code == 409 and 'up to 5' in sixth.get_json()['error']
 
-    # Choose another primary; the profile resume HR sees follows it
+    # Choose another primary; the profile resume the admin sees follows it
     assert client.put(f'/resumes/{ids[3]}/primary', headers=user_session).status_code == 200
     assert client.get('/resume-history').get_json()['primary_id'] == ids[3]
     assert client.get('/profile').get_json()['profile_resume_filename'] == 'cv3.pdf'

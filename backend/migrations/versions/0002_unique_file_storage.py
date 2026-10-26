@@ -1,4 +1,4 @@
-"""Unique file storage paths for resumes, plus indexes for HR queries.
+"""Unique file storage paths for resumes, plus indexes for admin user queries.
 
 Revision ID: 0002_unique_storage
 Revises: 0001_initial

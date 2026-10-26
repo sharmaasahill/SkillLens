@@ -16,6 +16,7 @@ from models.database import User
 from ..errors import ApiError
 from ..extensions import db, limiter
 from ..schemas import LoginRequest, RegisterRequest
+from ..services import admin_account
 from ..services.serializers import user_summary
 from . import json_body
 
@@ -46,7 +47,7 @@ def _session_response(user, status=200):
 @limiter.limit(_auth_limit)
 def register():
     data = json_body(RegisterRequest)
-    if User.query.filter_by(email=data.email).first():
+    if admin_account.is_admin_email(data.email) or User.query.filter_by(email=data.email).first():
         raise ApiError('Email already registered', 409)
 
     user = User(
@@ -63,18 +64,15 @@ def register():
 @bp.post('/login')
 @limiter.limit(_auth_limit)
 def login():
+    """One sign-in for everyone. The admin email opens the admin dashboard; any other email is a user."""
     data = json_body(LoginRequest)
-    user = User.query.filter_by(email=data.email).first()
+    if admin_account.is_admin_email(data.email):
+        user = admin_account.sync_admin()  # creates the admin account on its first sign-in
+    else:
+        user = User.query.filter_by(email=data.email).first()
     password_ok = check_password_hash(user.password if user else _DUMMY_HASH, data.password)
     if not user or not password_ok:
         raise ApiError('Invalid email or password', 401)
-
-    # Checked only after the password is correct, so it reveals nothing to someone guessing
-    is_hr = bool(user.is_admin)
-    if data.account_type == 'hr' and not is_hr:
-        raise ApiError('This is a candidate account. Sign in with the Candidate option instead.', 403)
-    if data.account_type == 'candidate' and is_hr:
-        raise ApiError('This is an HR team account. Sign in with the HR team option instead.', 403)
     return _session_response(user)
 
 

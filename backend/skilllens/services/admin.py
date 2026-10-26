@@ -1,7 +1,7 @@
-"""HR candidate search and analytics.
+"""Admin dashboard: user search and analytics.
 
 Queries aggregate in the database instead of looping per user, so the cost of a
-page is a fixed handful of queries regardless of how many candidates exist.
+page is a fixed handful of queries regardless of how many users exist.
 """
 import json
 import math
@@ -11,7 +11,7 @@ from datetime import datetime
 
 from sqlalchemy import and_, case, func, literal, or_, select
 
-from models.database import CandidateReview, ProfileHistory, Resume, User
+from models.database import UserReview, ProfileHistory, Resume, User
 from models.skills_taxonomy import display_name, skill_key
 
 from ..errors import ApiError
@@ -27,7 +27,7 @@ def _ci_contains(column, text):
 
 
 def _has_skill(skill):
-    """Candidates with exactly this skill on a resume or in their skills summary ("Java" is not "JavaScript")."""
+    """Users with exactly this skill on a resume or in their skills summary ("Java" is not "JavaScript")."""
     skill = skill.strip()
     # Resume.skills is a JSON list; older rows store the lower-case key ("rest api") instead of "REST APIs"
     names = {skill.lower(), display_name(skill).lower(), skill_key(skill)}
@@ -55,9 +55,9 @@ def _resume_aggregates():
 
 
 def _removed_condition():
-    """Removed by HR and not active since. Activity after removal brings a candidate back."""
-    return and_(CandidateReview.hidden_at.is_not(None),
-                or_(User.last_active_at.is_(None), User.last_active_at <= CandidateReview.hidden_at))
+    """Removed by the admin and not active since. Activity after removal brings a user back."""
+    return and_(UserReview.hidden_at.is_not(None),
+                or_(User.last_active_at.is_(None), User.last_active_at <= UserReview.hidden_at))
 
 
 def _review_dict(review, user):
@@ -74,24 +74,24 @@ def _review_dict(review, user):
     }
 
 
-def search_candidates(q):
-    """Filtered, sorted, paginated candidate list. `q` is a validated HRUserQuery."""
+def search_users(q):
+    """Filtered, sorted, paginated user list (the admin account is never listed). `q` is a validated AdminUserQuery."""
     agg = _resume_aggregates()
     latest = Resume.__table__.alias('latest_resume')
 
     stmt = (
-        select(User, agg.c.resume_count, latest.c.score, CandidateReview)
+        select(User, agg.c.resume_count, latest.c.score, UserReview)
         .outerjoin(agg, agg.c.user_id == User.id)
         .outerjoin(latest, latest.c.id == agg.c.latest_id)
-        .outerjoin(CandidateReview, CandidateReview.user_id == User.id)
+        .outerjoin(UserReview, UserReview.user_id == User.id)
         .where(User.is_admin.is_(False))
     )
     removed = _removed_condition()
-    stmt = stmt.where(removed if q.view == 'removed' else or_(CandidateReview.user_id.is_(None), ~removed))
+    stmt = stmt.where(removed if q.view == 'removed' else or_(UserReview.user_id.is_(None), ~removed))
     if q.status == 'none':
-        stmt = stmt.where(or_(CandidateReview.status.is_(None), CandidateReview.status == ''))
+        stmt = stmt.where(or_(UserReview.status.is_(None), UserReview.status == ''))
     elif q.status:
-        stmt = stmt.where(CandidateReview.status == q.status)
+        stmt = stmt.where(UserReview.status == q.status)
 
     if q.job_role:
         stmt = stmt.where(_ci_contains(User.current_work, q.job_role))
@@ -164,7 +164,7 @@ def search_candidates(q):
     }
 
 
-def candidate_details(user_id):
+def user_details(user_id):
     user = db.session.scalar(select(User).where(User.id == user_id, User.is_admin.is_(False)))
     if user is None:
         raise ApiError('User not found', 404)
@@ -174,7 +174,7 @@ def candidate_details(user_id):
                .order_by(ProfileHistory.changed_at.desc()).limit(10).all())
 
     data = user_profile(user)
-    data['review'] = _review_dict(db.session.get(CandidateReview, user.id), user)
+    data['review'] = _review_dict(db.session.get(UserReview, user.id), user)
     data['resume_history'] = [{
         'id': r.id,
         'filename': r.filename,
@@ -192,28 +192,28 @@ def candidate_details(user_id):
     return data
 
 
-def candidate(user_id):
+def get_user(user_id):
     user = db.session.scalar(select(User).where(User.id == user_id, User.is_admin.is_(False)))
     if user is None:
         raise ApiError('User not found', 404)
     return user
 
 
-def _review_for(user_id, hr_user):
-    candidate(user_id)
-    review = db.session.get(CandidateReview, user_id)
+def _review_for(user_id, admin_user):
+    get_user(user_id)
+    review = db.session.get(UserReview, user_id)
     if review is None:
-        review = CandidateReview(user_id=user_id)
+        review = UserReview(user_id=user_id)
         db.session.add(review)
-    review.updated_by = hr_user.id
+    review.updated_by = admin_user.id
     review.updated_at = datetime.utcnow()
     return review
 
 
-def update_review(user_ids, hr_user, status=..., note=..., remove=None):
-    """Set status and/or note, or remove/restore, for one or more candidates. `...` means unchanged."""
+def update_review(user_ids, admin_user, status=..., note=..., remove=None):
+    """Set status and/or note, or remove/restore, for one or more users. `...` means unchanged."""
     for user_id in user_ids:
-        review = _review_for(user_id, hr_user)
+        review = _review_for(user_id, admin_user)
         if status is not ...:
             review.status = status or None
         if note is not ...:
@@ -223,25 +223,25 @@ def update_review(user_ids, hr_user, status=..., note=..., remove=None):
         elif remove is False:
             review.hidden_at = None
     db.session.commit()
-    return [{'id': uid, 'review': _review_dict(db.session.get(CandidateReview, uid), db.session.get(User, uid))} for uid in user_ids]
+    return [{'id': uid, 'review': _review_dict(db.session.get(UserReview, uid), db.session.get(User, uid))} for uid in user_ids]
 
 
 def stats():
-    candidates = User.is_admin.is_(False)
+    regular_users = User.is_admin.is_(False)
     status_counts = dict(db.session.execute(
-        select(CandidateReview.status, func.count()).where(CandidateReview.status.is_not(None)).group_by(CandidateReview.status)
+        select(UserReview.status, func.count()).where(UserReview.status.is_not(None)).group_by(UserReview.status)
     ).all())
     removed_count = db.session.scalar(
-        select(func.count()).select_from(CandidateReview).join(User, User.id == CandidateReview.user_id).where(_removed_condition()))
+        select(func.count()).select_from(UserReview).join(User, User.id == UserReview.user_id).where(_removed_condition()))
     return {
         'status_counts': status_counts,
         'removed_count': removed_count or 0,
-        'total_users': db.session.scalar(select(func.count(User.id)).where(candidates)),
+        'total_users': db.session.scalar(select(func.count(User.id)).where(regular_users)),
         'total_resumes': db.session.scalar(select(func.count(Resume.id))),
         'users_with_profiles': db.session.scalar(
-            select(func.count(User.id)).where(candidates, User.full_name.is_not(None))),
+            select(func.count(User.id)).where(regular_users, User.full_name.is_not(None))),
         'users_with_resume': db.session.scalar(
-            select(func.count(User.id)).where(candidates, User.profile_resume_filename.is_not(None))),
+            select(func.count(User.id)).where(regular_users, User.profile_resume_filename.is_not(None))),
         'average_score': round(db.session.scalar(
             select(func.avg(Resume.score)).where(Resume.score.is_not(None))) or 0, 1),
     }
@@ -290,11 +290,11 @@ def _bucket_counts(column, buckets, where):
 
 
 def analytics():
-    candidates = User.is_admin.is_(False)
+    regular_users = User.is_admin.is_(False)
     experience = _bucket_counts(
         User.total_experience,
         [('0-2', 2), ('3-5', 5), ('6-10', 10), ('10+', None)],
-        [candidates, User.total_experience.is_not(None), User.total_experience > 0],
+        [regular_users, User.total_experience.is_not(None), User.total_experience > 0],
     )
     scores = _bucket_counts(
         Resume.score,
@@ -308,6 +308,6 @@ def analytics():
         'experience_distribution': experience,
         'score_distribution': scores,
         'average_score': avg_score or 0,
-        'total_candidates': db.session.scalar(select(func.count(User.id)).where(candidates)),
+        'total_users': db.session.scalar(select(func.count(User.id)).where(regular_users)),
     }
 

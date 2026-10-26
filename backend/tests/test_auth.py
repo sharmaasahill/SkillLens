@@ -44,28 +44,63 @@ def test_login_failure_does_not_reveal_which_part_was_wrong(client):
     assert wrong_password.get_json() == unknown_email.get_json()
 
 
-def test_candidate_and_hr_logins_are_separate(client):
-    """Candidates can only use the candidate login; HR can only use the HR login."""
+ADMIN = {'email': TestingConfig.ADMIN_EMAIL, 'password': TestingConfig.ADMIN_PASSWORD}
+
+
+def test_one_login_admin_email_is_admin_and_others_are_users(client):
     from models.database import User
-    from werkzeug.security import generate_password_hash
-    candidate = User(email='cand@example.com', password=generate_password_hash('password123'), full_name='C', is_admin=False)
-    hr = User(email='hr@example.com', password=generate_password_hash('password123'), full_name='H', is_admin=True)
-    db.session.add_all([candidate, hr])
+    create_user('user@example.com')
+
+    user = client.post('/auth/login', json={'email': 'user@example.com', 'password': 'password123'})
+    assert user.status_code == 200 and user.get_json()['user']['is_admin'] is False
+
+    # The admin account does not exist yet: its first sign-in creates it
+    assert User.query.filter_by(email=ADMIN['email']).first() is None
+    admin = client.post('/auth/login', json={**ADMIN, 'email': ADMIN['email'].upper()})
+    assert admin.status_code == 200 and admin.get_json()['user']['is_admin'] is True
+    assert User.query.filter_by(is_admin=True).count() == 1
+
+    wrong = client.post('/auth/login', json={**ADMIN, 'password': 'not-the-password'})
+    assert wrong.status_code == 401
+
+
+def test_nobody_can_register_the_admin_email(client):
+    response = client.post('/auth/register', json={**ADMIN, 'password': 'password123', 'full_name': 'Sneaky'})
+    assert response.status_code == 409
+
+
+def test_admin_email_is_the_only_admin(client):
+    from models.database import User
+    old = create_user('old-admin@example.com', is_admin=True)
+    assert client.post('/auth/login', json=ADMIN).status_code == 200
+    db.session.refresh(old)
+    assert old.is_admin is False
+    assert [u.email for u in User.query.filter_by(is_admin=True)] == [ADMIN['email']]
+
+
+def test_admin_password_comes_from_settings(app, client):
+    assert client.post('/auth/login', json=ADMIN).status_code == 200
+    app.config['ADMIN_PASSWORD'] = 'a-new-admin-password'
+    assert client.post('/auth/login', json=ADMIN).status_code == 401
+    assert client.post('/auth/login', json={**ADMIN, 'password': 'a-new-admin-password'}).status_code == 200
+    app.config['ADMIN_PASSWORD'] = ''  # not set: admin sign-in is off
+    assert client.post('/auth/login', json={**ADMIN, 'password': 'a-new-admin-password'}).status_code == 401
+
+
+def test_reset_data_deletes_every_account(app, client, user_session):
+    from models.database import ApiUsage, User
+    from datetime import date
+    db.session.add(ApiUsage(provider='gemini', day=date.today(), calls=3))
     db.session.commit()
+    client.post('/auth/login', json=ADMIN)
+    assert User.query.count() == 2
 
-    # Candidate trying HR login
-    r = client.post('/auth/login', json={'email': 'cand@example.com', 'password': 'password123', 'account_type': 'hr'})
-    assert r.status_code == 403
-    assert 'candidate account' in r.get_json()['error'].lower()
-
-    # HR trying candidate login
-    r = client.post('/auth/login', json={'email': 'hr@example.com', 'password': 'password123', 'account_type': 'candidate'})
-    assert r.status_code == 403
-    assert 'HR team account' in r.get_json()['error']
-
-    # Each working on their own side
-    assert client.post('/auth/login', json={'email': 'cand@example.com', 'password': 'password123', 'account_type': 'candidate'}).status_code == 200
-    assert client.post('/auth/login', json={'email': 'hr@example.com', 'password': 'password123', 'account_type': 'hr'}).status_code == 200
+    result = app.test_cli_runner().invoke(args=['reset-data', '--yes'])
+    assert result.exit_code == 0, result.output
+    assert User.query.count() == 0
+    assert ApiUsage.query.count() == 1  # paid-API budgets are kept
+    # The admin comes back on its next sign-in
+    assert client.post('/auth/login', json=ADMIN).status_code == 200
 
 
 def test_me_requires_login(client):

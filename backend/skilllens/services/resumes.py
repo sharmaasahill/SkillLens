@@ -1,7 +1,7 @@
 """Resume library: upload, analysis, primary resume, listing and deletion.
 
 Each user keeps up to MAX_RESUMES resumes. Exactly one of them is primary: it is the
-resume SkillLens uses for market fit, salary suggestions and the HR dashboard.
+resume SkillLens uses for market fit, salary suggestions and the admin dashboard.
 The first upload becomes primary automatically; after that the user chooses.
 """
 import logging
@@ -60,7 +60,7 @@ def owned_resume(user, resume_id):
 
 
 def _sync_profile_resume(user):
-    """Keep the profile resume fields (shown to HR) pointing at the primary resume."""
+    """Keep the profile resume fields (shown to the admin) pointing at the primary resume."""
     primary = Resume.query.filter_by(user_id=user.id, is_primary=True).first()
     if primary is not None:
         user.profile_resume_filename = primary.filename
@@ -143,7 +143,7 @@ def reanalyze(user, resume_id, jd_text=None):
     if not (resume.raw_text or '').strip():
         raise ApiError('This resume has no stored text. Upload it again to analyze it.', 400)
     analysis = analyze_text(resume.raw_text)
-    # Keep the library in step with the latest rules, so matching and HR see the same skills and score
+    # Keep the library in step with the latest rules, so matching and the admin dashboard see the same skills and score
     resume.set_skills(analysis['skills'])
     resume.score = analysis['ats_analysis']['score']
     db.session.commit()

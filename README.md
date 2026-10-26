@@ -1,6 +1,6 @@
 # SkillLens
 
-> A full-stack career platform for India: salary estimates in lakhs per annum, ATS resume scoring with an AI coach (Google Gemini), and market fit against 97,000+ Indian job postings from 2025, plus a searchable candidate view for HR teams.
+> A full-stack career platform for India: salary estimates in lakhs per annum, ATS resume scoring with an AI coach (Google Gemini), and market fit against 97,000+ Indian job postings from 2025, plus a private admin dashboard.
 
 ![React](https://img.shields.io/badge/frontend-React-blue?style=flat&logo=react)
 ![Flask](https://img.shields.io/badge/backend-Flask-green?style=flat&logo=flask)
@@ -34,8 +34,8 @@ Every resume is scored out of 100 on seven parts, and every lost point comes wit
 
 After changing the scoring rules, rescore stored resumes with `flask --app app rescore-resumes` (add `--dry-run` to preview).
 - **Professional Profile** - Users maintain a profile (work, education, skills, links) with a profile resume and change history.
-- **HR Dashboard** - HR users can search and filter candidates by role, location, company, experience, skills and score, view analytics, and download resumes.
-- **Secure auth** - httpOnly cookie sessions with short-lived access tokens, silent refresh, CSRF protection, rate-limited login and separate User and HR roles.
+- **Admin Dashboard** - One admin account (set in settings) can search and filter users by role, location, company, experience, skills and score, keep private notes, view analytics, and download resumes. Regular users never see it.
+- **Secure auth** - httpOnly cookie sessions with short-lived access tokens, silent refresh, CSRF protection, rate-limited login, one sign-in page, and two roles: users and a single admin.
 - **Live job search** - Fresh openings from job boards (JSearch/Google for Jobs, Jooble, Adzuna, TheirStack), Apify scrapers (Naukri, LinkedIn, Wellfound), 45 company career pages (Greenhouse, Lever, Ashby) and remote boards (Remotive, Himalayas, Remote OK), de-duplicated and ranked against your resume with the skills you have and the ones each job also asks for.
 
 ### Data and accuracy
@@ -116,9 +116,8 @@ python -m venv venv
 venv\Scripts\activate          # Windows (Git Bash: source venv/Scripts/activate)
 # source venv/bin/activate     # macOS / Linux
 pip install -r requirements-dev.txt
-cp .env.example .env           # then edit .env (JWT_SECRET_KEY, HR_EMAIL, HR_PASSWORD)
+cp .env.example .env           # then edit .env (JWT_SECRET_KEY, ADMIN_PASSWORD)
 flask --app app db upgrade     # create/upgrade the database tables
-python create_hr_user.py       # one-time: creates the HR account
 python app.py
 ```
 
@@ -150,7 +149,7 @@ npm start
 
 ```bash
 cd backend
-pytest                         # API, auth, storage, HR queries, salary and job models
+pytest                         # API, auth, storage, admin queries, salary and job models
 
 cd frontend
 npm test -- --watchAll=false   # API client, auth flow, route guards
@@ -177,7 +176,7 @@ All settings come from environment files that are excluded from git. Copy the `.
 | `PRELOAD_MODELS` | Load ML models at startup (`true`) or on first use |
 | `FLASK_DEBUG` | `true` for local development only |
 | `FLASK_HOST`, `FLASK_PORT` | Bind address, defaults to `127.0.0.1:5000` |
-| `HR_EMAIL`, `HR_PASSWORD`, `HR_NAME` | HR account created by `create_hr_user.py` |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | The one admin account (see Admin Account) |
 | `JSEARCH_API_KEY`, `APIFY_TOKEN`, `JOOBLE_API_KEY`, `THEIRSTACK_API_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `CAREERJET_API_KEY` | Optional live job sources (see Live job search) |
 | `JOB_LIMIT_<SOURCE>`, `JOB_SOURCES_DISABLED`, `JOB_SEARCH_USER_DAILY_LIMIT` | Daily caps per source and per user, and keyless sources to turn off |
 | `GEMINI_API_KEY`, `GEMINI_MODELS` | Optional AI coach; free key from [Google AI Studio](https://aistudio.google.com). Models are tried in order |
@@ -205,17 +204,19 @@ Flask serves `frontend/build`, so after building, the whole app is available at 
 ## Architecture
 
 - **App factory:** `skilllens.create_app()` builds the app, so tests create isolated instances with their own database and upload folder.
-- **Blueprints** in `skilllens/routes/` handle HTTP only: auth, profile, resumes, salary, jobs, hr, frontend.
-- **Services** in `skilllens/services/` hold the business logic. `ml.py` loads each model once per process. `storage.py` saves uploads as `users/<id>/<uuid>.pdf`, so files from different users can never collide. `hr.py` aggregates in SQL, so a page of candidates costs a fixed number of queries.
-- **Schemas** in `skilllens/schemas.py` validate every request body and HR query string. Invalid input returns `400` with per-field details.
+- **Blueprints** in `skilllens/routes/` handle HTTP only: auth, profile, resumes, salary, jobs, admin, frontend.
+- **Services** in `skilllens/services/` hold the business logic. `ml.py` loads each model once per process. `storage.py` saves uploads as `users/<id>/<uuid>.pdf`, so files from different users can never collide. `admin.py` aggregates in SQL, so a page of users costs a fixed number of queries. `admin_account.py` keeps the single admin account in step with ADMIN_EMAIL and ADMIN_PASSWORD.
+- **Schemas** in `skilllens/schemas.py` validate every request body and admin query string. Invalid input returns `400` with per-field details.
 - **Errors** always come back as JSON: `{"error": "...", "details": [...]}`.
 - **Auth:** tokens live in httpOnly cookies that JavaScript cannot read. Write requests send an `X-CSRF-TOKEN` header. The frontend client (`src/api.js`) refreshes expired sessions automatically.
 
 ---
 
-## HR Account
+## Admin Account
 
-`python create_hr_user.py` creates (or resets) the HR account using `HR_EMAIL` and `HR_PASSWORD` from `backend/.env`. Sign in with it via "Login as HR". Regular users can register from the login page.
+There is one sign-in page for everyone. Signing in with `ADMIN_EMAIL` and `ADMIN_PASSWORD` opens the admin dashboard; every other email is a regular user, and nobody can register the admin email. The admin account is created on its first sign-in, so it works on a fresh local or live database with no setup script. Changing `ADMIN_PASSWORD` takes effect on the next admin sign-in.
+
+`flask --app app reset-data` deletes every account and all user data in the database `DATABASE_URL` points to (local SQLite by default).
 
 ---
 
@@ -225,13 +226,12 @@ Flask serves `frontend/build`, so after building, the whole app is available at 
 SkillLens/
   backend/
     app.py                  Entry point (creates the app, runs the dev server)
-    create_hr_user.py       Creates/updates the HR account
     requirements.txt        Runtime dependencies (requirements-dev.txt adds pytest)
     skilllens/
       __init__.py           create_app() factory
       config.py             Settings from environment variables
       schemas.py            Request validation
-      security.py           JWT user loading, HR-only decorator
+      security.py           JWT user loading, admin-only and user-only decorators
       routes/               Blueprints
       services/             Business logic, model registry, file storage
     migrations/             Alembic database migrations

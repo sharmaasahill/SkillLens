@@ -1,4 +1,4 @@
-"""HR candidate reviews (status, note, removed from portal) and candidate activity time.
+"""Admin reviews of users (status, note, removed from the list) and user activity time.
 
 Revision ID: 0004_candidate_reviews
 Revises: 0003_primary_resume

@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import current_user
 
 from ..schemas import MarketFitRequest
-from ..security import candidate_required
+from ..security import user_required
 from ..services import ai_review, ml, resumes
 from ..services.serializers import resume_entry
 from . import json_body
@@ -39,7 +39,7 @@ def _analysis_response(resume, analysis, message):
 
 
 @bp.post('/upload-resume')
-@candidate_required(activity=True)
+@user_required(activity=True)
 def upload_resume():
     """Multipart: file (PDF), optional make_primary, optional jd_text or jd_file."""
     jd_text = resumes.jd_text_from_request(request.form, request.files)
@@ -50,7 +50,7 @@ def upload_resume():
 
 
 @bp.post('/resumes/<int:resume_id>/analyze')
-@candidate_required(activity=True)
+@user_required(activity=True)
 def analyze_saved(resume_id):
     """Analyze a saved resume again. Accepts JSON {jd_text} or multipart jd_text / jd_file. JD is optional."""
     jd_text = resumes.jd_text_from_request(_form(), request.files)
@@ -59,13 +59,13 @@ def analyze_saved(resume_id):
 
 
 @bp.get('/ai/status')
-@candidate_required
+@user_required
 def ai_status():
     return jsonify(ai_review.status(current_user))
 
 
 @bp.post('/resumes/<int:resume_id>/ai-review')
-@candidate_required(activity=True)
+@user_required(activity=True)
 def ai_review_resume(resume_id):
     """AI review by Gemini. Accepts the same optional jd_text / jd_file as analysis. Saved, so repeats are free."""
     resume = resumes.owned_resume(current_user, resume_id)
@@ -74,7 +74,7 @@ def ai_review_resume(resume_id):
 
 
 @bp.post('/resumes/<int:resume_id>/market-fit')
-@candidate_required
+@user_required
 def market_fit(resume_id):
     """Skills that 2025 Indian postings for a role ask for, against this resume. JSON {role}, optional."""
     resume = resumes.owned_resume(current_user, resume_id)
@@ -82,21 +82,21 @@ def market_fit(resume_id):
 
 
 @bp.get('/market/roles')
-@candidate_required
+@user_required
 def market_roles():
     """Job titles seen in at least 3 postings, for the market fit role box."""
     return jsonify({'roles': ml.job_market().popular_titles()})
 
 
 @bp.put('/resumes/<int:resume_id>/primary')
-@candidate_required
+@user_required
 def make_primary(resume_id):
     resume = resumes.set_primary(current_user, resume_id)
     return jsonify({'message': f'{resume.filename} is now your primary resume', 'resume': resume_entry(resume)})
 
 
 @bp.get('/resume-history')
-@candidate_required
+@user_required
 def resume_history():
     items = resumes.list_resumes(current_user)
     primary = resumes.primary_resume(current_user)
@@ -109,7 +109,7 @@ def resume_history():
 
 
 @bp.delete('/resume-history/<int:resume_id>')
-@candidate_required
+@user_required
 def delete_resume(resume_id):
     resumes.delete_resume(current_user, resume_id)
     return jsonify({'message': 'Resume deleted successfully'})

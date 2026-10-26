@@ -8,9 +8,9 @@ def json_body(schema):
 
 
 def register_blueprints(app):
-    from . import auth, frontend, hr, jobs, profile, resumes, salary
+    from . import admin, auth, frontend, jobs, profile, resumes, salary
 
-    for module in (auth, profile, resumes, salary, jobs, hr):
+    for module in (auth, profile, resumes, salary, jobs, admin):
         app.register_blueprint(module.bp)
     # The SPA catch-all must be registered last
     app.register_blueprint(frontend.bp)

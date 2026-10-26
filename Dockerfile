@@ -7,6 +7,8 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
+# No source maps on the live site, so visitors cannot read the original frontend code
+ENV GENERATE_SOURCEMAP=false
 RUN npm run build
 
 # 2) Python backend that also serves frontend/build

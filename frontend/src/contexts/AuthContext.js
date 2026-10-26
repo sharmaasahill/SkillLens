@@ -26,9 +26,9 @@ export function AuthProvider({ children }) {
     return data.user;
   }, []);
 
-  // accountType is 'candidate' or 'hr'; the server refuses accounts of the other kind
-  const login = useCallback(async (email, password, accountType = 'candidate') => {
-    const { data } = await api.post('/auth/login', { email, password, account_type: accountType });
+  // One sign-in for everyone: the server decides whether the account is the admin or a user
+  const login = useCallback(async (email, password) => {
+    const { data } = await api.post('/auth/login', { email, password });
     return startSession(data);
   }, [startSession]);
 

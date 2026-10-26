@@ -12,7 +12,7 @@ import { dateLabel, dateTimeLabel, downloadBlob } from '../lib/format';
 
 const SECTIONS = [
   {
-    key: 'personal', index: '01', title: 'Personal', note: 'Only HR teams on SkillLens can see these.',
+    key: 'personal', index: '01', title: 'Personal', note: 'Private. Never shown on the public site.',
     fields: [
       { name: 'full_name', label: 'Full name', placeholder: 'Your full name' },
       { name: 'phone_number', label: 'Phone', type: 'tel', placeholder: '+91 98765 43210' },
@@ -21,7 +21,7 @@ const SECTIONS = [
     ],
   },
   {
-    key: 'professional', index: '02', title: 'Work', note: 'What recruiters filter by first.',
+    key: 'professional', index: '02', title: 'Work', note: 'Shapes your salary estimate and job matches.',
     fields: [
       { name: 'current_work', label: 'Current role', placeholder: 'e.g. Senior Software Engineer' },
       { name: 'current_company', label: 'Company', placeholder: 'e.g. Infosys' },
@@ -218,7 +218,7 @@ function Profile() {
         <SpecSection key={section.key} section={section} profile={profile} editing={editing} form={form} onChange={onChange} />
       ))}
 
-      <Section index="05" title="Primary resume" note={<>Used for salary, job matches and what HR sees. <Link to="/dashboard" className="text-action-link hover:underline">Manage all resumes</Link></>}>
+      <Section index="05" title="Primary resume" note={<>Used for salary and job matches. <Link to="/dashboard" className="text-action-link hover:underline">Manage all resumes</Link></>}>
         {profile.profile_resume_filename ? (
           <div className="flex flex-wrap items-baseline justify-between gap-4 border-b border-black/[0.07] pb-6">
             <div className="min-w-0">

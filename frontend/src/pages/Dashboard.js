@@ -198,7 +198,7 @@ function Dashboard() {
   ];
   const nextMoves = [
     ...(primary ? [] : [{ text: 'Upload your first resume to unlock salary and job matches', to: '/resume-analyzer' }]),
-    ...(completion < 100 ? [{ text: `Finish your profile. HR teams see it (${completion}% done)`, to: '/account' }] : []),
+    ...(completion < 100 ? [{ text: `Finish your profile for sharper salary and job matches (${completion}% done)`, to: '/account' }] : []),
     ...(primary && primaryScore < 80 ? [{ text: `Lift your resume from ${primaryScore} to 80+. Start with the lowest scoring part`, to: '/resume-analyzer' }] : []),
     ...quick.improvementTips.slice(0, primary ? 2 : 0).map((tip) => ({ text: tip, to: '/resume-analyzer' })),
     { text: 'Check your market salary in lakhs per annum', to: '/salary-predictor' },
@@ -264,7 +264,7 @@ function Dashboard() {
       <Section
         index="04"
         title="Your resumes"
-        note={`Keep up to ${maxResumes}. The primary one drives salary, job matches and what HR sees.`}
+        note={`Keep up to ${maxResumes}. The primary one drives salary and job matches.`}
         aside={<p className="font-display text-[44px] font-semibold leading-none tracking-tighter2 tabular-nums text-ink">{resumes.length}<span className="text-[20px] text-silver">/{maxResumes}</span></p>}
       >
         <UploadLine

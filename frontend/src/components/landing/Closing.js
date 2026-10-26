@@ -76,7 +76,6 @@ export function Footer() {
             <a href="#salary" className="hover:underline">Salary predictor</a>
             <a href="#resume" className="hover:underline">Resume analyzer</a>
             <a href="#jobs" className="hover:underline">Live jobs</a>
-            <a href="#hr" className="hover:underline">For HR teams</a>
             <Link to="/auth" className="hover:underline">Sign in</Link>
             <Link to="/auth?mode=signup" className="hover:underline">Create account</Link>
           </nav>

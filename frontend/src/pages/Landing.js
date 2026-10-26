@@ -7,7 +7,6 @@ import Statement from '../components/landing/Statement';
 import SalarySection from '../components/landing/SalarySection';
 import ResumeSection from '../components/landing/ResumeSection';
 import JobsSection from '../components/landing/JobsSection';
-import HRSection from '../components/landing/HRSection';
 import { CallToAction, Footer, Numbers } from '../components/landing/Closing';
 
 /** Public marketing page. Always light, whatever theme the app itself uses. */
@@ -41,7 +40,6 @@ function Landing() {
         <SalarySection />
         <ResumeSection />
         <JobsSection />
-        <HRSection />
         <Numbers />
         <CallToAction signedIn={signedIn} home={home} />
       </main>

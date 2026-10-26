@@ -48,6 +48,11 @@ class Config:
     JWT_REFRESH_COOKIE_PATH = '/auth/'
     JWT_SESSION_COOKIE = False  # persist cookies until the token expires
 
+    # The one admin account. Every other email is a regular user. The password is never stored in
+    # code: set ADMIN_PASSWORD in backend/.env locally and in the host's settings (Render) live.
+    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin.skilllens@gmail.com').strip().lower()
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '')
+
     # CORS
     CORS_ORIGINS = _list('CORS_ORIGINS', 'http://localhost:3000')
 
@@ -98,6 +103,8 @@ class TestingConfig(Config):
     TESTING = True
     JWT_SECRET_KEY = 'test-secret-key-that-is-long-enough-for-hs256'
     SQLALCHEMY_DATABASE_URI = 'sqlite://'
+    ADMIN_EMAIL = 'admin@example.com'
+    ADMIN_PASSWORD = 'admin-password-123'
     RATELIMIT_ENABLED = False
     # Tests never call outside services: keyed sources are off and keyless ones are disabled
     ADZUNA_APP_ID = ADZUNA_APP_KEY = CAREERJET_API_KEY = ''

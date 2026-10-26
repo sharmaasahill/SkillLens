@@ -29,8 +29,6 @@ class RegisterRequest(_Schema):
 class LoginRequest(_Schema):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
-    # Which sign-in the user chose. Candidates and HR accounts can only use their own.
-    account_type: Literal['candidate', 'hr'] = 'candidate'
 
     @field_validator('email')
     @classmethod
@@ -120,9 +118,9 @@ class MarketFitRequest(_Schema):
         return _blank_to_none(value)
 
 
-# ---------- HR ----------
+# ---------- Admin ----------
 
-class HRUserQuery(_Schema):
+class AdminUserQuery(_Schema):
     job_role: Optional[str] = Field(None, max_length=100)
     location: Optional[str] = Field(None, max_length=100)
     company: Optional[str] = Field(None, max_length=100)
@@ -150,8 +148,8 @@ class HRUserQuery(_Schema):
 REVIEW_STATUSES = Literal['shortlisted', 'contacted', 'interviewing', 'hired', 'rejected']
 
 
-class CandidateReviewRequest(_Schema):
-    """Change one candidate's HR status or note. Send only what changes; status null clears it."""
+class UserReviewRequest(_Schema):
+    """Change one user's status or admin note. Send only what changes; status null clears it."""
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     status: Optional[REVIEW_STATUSES] = None
     note: Optional[str] = Field(None, max_length=2000)

@@ -13,8 +13,8 @@ const USER_LINKS = [
   { to: '/account', label: 'Profile', toneName: 'orange' },
 ];
 
-const HR_LINKS = [
-  { to: '/hr-dashboard', label: 'Candidates', toneName: 'teal' },
+const ADMIN_LINKS = [
+  { to: '/admin', label: 'Users', toneName: 'teal' },
 ];
 
 // The account button shows the person's first name rather than a letter avatar
@@ -129,14 +129,14 @@ function NavLinks({ links, layoutKey }) {
 
 const ROUTE_TONES = [
   ['/salary', 'green'], ['/advanced-salary', 'green'], ['/resume', 'blue'], ['/job', 'purple'],
-  ['/account', 'orange'], ['/hr', 'teal'], ['/dashboard', 'orange'],
+  ['/account', 'orange'], ['/admin', 'teal'], ['/dashboard', 'orange'],
 ];
 
 /** Top navigation and page frame shared by every signed-in page. */
 function AppShell({ children, wide = false, toneName }) {
   const { user } = useAuth();
   const location = useLocation();
-  const links = user?.is_admin ? HR_LINKS : USER_LINKS;
+  const links = user?.is_admin ? ADMIN_LINKS : USER_LINKS;
   const pageToneName = toneName || ROUTE_TONES.find(([prefix]) => location.pathname.startsWith(prefix))?.[1] || 'blue';
   const [scrolled, setScrolled] = useState(false);
 

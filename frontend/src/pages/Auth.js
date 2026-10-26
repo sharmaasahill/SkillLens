@@ -13,7 +13,6 @@ function Auth() {
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [loginType, setLoginType] = useState('user'); // 'user' or 'hr'
   const navigate = useNavigate();
   const { user, loading: sessionLoading, login, register } = useAuth();
 
@@ -32,20 +31,11 @@ function Auth() {
     setLoading(true);
 
     try {
-      const account = isLogin
-        ? await login(email, password, loginType === 'hr' ? 'hr' : 'candidate')
-        : await register(email, password, fullName);
+      // The admin email lands on the admin dashboard, everyone else on their dashboard
+      const account = isLogin ? await login(email, password) : await register(email, password, fullName);
       navigate(homeFor(account), { replace: true });
     } catch (err) {
-      const msg = errorMessage(err, 'An error occurred');
-      // The backend gives clear messages for wrong-side login, so show them as-is
-      if (err.response?.status === 403) {
-        setError(msg);
-      } else if (err.response?.status === 401) {
-        setError('Invalid email or password');
-      } else {
-        setError(msg);
-      }
+      setError(err.response?.status === 401 ? 'Invalid email or password' : errorMessage(err, 'An error occurred'));
     } finally {
       setLoading(false);
     }
@@ -75,24 +65,6 @@ function Auth() {
           <p className="mt-3 text-center text-[17px] text-graphite">
             {isLogin ? 'Welcome back.' : 'Free, and takes less than a minute.'}
           </p>
-
-          {isLogin && (
-            <div className="mx-auto mt-8 flex w-fit rounded-full bg-mist p-1" role="group" aria-label="Account type">
-              {[['user', 'Candidate'], ['hr', 'HR team']].map(([type, label]) => (
-                <button
-                  key={type}
-                  type="button"
-                  aria-pressed={loginType === type}
-                  onClick={() => { setLoginType(type); setEmail(''); setPassword(''); }}
-                  className={`rounded-full px-5 py-1.5 text-[14px] transition ${
-                    loginType === type ? 'bg-white text-ink shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-graphite hover:text-ink'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
 
           <form className="mt-8 space-y-3" onSubmit={handleSubmit}>
             {error && (

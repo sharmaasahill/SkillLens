@@ -28,7 +28,7 @@ class User(db.Model):
     profile_resume_filename = db.Column(db.String(255))  # Original name of the current profile resume
     profile_resume_path = db.Column(db.String(255))  # Unique storage path (relative to the upload folder)
     profile_resume_uploaded_at = db.Column(db.DateTime)
-    # Last time the candidate uploaded/analyzed a resume, matched jobs or checked a salary
+    # Last time the user uploaded/analyzed a resume, matched jobs or checked a salary
     last_active_at = db.Column(db.DateTime)  # When profile resume was uploaded
     skills_summary = db.Column(db.Text)  # Key skills from profile resume
     education = db.Column(db.String(300))  # Education background
@@ -87,7 +87,7 @@ class Resume(db.Model):
     score = db.Column(db.Float, nullable=True)
     raw_text = db.Column(db.Text)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
-    # The resume SkillLens uses for salary, market fit and HR (one per user)
+    # The resume SkillLens uses for salary, market fit and the admin dashboard (one per user)
     is_primary = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
     def get_skills(self):
@@ -120,16 +120,16 @@ class ApiUsage(db.Model):
     __table_args__ = (db.UniqueConstraint('provider', 'day', name='uq_api_usage_provider_day'),)
 
 
-class CandidateReview(db.Model):
-    """What the HR team has decided about a candidate. One row per candidate, shared by the team."""
-    __tablename__ = 'candidate_reviews'
+class UserReview(db.Model):
+    """The admin's status and private note for a user. One row per user."""
+    __tablename__ = 'user_reviews'
 
     STATUSES = ('shortlisted', 'contacted', 'interviewing', 'hired', 'rejected')
 
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
     status = db.Column(db.String(20))
     note = db.Column(db.Text)
-    # Removed from the HR portal at this time. The candidate returns once they are active again after it.
+    # Removed from the admin list at this time. The user returns once they are active again after it.
     hidden_at = db.Column(db.DateTime)
     updated_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

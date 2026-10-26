@@ -5,13 +5,13 @@ import { useAuth } from '../contexts/AuthContext';
 
 jest.mock('../contexts/AuthContext', () => ({ useAuth: jest.fn() }));
 
-function renderAt(path, { hrOnly = false } = {}) {
+function renderAt(path, { adminOnly = false } = {}) {
   render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/auth" element={<p>Login page</p>} />
         <Route path="/dashboard" element={<p>Home page</p>} />
-        <Route path="/secret" element={<ProtectedRoute hrOnly={hrOnly}><p>Secret page</p></ProtectedRoute>} />
+        <Route path="/secret" element={<ProtectedRoute adminOnly={adminOnly}><p>Secret page</p></ProtectedRoute>} />
       </Routes>
     </MemoryRouter>
   );
@@ -35,14 +35,14 @@ test('renders the page for signed-in users', () => {
   expect(screen.getByText('Secret page')).toBeInTheDocument();
 });
 
-test('keeps regular users out of HR-only pages', () => {
+test('keeps regular users out of admin-only pages', () => {
   useAuth.mockReturnValue({ user: { email: 'a@example.com', is_admin: false }, loading: false });
-  renderAt('/secret', { hrOnly: true });
+  renderAt('/secret', { adminOnly: true });
   expect(screen.getByText('Home page')).toBeInTheDocument();
 });
 
-test('lets HR users into HR-only pages', () => {
-  useAuth.mockReturnValue({ user: { email: 'hr@example.com', is_admin: true }, loading: false });
-  renderAt('/secret', { hrOnly: true });
+test('lets the admin into admin-only pages', () => {
+  useAuth.mockReturnValue({ user: { email: 'admin.skilllens@gmail.com', is_admin: true }, loading: false });
+  renderAt('/secret', { adminOnly: true });
   expect(screen.getByText('Secret page')).toBeInTheDocument();
 });

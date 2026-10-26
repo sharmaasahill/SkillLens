@@ -55,9 +55,9 @@ def add_resume(user, score, skills=('Python',), filename='resume.pdf', primary=N
     return resume
 
 
-def login(client, email, password=PASSWORD, account_type='candidate'):
+def login(client, email, password=PASSWORD):
     """Log in and return headers carrying the CSRF token for write requests."""
-    response = client.post('/auth/login', json={'email': email, 'password': password, 'account_type': account_type})
+    response = client.post('/auth/login', json={'email': email, 'password': password})
     assert response.status_code == 200, response.get_json()
     return {'X-CSRF-TOKEN': response.get_json()['csrf_access_token']}
 

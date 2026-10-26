@@ -8,7 +8,6 @@ const LINKS = [
   { href: '#salary', label: 'Salary' },
   { href: '#resume', label: 'Resume' },
   { href: '#jobs', label: 'Jobs' },
-  { href: '#hr', label: 'For HR' },
 ];
 
 export function Wordmark({ className = '' }) {

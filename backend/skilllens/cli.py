@@ -1,4 +1,7 @@
 """Maintenance commands: flask --app app <command>."""
+import os
+import shutil
+
 import click
 from flask import Flask
 
@@ -9,6 +12,44 @@ from .extensions import db
 
 
 def register_commands(app: Flask):
+    @app.cli.command('reset-data')
+    @click.option('--yes', is_flag=True, help='Do not ask for confirmation.')
+    def reset_data(yes):
+        """Delete every account (users and admin) and everything they created.
+
+        Runs on whichever database DATABASE_URL points to (local SQLite by default). Tables stay,
+        and so do today's paid-API usage counters, so daily budgets still hold. The admin account
+        comes back on its next sign-in. Resume files on this computer are removed only for the
+        local SQLite database, because a live database's files are not stored here.
+        """
+        url = db.engine.url
+        where = url.render_as_string(hide_password=True)
+        if not yes:
+            click.confirm(f'Delete ALL accounts and their data in {where}?', abort=True)
+
+        keep = {'api_usage'}
+        counts = {}
+        for table in reversed(db.metadata.sorted_tables):  # children before parents
+            if table.name in keep:
+                continue
+            counts[table.name] = db.session.execute(table.delete()).rowcount
+        db.session.commit()
+        for name, count in sorted(counts.items()):
+            click.echo(f'{name}: deleted {count} rows')
+
+        if url.get_backend_name() == 'sqlite':
+            root = os.path.abspath(app.config['UPLOAD_FOLDER'])
+            removed = 0
+            for entry in os.listdir(root) if os.path.isdir(root) else []:
+                path = os.path.join(root, entry)
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+                removed += 1
+            click.echo(f'Removed {removed} items from {root}')
+        click.echo(f'Done: {where} is empty.')
+
     @app.cli.command('rescore-resumes')
     @click.option('--dry-run', is_flag=True, help='Show the new scores without saving them.')
     def rescore_resumes(dry_run):

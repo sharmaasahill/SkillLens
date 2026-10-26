@@ -15,7 +15,7 @@ function renderAuth(auth) {
       <Routes>
         <Route path="/auth" element={<Auth />} />
         <Route path="/dashboard" element={<p>User home</p>} />
-        <Route path="/hr-dashboard" element={<p>HR dashboard</p>} />
+        <Route path="/admin" element={<p>Admin dashboard</p>} />
       </Routes>
     </MemoryRouter>
   );
@@ -27,41 +27,38 @@ function fillAndSubmit(email, password) {
   fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 }
 
+test('has one sign-in, with no account type to choose', () => {
+  renderAuth();
+  expect(screen.queryByRole('group', { name: 'Account type' })).not.toBeInTheDocument();
+});
+
 test('logs in and sends regular users to the home page', async () => {
   const login = jest.fn().mockResolvedValue({ email: 'a@example.com', is_admin: false });
   renderAuth({ login });
   fillAndSubmit('a@example.com', 'password123');
   expect(await screen.findByText('User home')).toBeInTheDocument();
-  expect(login).toHaveBeenCalledWith('a@example.com', 'password123', 'candidate');
+  expect(login).toHaveBeenCalledWith('a@example.com', 'password123');
 });
 
-test('the HR team option signs in as HR', async () => {
-  const login = jest.fn().mockResolvedValue({ email: 'hr@example.com', is_admin: true });
+test('sends the admin account to the admin dashboard', async () => {
+  const login = jest.fn().mockResolvedValue({ email: 'admin.skilllens@gmail.com', is_admin: true });
   renderAuth({ login });
-  fireEvent.click(screen.getByRole('button', { name: 'HR team' }));
-  fillAndSubmit('hr@example.com', 'password123');
-  expect(await screen.findByText('HR dashboard')).toBeInTheDocument();
-  expect(login).toHaveBeenCalledWith('hr@example.com', 'password123', 'hr');
+  fillAndSubmit('admin.skilllens@gmail.com', 'password123');
+  expect(await screen.findByText('Admin dashboard')).toBeInTheDocument();
 });
 
-test('shows the wrong-side message when an account uses the other login', async () => {
-  const error = { response: { status: 403, data: { error: 'This is an HR team account. Sign in with the HR team option instead.' } } };
-  renderAuth({ login: jest.fn().mockRejectedValue(error) });
-  fillAndSubmit('hr@example.com', 'password123');
-  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('HR team option'));
-});
-
-test('sends HR users to the HR dashboard', async () => {
-  renderAuth({ login: jest.fn().mockResolvedValue({ email: 'hr@example.com', is_admin: true }) });
-  fillAndSubmit('hr@example.com', 'password123');
-  expect(await screen.findByText('HR dashboard')).toBeInTheDocument();
-});
-
-test('shows the error returned by the API', async () => {
-  const error = { response: { data: { error: 'Invalid email or password' } } };
+test('shows a plain message for a wrong email or password', async () => {
+  const error = { response: { status: 401, data: { error: 'Invalid email or password' } } };
   renderAuth({ login: jest.fn().mockRejectedValue(error) });
   fillAndSubmit('a@example.com', 'wrong');
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Invalid email or password'));
+});
+
+test('shows other errors returned by the API', async () => {
+  const error = { response: { status: 429, data: { error: 'Too many attempts. Try again in a minute.' } } };
+  renderAuth({ login: jest.fn().mockRejectedValue(error) });
+  fillAndSubmit('a@example.com', 'password123');
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Too many attempts'));
 });
 
 test('redirects visitors who are already signed in', () => {

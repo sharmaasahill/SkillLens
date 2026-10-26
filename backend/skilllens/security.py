@@ -1,4 +1,4 @@
-"""Auth helpers: user lookup for JWTs and an HR-only decorator."""
+"""Auth helpers: user lookup for JWTs, and admin-only and user-only decorators."""
 from functools import wraps
 
 from flask_jwt_extended import current_user, verify_jwt_in_request
@@ -23,24 +23,24 @@ def load_user(_header, payload):
         return None
 
 
-def hr_required(fn):
-    """Require a valid access token belonging to an HR (admin) user."""
+def admin_required(fn):
+    """Require a valid access token belonging to the admin account."""
 
     @wraps(fn)
     def wrapper(*args, **kwargs):
         verify_jwt_in_request()
-        if not current_user.is_admin:
-            raise ApiError('Access denied. HR privileges required.', 403)
+        if current_user is None or not current_user.is_admin:
+            raise ApiError('Access denied. Admin access required.', 403)
         return fn(*args, **kwargs)
 
     return wrapper
 
 
-def candidate_required(fn=None, *, activity=False):
-    """Require a signed-in candidate. HR accounts cannot use candidate tools.
+def user_required(fn=None, *, activity=False):
+    """Require a signed-in user. The admin account cannot use user tools.
 
-    With activity=True, a successful request also records the candidate as active, which brings
-    them back to the HR portal if HR had removed them earlier.
+    With activity=True, a successful request also records the user as active, which brings
+    them back to the admin dashboard if the admin had removed them earlier.
     """
     def decorate(view):
         @wraps(view)
@@ -49,7 +49,7 @@ def candidate_required(fn=None, *, activity=False):
             if current_user is None:
                 raise ApiError('Please sign in again.', 401)
             if current_user.is_admin:
-                raise ApiError('HR accounts cannot use candidate tools. Sign in with a candidate account.', 403)
+                raise ApiError('The admin account cannot use user tools. Sign in with a user account.', 403)
             response = view(*args, **kwargs)
             if activity:
                 from datetime import datetime

@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify
 from flask_jwt_extended import current_user
 
 from ..schemas import JobSearchRequest
-from ..security import candidate_required
+from ..security import user_required
 from ..services import ml, resumes
 from ..services.jobs import ranking, search
 from ..services.jobs.common import city_in
@@ -21,7 +21,7 @@ def _resume_profile(user):
 
 
 @bp.get('/jobs/setup')
-@candidate_required
+@user_required
 def jobs_setup():
     """Sources, and the role, city and years to fill the search with."""
     _, years, resume = _resume_profile(current_user)
@@ -38,7 +38,7 @@ def jobs_setup():
 
 
 @bp.post('/jobs/search')
-@candidate_required(activity=True)
+@user_required(activity=True)
 def start_search():
     params = json_body(JobSearchRequest)
     item = search.start(current_user, params.role, params.city, params.days, params.remote_only, params.sources)
@@ -47,7 +47,7 @@ def start_search():
 
 
 @bp.get('/jobs/search/<search_id>')
-@candidate_required
+@user_required
 def read_search(search_id):
     item = search.owned(current_user, search_id)
     have, years, _ = _resume_profile(current_user)

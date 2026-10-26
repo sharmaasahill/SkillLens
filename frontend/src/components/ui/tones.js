@@ -17,7 +17,7 @@ export const AREA = {
   salary: 'green',
   resume: 'blue',
   jobs: 'purple',
-  hr: 'teal',
+  admin: 'teal',
   profile: 'orange',
 };
 
