@@ -177,3 +177,16 @@ class JobSourceResult(db.Model):
     finished_at = db.Column(db.DateTime)
 
     __table_args__ = (db.Index('ix_job_source_results_lookup', 'source', 'query_key'),)
+
+
+class StoredFile(db.Model):
+    """The bytes of an uploaded resume PDF.
+
+    Free hosts (like Render) wipe the server disk on every restart, so the database keeps the real
+    copy. The disk copy under UPLOAD_FOLDER is only a working copy, rebuilt from here when missing.
+    """
+    __tablename__ = 'stored_files'
+
+    path = db.Column(db.String(255), primary_key=True)  # same relative path as the disk copy
+    data = db.Column(db.LargeBinary, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

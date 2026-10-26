@@ -21,7 +21,7 @@ def upgrade():
 
     # Latest upload per user (ties broken by id) becomes primary
     op.execute("""
-        UPDATE resumes SET is_primary = 1
+        UPDATE resumes SET is_primary = TRUE
         WHERE id IN (
             SELECT r.id FROM resumes r
             WHERE NOT EXISTS (

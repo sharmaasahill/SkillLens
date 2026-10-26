@@ -25,6 +25,13 @@ def create_app(config_object=Config, overrides=None):
     if overrides:
         app.config.update(overrides)
 
+    proxies = app.config.get('PROXY_COUNT', 0)
+    if proxies:
+        # Behind a host's load balancer every request seems to come from the balancer itself.
+        # ProxyFix reads the visitor's IP and https from the headers the trusted proxies add.
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=proxies, x_proto=proxies)
+
     if not app.config.get('JWT_SECRET_KEY'):
         raise RuntimeError("JWT_SECRET_KEY is not set. Copy backend/.env.example to backend/.env and set a value.")
 

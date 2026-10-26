@@ -13,10 +13,28 @@ def _list(name, default):
     return [item.strip() for item in os.environ.get(name, default).split(',') if item.strip()]
 
 
+def _database_url():
+    """DATABASE_URL, or a local SQLite file.
+
+    Hosts such as Neon give links like "postgres://user:pass@host/db". SQLAlchemy needs the driver
+    in the name ("postgresql+psycopg://..."), so it is added here.
+    """
+    url = os.environ.get('DATABASE_URL', '').strip() or 'sqlite:///salary_predictor.db'
+    for prefix in ('postgres://', 'postgresql://'):
+        if url.startswith(prefix):
+            return 'postgresql+psycopg://' + url[len(prefix):]
+    return url
+
+
 class Config:
     # Database
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///salary_predictor.db')
+    SQLALCHEMY_DATABASE_URI = _database_url()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # Neon closes idle connections (it sleeps when unused), so check each pooled connection first
+    SQLALCHEMY_ENGINE_OPTIONS = {'pool_pre_ping': True, 'pool_recycle': 280}
+
+    # Number of proxies in front of the app (1 on Render), so rate limits see each visitor's real IP
+    PROXY_COUNT = int(os.environ.get('PROXY_COUNT', '0'))
 
     # Auth: JWTs live in httpOnly cookies, with double-submit CSRF protection
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
