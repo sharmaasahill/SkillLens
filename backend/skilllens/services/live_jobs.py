@@ -22,14 +22,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from datetime import date
-
 from flask import current_app
-from sqlalchemy.exc import IntegrityError
 
-from models.database import ApiUsage
-
-from ..extensions import db
+from . import quota
 
 logger = logging.getLogger(__name__)
 
@@ -54,39 +49,11 @@ def daily_limit():
     return int(current_app.config.get('LIVE_JOBS_DAILY_LIMIT', 20))
 
 
-def calls_today(provider):
-    row = ApiUsage.query.filter_by(provider=provider, day=date.today()).first()
-    return row.calls if row else 0
-
-
-def _take_call(provider):
-    """Reserve one call for today. False when the daily cap is used up.
-
-    A conditional UPDATE is atomic, so two requests at once can never both take the last call.
-    """
-    today, limit = date.today(), daily_limit()
-    for _ in range(2):
-        updated = (ApiUsage.query.filter(ApiUsage.provider == provider, ApiUsage.day == today, ApiUsage.calls < limit)
-                   .update({'calls': ApiUsage.calls + 1}, synchronize_session=False))
-        if updated:
-            db.session.commit()
-            return True
-        if ApiUsage.query.filter_by(provider=provider, day=today).first():
-            db.session.rollback()
-            return False  # today's row exists and is full
-        try:
-            db.session.add(ApiUsage(provider=provider, day=today, calls=0))
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()  # another request created it first; retry the update
-    return False
-
-
 def status():
     """What the jobs page needs to show the live openings button."""
     providers = configured_providers()
     limit = daily_limit()
-    remaining = sum(max(0, limit - calls_today(p)) for p in providers)
+    remaining = sum(quota.remaining_today(p, limit) for p in providers)
     return {'sources': providers, 'daily_limit': limit * len(providers), 'remaining_today': remaining}
 
 
@@ -182,7 +149,7 @@ def search(keywords, city=None, limit=10, user_ip=None, user_agent=None):
 
     jobs, blocked = [], 0
     for provider in providers:
-        if not _take_call(provider):
+        if not quota.take(provider, daily_limit()):
             blocked += 1
             logger.info('Daily cap reached for %s; skipping live search', provider)
             continue

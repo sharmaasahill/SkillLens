@@ -98,13 +98,6 @@ class SalaryRequest(_Schema):
 _Skill = Field(min_length=1, max_length=60)
 
 
-class RecommendJobsRequest(_Schema):
-    experience_years: float = Field(0, ge=0, le=60)
-    preferred_locations: List[str] = Field(default_factory=list, max_length=20)
-    preferred_categories: List[str] = Field(default_factory=list, max_length=20)
-    top_k: int = Field(10, ge=1, le=50)
-
-
 class LiveJobsRequest(_Schema):
     skills: List[str] = Field(default_factory=list, max_length=40)
     city: Optional[str] = Field(None, max_length=60)
@@ -115,16 +108,14 @@ class LiveJobsRequest(_Schema):
         return _blank_to_none(value)
 
 
-class JobsBySkillsRequest(_Schema):
-    skills: List[str] = Field(min_length=1, max_length=100)
-    experience: int = Field(0, ge=0, le=60)
-    preferred_locations: List[str] = Field(default_factory=list, max_length=20)
-    preferred_categories: List[str] = Field(default_factory=list, max_length=20)
-    top_k: int = Field(10, ge=1, le=50)
+class MarketFitRequest(_Schema):
+    """Target role for market fit. Empty means: guess it from the profile or the resume."""
+    role: Optional[str] = Field(None, max_length=100)
 
-
-class MarketAnalysisRequest(_Schema):
-    skills: List[str] = Field(default_factory=list, max_length=100)
+    @field_validator('role', mode='before')
+    @classmethod
+    def blank_role(cls, value):
+        return _blank_to_none(value)
 
 
 # ---------- HR ----------

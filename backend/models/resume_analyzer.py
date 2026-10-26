@@ -610,6 +610,8 @@ def analyze_text(text):
     """Skills and ATS analysis for already-extracted resume text."""
     if not text or not text.strip():
         raise ValueError('No text could be extracted from the resume')
+    from .resume_checks import review  # imported here: resume_checks builds on this module
+
     text = _normalise(text)
     found = extract_skills(text)
     skills = [s['name'] for s in found]
@@ -618,6 +620,7 @@ def analyze_text(text):
         'skill_groups': group_skills(found),
         'text': text,
         'ats_analysis': check_ats_compatibility(text, skills),
+        'checks': review(text),
     }
 
 
@@ -637,13 +640,30 @@ DATE_RANGE_RE = re.compile(
 EDUCATION_LINE_RE = re.compile(r'(?i)\b(university|college|institute|school|b\.?\s?tech|b\.?\s?e\b|b\.?\s?sc|b\.?\s?com|bca|mca|mba|m\.?\s?tech|m\.?\s?sc|degree|diploma|cgpa|10th|12th|hsc|ssc|bachelor|master)\b')
 
 
+def work_date_lines(text):
+    """(line, line index) for lines with a date range that belongs to work, not to education.
+
+    Two-column PDFs often put a degree's dates on a line of their own, so a line that holds little
+    more than the dates also counts as education when one of the two lines above it is about a degree.
+    """
+    lines = text.split('\n')
+    out = []
+    for i, line in enumerate(lines):
+        match = DATE_RANGE_RE.search(line)
+        if not match or EDUCATION_LINE_RE.search(line):
+            continue
+        rest = (line[:match.start()] + ' ' + line[match.end():]).strip(' |,-\t')
+        if len(rest.split()) <= 3 and any(EDUCATION_LINE_RE.search(prev) for prev in lines[max(0, i - 2):i]):
+            continue
+        out.append((line, i))
+    return out
+
+
 def years_from_date_ranges(text, today=None):
     """Total work experience from date ranges, skipping education lines and merging overlaps."""
     today = today or datetime.now()
     spans = []
-    for line in text.split('\n'):
-        if EDUCATION_LINE_RE.search(line):
-            continue
+    for line, _ in work_date_lines(text):
         for m in DATE_RANGE_RE.finditer(line):
             start = int(m.group(2)) + (_MONTHS.get((m.group(1) or 'jan')[:3].lower(), 1) - 1) / 12
             if m.group(3):

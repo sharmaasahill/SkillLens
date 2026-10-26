@@ -77,10 +77,7 @@ _TITLES = []
 
 def _job_titles():
     if not _TITLES:
-        counts = ml.job_recommender().jobs_df['title_norm'].value_counts()
-        titles = [t for t, n in counts.items() if n >= 3 and 2 < len(t) <= 60 and not any(ch.isdigit() for ch in t)]
-        _TITLES.extend(' '.join(w.upper() if w in ('qa', 'ui', 'ux', 'hr', 'it', 'sap', 'aws', 'ai', 'ml', 'bi', 'sde', 'sql', 'erp', 'crm', 'seo')
-                                else w.capitalize() for w in t.split()) for t in titles)
+        _TITLES.extend(ml.job_market().popular_titles())
     return _TITLES
 
 

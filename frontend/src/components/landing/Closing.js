@@ -5,7 +5,7 @@ import { Wordmark } from './GlobalNav';
 
 const NUMBERS = [
   { value: 31566, label: 'disclosed Indian salaries behind every estimate', color: 'text-green' },
-  { value: 97316, label: 'Indian job postings to match against', color: 'text-blue' },
+  { value: 97316, label: 'Indian job postings behind your market fit', color: 'text-blue' },
   { value: 18595, label: 'companies hiring across the country', color: 'text-purple' },
   { value: 196, label: 'Indian cities, plus remote roles', color: 'text-orange' },
 ];
@@ -62,8 +62,9 @@ export function Footer() {
       <div className="mx-auto max-w-[984px]">
         <p className="border-b border-hairline pb-4 leading-[1.6]">
           Salary estimates come from models trained on salaries disclosed in Naukri.com postings from September and
-          October 2025, and are a starting point, not an offer. Job matches use the same dataset, so individual
-          postings may have closed.{' '}
+          October 2025, and are a starting point, not an offer. Market fit on the resume page uses the same postings
+          to show what employers ask for; they are not open jobs. AI resume reviews are written by Google Gemini after
+          your name, phone, email and links are removed.{' '}
           <a href="https://www.kaggle.com/datasets/shivamshrivastava21/indian-job-market-dataset-2025-2026" target="_blank" rel="noopener noreferrer" className="underline">
             Indian Job Market Dataset 2025
           </a>{' '}by Shivam Shrivastava, CC BY-NC-SA 4.0.
@@ -73,7 +74,7 @@ export function Footer() {
           <nav aria-label="Footer" className="grid grid-cols-2 gap-x-16 gap-y-2 sm:grid-cols-3">
             <a href="#salary" className="hover:underline">Salary predictor</a>
             <a href="#resume" className="hover:underline">Resume analyzer</a>
-            <a href="#jobs" className="hover:underline">Job matches</a>
+            <a href="#jobs" className="hover:underline">Jobs (coming soon)</a>
             <a href="#hr" className="hover:underline">For HR teams</a>
             <Link to="/auth" className="hover:underline">Sign in</Link>
             <Link to="/auth?mode=signup" className="hover:underline">Create account</Link>

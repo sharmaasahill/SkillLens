@@ -1,6 +1,6 @@
 # SkillLens
 
-> A full-stack career platform for India: salary estimates in lakhs per annum, ATS resume scoring and job matching, all built on 97,000+ Indian job postings from 2025, plus a searchable candidate view for HR teams.
+> A full-stack career platform for India: salary estimates in lakhs per annum, ATS resume scoring with an AI coach (Google Gemini), and market fit against 97,000+ Indian job postings from 2025, plus a searchable candidate view for HR teams.
 
 ![React](https://img.shields.io/badge/frontend-React-blue?style=flat&logo=react)
 ![Flask](https://img.shields.io/badge/backend-Flask-green?style=flat&logo=flask)
@@ -13,7 +13,10 @@
 
 - **Salary Predictor (India)** - Estimates annual CTC in INR from job title, years of experience, city, work mode and skills. Trained on 31,566 salaries disclosed in Naukri.com postings. Shows how much each input moved the estimate.
 - **Advanced estimate** - Blends the linear model with gradient-boosted trees and adds a likely range and a wide range from quantile models, side by side with the quick estimate.
-- **Resume Analyzer** - Extracts skills from PDF resumes (including Indian-market skills such as Tally, GST, SAP), reads Indian degrees and CGPA, calculates an ATS score, and flags personal details recruiters do not need.
+- **Resume Analyzer** - Extracts skills from PDF resumes with an 870-skill taxonomy (including Indian-market skills such as Tally, GST, SAP), reads Indian degrees and CGPA, calculates an ATS score, and flags personal details recruiters do not need.
+- **AI coach (optional, Google Gemini)** - What a recruiter takes away in 6 seconds, rewrites of the weakest bullets with [placeholders] instead of invented numbers, likely interview questions, and requirement-by-requirement fit against a job description. Personal details are removed before sending, every answer is checked against the resume (made-up quotes and new numbers are dropped), results are saved so repeats are free, and daily limits protect the free quota. The ATS score never comes from AI.
+- **Market fit** - For a target role, the skills Indian employers ask for (share of hiring companies, from the 2025 postings) and which of them the resume shows.
+- **Recruiter checks** - Repeated opening verbs, skills listed but never shown in a job or project, overlapping roles and gaps, first-person writing. No AI needed.
 
 ### How the ATS score works
 
@@ -33,7 +36,7 @@ After changing the scoring rules, rescore stored resumes with `flask --app app r
 - **Professional Profile** - Users maintain a profile (work, education, skills, links) with a profile resume and change history.
 - **HR Dashboard** - HR users can search and filter candidates by role, location, company, experience, skills and score, view analytics, and download resumes.
 - **Secure auth** - httpOnly cookie sessions with short-lived access tokens, silent refresh, CSRF protection, rate-limited login and separate User and HR roles.
-- **Job Recommender** - Matches skills from your latest resume against 97,316 Indian postings. Skills match as whole tags, weighted by rarity, and each posting's own experience range is used. Filters by city and field, shows disclosed pay, and suggests skills that similar roles ask for. Optionally adds live openings from Adzuna or Careerjet.
+- **Jobs (coming soon)** - Live job search ranked against your resume. Matching against the 2025 dataset was removed because those postings have expired.
 
 ### Data and accuracy
 
@@ -55,7 +58,7 @@ flask --app app build-india-data
 
 ### Optional live job listings
 
-Add a free key to `backend/.env` and the Job Recommender also shows current openings. Only search keywords (your top three skills) and a city are sent, never resume text.
+The backend can fetch current openings from these providers (`POST /api/live-jobs`), kept for the upcoming live job search. Only search keywords (your top three skills) and a city are sent, never resume text.
 
 | Provider | Cost | Notes |
 | --- | --- | --- |
@@ -83,7 +86,8 @@ Add a free key to `backend/.env` and the Job Recommender also shows current open
 
 **ML**
 - scikit-learn (Ridge, HistGradientBoostingRegressor with quantile loss, TfidfVectorizer, TruncatedSVD)
-- scipy sparse matrices for job matching, pandas, numpy, joblib
+- scipy sparse matrices for market fit, pandas, numpy, joblib
+- Google Gemini over its REST API with schema-checked JSON answers (optional)
 
 ---
 
@@ -161,12 +165,14 @@ All settings come from environment files that are excluded from git. Copy the `.
 | `UPLOAD_FOLDER` | Resume storage folder, defaults to `backend/uploaded_resumes` |
 | `CORS_ORIGINS` | Comma-separated frontend origins allowed to call the API |
 | `RATELIMIT_STORAGE_URI` | `memory://` locally; a Redis URI when running several workers |
-| `AUTH_RATE_LIMIT`, `PUBLIC_API_RATE_LIMIT` | Limits for login/register and the public skills endpoint |
+| `AUTH_RATE_LIMIT` | Limit for login and register |
 | `PRELOAD_MODELS` | Load ML models at startup (`true`) or on first use |
 | `FLASK_DEBUG` | `true` for local development only |
 | `FLASK_HOST`, `FLASK_PORT` | Bind address, defaults to `127.0.0.1:5000` |
 | `HR_EMAIL`, `HR_PASSWORD`, `HR_NAME` | HR account created by `create_hr_user.py` |
 | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `CAREERJET_API_KEY` | Optional live job listings (see above) |
+| `GEMINI_API_KEY`, `GEMINI_MODELS` | Optional AI coach; free key from [Google AI Studio](https://aistudio.google.com). Models are tried in order |
+| `AI_DAILY_LIMIT`, `AI_USER_DAILY_LIMIT` | AI reviews per day for the site and per user (default 40 and 10) |
 
 **frontend/.env**
 
@@ -232,7 +238,9 @@ SkillLens/
       salary_model.py       Indian salary models (training and prediction)
       india_salary_model.pkl  Trained salary model
       resume_analyzer.py    Resume parsing and ATS scoring
-      job_recommender.py    Skill-based job matching
+      job_market.py         Market fit: what postings for a role ask for
+      skills_taxonomy.py    870 skills with display names, categories and spellings
+      resume_checks.py      Recruiter checks (verbs, unproven skills, timeline)
     uploaded_resumes/       Uploaded PDFs (created at runtime, not in git)
   frontend/
     .env.example            Frontend settings template

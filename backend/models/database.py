@@ -87,7 +87,7 @@ class Resume(db.Model):
     score = db.Column(db.Float, nullable=True)
     raw_text = db.Column(db.Text)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
-    # The resume SkillLens uses for salary, job matching and HR (one per user)
+    # The resume SkillLens uses for salary, market fit and HR (one per user)
     is_primary = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
     def get_skills(self):
@@ -133,3 +133,20 @@ class CandidateReview(db.Model):
     hidden_at = db.Column(db.DateTime)
     updated_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AiResult(db.Model):
+    """A saved AI answer, so asking again about the same resume and job description costs nothing."""
+    __tablename__ = 'ai_results'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    resume_id = db.Column(db.Integer, db.ForeignKey('resumes.id', ondelete='CASCADE'), index=True)
+    kind = db.Column(db.String(30), nullable=False)
+    # sha256 of everything that was sent, so any change to the resume, JD or prompt asks again
+    cache_key = db.Column(db.String(64), nullable=False)
+    model = db.Column(db.String(60))
+    result = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'cache_key', name='uq_ai_results_user_key'),)

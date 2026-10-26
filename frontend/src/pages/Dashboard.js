@@ -12,8 +12,8 @@ import { dateLabel, firstName, greeting } from '../lib/format';
 
 const TOOLS = [
   { to: '/salary-predictor', index: '01', title: 'Salary', line: 'Your CTC in lakhs, from 31,566 real Indian salaries.', a: '#34c759', b: '#30b0c7' },
-  { to: '/resume-analyzer', index: '02', title: 'Resume', line: 'An ATS score with every lost point explained. Add a JD to see your fit.', a: '#007aff', b: '#5856d6' },
-  { to: '/job-recommender', index: '03', title: 'Jobs', line: 'Roles across India that ask for the skills you already have.', a: '#af52de', b: '#ff2d55' },
+  { to: '/resume-analyzer', index: '02', title: 'Resume', line: 'An ATS score, an AI coach and your market fit. Add a JD to see your fit for one job.', a: '#007aff', b: '#5856d6' },
+  { to: '/job-recommender', index: '03', title: 'Jobs', line: 'Live openings ranked against your resume. Coming soon.', a: '#af52de', b: '#ff2d55' },
 ];
 
 /** One tool as a full-width typographic row. Hover draws a gradient sweep under the title. */

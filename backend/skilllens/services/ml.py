@@ -26,9 +26,10 @@ def salary_model():
     return _get('salary', IndiaSalaryPredictor)
 
 
-def job_recommender():
-    from models.job_recommender import JobRecommender
-    return _get('job_recommender', JobRecommender)
+def job_market():
+    """Skill demand from the 2025 Naukri.com postings (market fit, job title suggestions)."""
+    from models.job_market import JobMarket
+    return _get('job_market', JobMarket)
 
 
 def resume_analyzer():
@@ -39,7 +40,7 @@ def resume_analyzer():
 def preload():
     """Load every model up front so the first requests are fast."""
     salary_model()
-    job_recommender()
+    job_market()
     resume_analyzer()
 
 

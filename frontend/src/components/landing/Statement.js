@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 
 const TEXT =
-  'Most career advice is a guess. SkillLens reads your resume, weighs your experience against 31,566 real Indian salaries, and matches you to 97,316 job postings. Then it shows its working.';
+  'Most career advice is a guess. SkillLens reads your resume, weighs your experience against 31,566 real Indian salaries, and checks your skills against 97,316 job postings. Then it shows its working.';
 
 function Word({ children, progress, range, className = '' }) {
   const opacity = useTransform(progress, range, [0.16, 1]);

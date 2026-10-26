@@ -1,7 +1,7 @@
 """Resume library: upload, analysis, primary resume, listing and deletion.
 
 Each user keeps up to MAX_RESUMES resumes. Exactly one of them is primary: it is the
-resume SkillLens uses for job matching, salary suggestions and the HR dashboard.
+resume SkillLens uses for market fit, salary suggestions and the HR dashboard.
 The first upload becomes primary automatically; after that the user chooses.
 """
 import logging
@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from flask import current_app
 
 from models import jd_matcher
-from models.database import Resume
+from models.database import AiResult, Resume
 from models.resume_analyzer import ResumeAnalyzer, analyze_text, extract_skills_from_resume
 
 from ..errors import ApiError
@@ -171,6 +171,7 @@ def delete_resume(user, resume_id):
 
     if user.profile_resume_path and user.profile_resume_path == resume.stored_filename:
         user.profile_resume_filename = user.profile_resume_path = user.profile_resume_uploaded_at = None
+    AiResult.query.filter_by(resume_id=resume.id).delete()  # SQLite does not cascade by default
     db.session.delete(resume)
     db.session.flush()
     if was_primary:
@@ -185,6 +186,22 @@ def delete_resume(user, resume_id):
         storage.delete(path_to_delete)
     except OSError as exc:
         logger.warning('Could not delete resume file %s: %s', path_to_delete, exc)
+
+
+def market_fit(user, resume, role=None):
+    """Which skills postings for a role ask for, and which of them this resume shows.
+
+    Without a role, it uses the profile's current role, then a common job title found near the top
+    of the resume (its headline).
+    """
+    from . import ml
+
+    market = ml.job_market()
+    guessed = not role
+    if not role:
+        role = (user.current_work or '').strip() or market.guess_role((resume.raw_text or '')[:1500])
+    result = market.role_fit(role, resume.get_skills(), resume.raw_text or '')
+    return {**result, 'guessed': guessed}
 
 
 def library_limits():

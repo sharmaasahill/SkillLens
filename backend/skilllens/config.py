@@ -42,7 +42,6 @@ class Config:
     RATELIMIT_STORAGE_URI = os.environ.get('RATELIMIT_STORAGE_URI', 'memory://')
     RATELIMIT_HEADERS_ENABLED = True
     AUTH_RATE_LIMIT = os.environ.get('AUTH_RATE_LIMIT', '5 per minute;30 per hour')
-    PUBLIC_API_RATE_LIMIT = os.environ.get('PUBLIC_API_RATE_LIMIT', '30 per minute')
 
     # Optional live job listings for India (free keys; see backend/.env.example)
     ADZUNA_APP_ID = os.environ.get('ADZUNA_APP_ID', '')
@@ -50,6 +49,13 @@ class Config:
     CAREERJET_API_KEY = os.environ.get('CAREERJET_API_KEY', '')
     # Most calls each live-jobs provider may receive per day, across all users
     LIVE_JOBS_DAILY_LIMIT = int(os.environ.get('LIVE_JOBS_DAILY_LIMIT', '20'))
+
+    # Optional AI resume review with Google Gemini (free key from https://aistudio.google.com)
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
+    # Tried in order: when one is busy or out of free quota, the next is used
+    GEMINI_MODELS = _list('GEMINI_MODELS', 'gemini-3.8-flash,gemini-3.5-flash-lite')
+    AI_DAILY_LIMIT = int(os.environ.get('AI_DAILY_LIMIT', '40'))  # AI reviews per day, all users together
+    AI_USER_DAILY_LIMIT = int(os.environ.get('AI_USER_DAILY_LIMIT', '10'))  # per user per day
 
     # Serve the production React build (created with `npm run build` in /frontend)
     FRONTEND_BUILD_DIR = os.path.join(BACKEND_DIR, '..', 'frontend', 'build')
@@ -61,3 +67,4 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI = 'sqlite://'
     RATELIMIT_ENABLED = False
     ADZUNA_APP_ID = ADZUNA_APP_KEY = CAREERJET_API_KEY = ''  # tests never call external APIs
+    GEMINI_API_KEY = ''

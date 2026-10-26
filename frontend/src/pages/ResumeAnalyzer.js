@@ -13,6 +13,9 @@ import {
   verbsFor, buildActionItems, buildRecommendations, calculateReadabilityScore,
   flattenSkills, getIndustrySpecificAdvice, getScoreLabel, wordCount,
 } from '../lib/resumeInsights';
+import AiCoach from '../components/resume/AiCoach';
+import MarketFit from '../components/resume/MarketFit';
+import RecruiterChecks from '../components/resume/RecruiterChecks';
 
 const JD_TYPES = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
 const SKILL_COLORS = ['#007aff', '#5856d6', '#af52de', '#30b0c7', '#1d1d1f', '#34c759', '#ff2d55'];
@@ -147,7 +150,7 @@ function SkillMap({ groups }) {
   );
 }
 
-function Results({ analysis, fileName }) {
+function Results({ analysis, fileName, jd }) {
   const ats = analysis.ats_analysis || {};
   const score = ats.score ?? 0;
   const skills = flattenSkills(analysis.skills);
@@ -189,6 +192,8 @@ function Results({ analysis, fileName }) {
           </div>
         </div>
       </Rise>
+
+      <AiCoach resumeId={analysis.id} jd={jd} status={analysis.ai} />
 
       {ats.breakdown?.length > 0 && (
         <Section index="01" title="How the score adds up" note="Seven parts, 100 points. Each arc of the dial is one part.">
@@ -233,7 +238,11 @@ function Results({ analysis, fileName }) {
         </Section>
       )}
 
-      <Section index="04" title="Language" note={`Action verbs ${verbs.score}/100. Strong verbs show ownership; weak phrases hide it.`}>
+      <MarketFit resumeId={analysis.id} index="04" />
+
+      <RecruiterChecks checks={analysis.checks} index="05" />
+
+      <Section index="06" title="Language" note={`Action verbs ${verbs.score}/100. Strong verbs show ownership; weak phrases hide it.`}>
         <div className="grid gap-10 md:grid-cols-2">
           <div>
             <p className="mb-3 text-[13px] font-semibold text-green-ink">Strong verbs you used</p>
@@ -251,7 +260,7 @@ function Results({ analysis, fileName }) {
         </div>
       </Section>
 
-      <Section index="05" title="Checklist" aside={<p className="font-display text-[44px] font-semibold leading-none tracking-tighter2 tabular-nums">{done.length}<span className="text-[20px] text-silver">/{actionItems.length}</span></p>}>
+      <Section index="07" title="Checklist" aside={<p className="font-display text-[44px] font-semibold leading-none tracking-tighter2 tabular-nums">{done.length}<span className="text-[20px] text-silver">/{actionItems.length}</span></p>}>
         <ul>
           {actionItems.map((item, i) => (
             <Rise key={item.task} delay={i * 0.03}>
@@ -266,7 +275,7 @@ function Results({ analysis, fileName }) {
       </Section>
 
       {recommendations.length > 0 && (
-        <Section index="06" title="Recommendations">
+        <Section index="08" title="Recommendations">
           <ol>
             {recommendations.map((rec, i) => (
               <Rise key={rec.title} delay={i * 0.05}>
@@ -299,6 +308,9 @@ function ResumeAnalyzer() {
   const [error, setError] = useState('');
   const [analysis, setAnalysis] = useState(null);
   const [fileName, setFileName] = useState('');
+  // The job description used for the shown analysis, so the AI review compares against the same one
+  const [analysisJd, setAnalysisJd] = useState(null);
+  const [runCount, setRunCount] = useState(0);
 
   const loadLibrary = async () => {
     try {
@@ -355,6 +367,8 @@ function ResumeAnalyzer() {
       }
       setAnalysis(response.data);
       setFileName(response.data.filename || '');
+      setAnalysisJd({ text: jdMode === 'paste' && jdWords ? jdText.trim() : '', file: jdMode === 'upload' ? jdFile : null });
+      setRunCount((n) => n + 1);
       setTimeout(() => document.getElementById('results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
     } catch (err) {
       setError(errorMessage(err, 'Analysis failed'));
@@ -469,7 +483,7 @@ function ResumeAnalyzer() {
                   </div>
                 </>
               )}
-              <Results analysis={analysis} fileName={fileName} />
+              <Results key={runCount} analysis={analysis} fileName={fileName} jd={analysisJd} />
             </motion.div>
           ) : null}
         </AnimatePresence>

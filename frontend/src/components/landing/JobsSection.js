@@ -4,7 +4,7 @@ import { Reveal, useElementWidth } from './motion';
 
 const SKILLS = ['Python', 'SQL', 'React', 'AWS', 'Machine Learning'];
 
-// Real matches from the job recommender for the skills above (4 years of experience)
+// Examples of how live matches will look for the skills above (live job search is coming soon)
 const MATCHES = [
   { role: 'Data Scientist', company: 'Uplers', place: 'Hyderabad', score: 85, skills: ['Machine Learning', 'AWS', 'Python'] },
   { role: 'Fullstack Engineer', company: 'Kansal Corporate Solutions', place: 'Bengaluru', score: 71, skills: ['React', 'AWS', 'Python'] },
@@ -65,16 +65,18 @@ function JobsSection() {
       <div className={reduce ? '' : 'sticky top-0 flex h-screen flex-col justify-center overflow-hidden'}>
         <div className="mx-auto w-full max-w-[1024px] px-5">
           <Reveal>
-            <p className="text-[17px] font-semibold text-purple-ink md:text-[21px]">Jobs</p>
+            <p className="flex items-center gap-3 text-[17px] font-semibold text-purple-ink md:text-[21px]">
+              Jobs
+              <span className="rounded-full bg-purple-soft px-3 py-1 text-[12px] font-semibold uppercase tracking-[0.08em]">Coming soon</span>
+            </p>
             <h2 id="jobs-title" className="mt-2 max-w-[18ch] font-display text-[40px] font-semibold leading-[1.08] tracking-tighter2 text-ink md:text-[56px]">
-              Roles that fit the skills you already have.
+              Fresh roles that fit the skills you already have.
             </h2>
             <p className="mt-5 text-[17px] text-graphite">
-              Matched for{' '}
+              Live openings, ranked against your resume. Example for{' '}
               {SKILLS.map((s, i) => (
                 <span key={s} className="text-ink">{s}{i < SKILLS.length - 1 ? ', ' : ''}</span>
-              ))}
-              {' '}against 97,316 Indian postings.
+              ))}.
             </p>
           </Reveal>
         </div>
