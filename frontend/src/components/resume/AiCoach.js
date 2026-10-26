@@ -13,7 +13,7 @@ const STATUS = {
 };
 
 /** "[X%]" placeholders stand out, so you know what to fill in. */
-function WithPlaceholders({ text }) {
+export function WithPlaceholders({ text }) {
   return String(text).split(/(\[[^\]]+\])/g).map((part, i) => (
     /^\[[^\]]+\]$/.test(part)
       ? <span key={i} className="rounded-md bg-orange-soft px-1 font-medium text-orange-ink">{part}</span>

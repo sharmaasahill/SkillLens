@@ -36,6 +36,28 @@ class LoginRequest(_Schema):
         return value.lower()
 
 
+class _Password(BaseModel):
+    # Passwords are never trimmed: a space can be part of one
+    model_config = ConfigDict(extra='ignore')
+
+
+class ChangePasswordRequest(_Password):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class DeleteAccountRequest(_Password):
+    password: str = Field(min_length=1, max_length=128)
+
+
+class ClientErrorReport(_Schema):
+    """A JavaScript error from someone's browser, for the admin error log."""
+    message: str = Field(min_length=1, max_length=500)
+    stack: Optional[str] = Field(None, max_length=6000)
+    url: Optional[str] = Field(None, max_length=300)
+    kind: Literal['error', 'unhandledrejection', 'render'] = 'error'
+
+
 # ---------- Profile ----------
 
 class ProfileUpdateRequest(_Schema):
@@ -91,6 +113,11 @@ class SalaryRequest(_Schema):
         return [s.strip()[:40] for s in value if isinstance(s, str) and s.strip()]
 
 
+class OfferCheckRequest(SalaryRequest):
+    """The same inputs as an estimate, plus the offer in lakhs per annum (12.5 means Rs 12.5 lakh a year)."""
+    offer_lpa: float = Field(gt=0.5, le=500)
+
+
 # ---------- Jobs ----------
 
 class JobSearchRequest(_Schema):
@@ -131,8 +158,8 @@ class AdminUserQuery(_Schema):
     min_score: Optional[float] = Field(None, ge=0, le=100)
     has_resume: Optional[Literal['true', 'false']] = None
     sort: Literal['created_at', 'name', 'experience', 'score', 'activity'] = 'created_at'
-    view: Literal['active', 'removed'] = 'active'
-    status: Optional[Literal['shortlisted', 'contacted', 'interviewing', 'hired', 'rejected', 'none']] = None
+    view: Literal['active', 'removed', 'blocked'] = 'active'
+    status: Optional[Literal['verified', 'follow_up', 'flagged', 'none']] = None
     page: int = Field(1, ge=1)
     per_page: int = Field(12, ge=1, le=100)
 
@@ -145,7 +172,7 @@ class AdminUserQuery(_Schema):
         return data
 
 
-REVIEW_STATUSES = Literal['shortlisted', 'contacted', 'interviewing', 'hired', 'rejected']
+REVIEW_STATUSES = Literal['verified', 'follow_up', 'flagged']
 
 
 class UserReviewRequest(_Schema):

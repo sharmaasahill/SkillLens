@@ -7,15 +7,17 @@ import { Select } from '../components/ui/Select';
 import { useFeedback } from '../components/ui/overlays';
 import { CountNumber, EASE, Line, MiniRing, Section, WordCloud, arcPath, scoreColor } from '../components/ui/studio';
 import { WRAP, breakable, dateLabel, downloadBlob, toCsv } from '../lib/format';
+import AccountControls from '../components/admin/AccountControls';
+import ApiUsage from '../components/admin/ApiUsage';
+import ErrorLog from '../components/admin/ErrorLog';
 
 const PER_PAGE = 12;
 const TEAL = '#30b0c7';
+// Admin stages: checked and fine, worth a closer look, or a problem. Blocking is a separate, real control.
 const STATUSES = [
-  { value: 'shortlisted', label: 'Shortlisted', color: '#34c759' },
-  { value: 'contacted', label: 'Contacted', color: '#007aff' },
-  { value: 'interviewing', label: 'Interviewing', color: '#af52de' },
-  { value: 'hired', label: 'Hired', color: '#30b0c7' },
-  { value: 'rejected', label: 'Rejected', color: '#ff3b30' },
+  { value: 'verified', label: 'Verified', color: '#34c759' },
+  { value: 'follow_up', label: 'Follow up', color: '#007aff' },
+  { value: 'flagged', label: 'Flagged', color: '#ff9500' },
 ];
 const STATUS_BY_VALUE = Object.fromEntries(STATUSES.map((st) => [st.value, st]));
 const STATUS_OPTIONS = [{ value: '', label: 'No status' }, ...STATUSES.map(({ value, label }) => ({ value, label }))];
@@ -100,24 +102,24 @@ function ribbon(heights) {
 }
 
 /** User stages as a flowing stream. Each stage is a filter; the active one is underlined. */
-function Pipeline({ stats, view, statusFilter, onStage, onRemoved }) {
+function Pipeline({ stats, view, statusFilter, onStage, onRemoved, onBlocked }) {
   const reduce = useReducedMotion();
   const total = stats.total_users || 0;
   const counts = stats.status_counts || {};
   const reviewed = Object.values(counts).reduce((a, b) => a + b, 0);
   const stages = [
     { key: '', label: 'All users', count: total, color: TEAL },
-    ...STATUSES.filter((s) => s.value !== 'rejected').map((s) => ({ key: s.value, label: s.label, count: counts[s.value] || 0, color: s.color })),
+    ...STATUSES.map((s) => ({ key: s.value, label: s.label, count: counts[s.value] || 0, color: s.color })),
   ];
   const extras = [
     { key: 'none', label: 'Not reviewed', count: Math.max(0, total - reviewed), color: '#c7c7cc', onClick: () => onStage('none') },
-    { key: 'rejected', label: 'Rejected', count: counts.rejected || 0, color: '#ff3b30', onClick: () => onStage('rejected') },
+    { key: 'blocked', label: 'Blocked', count: stats.blocked_count || 0, color: '#ff3b30', onClick: onBlocked },
     { key: 'removed', label: 'Removed', count: stats.removed_count || 0, color: '#86868b', onClick: onRemoved },
   ];
   const n = stages.length;
   const max = Math.max(1, ...stages.map((s) => s.count));
   const d = ribbon(stages.map((s) => 12 + (s.count / max) * (H - 28)));
-  const active = view === 'removed' ? 'removed' : statusFilter;
+  const active = view === 'active' ? statusFilter : view;
   const avg = stats.average_score || 0;
 
   return (
@@ -261,6 +263,7 @@ function UserRow({ user, index, selected, onToggle, onView, onDownload, onStatus
           <span className="flex items-center gap-2">
             <span className="truncate font-display text-[19px] font-semibold tracking-tight text-ink transition-colors group-hover:text-teal-ink">{user.full_name || 'No name'}</span>
             {user.review?.returned && <span className="shrink-0 text-[12px] font-medium text-orange-ink" title="Used SkillLens again after being removed">Active again</span>}
+            {user.blocked && <span className="shrink-0 text-[12px] font-semibold text-red-ink" title="Cannot sign in">Blocked</span>}
           </span>
           <span className="block truncate text-[14px] text-graphite">{roleLine(user) || 'No position yet'}</span>
           <span className="block truncate text-[13px] text-silver">{meta}</span>
@@ -493,7 +496,7 @@ function Facts({ items }) {
   );
 }
 
-function UserDetails({ user, details, onSaved, onDownload, onRemove }) {
+function UserDetails({ user, details, onSaved, onDownload, onRemove, onBlocked, onDeleted }) {
   const removed = Boolean((details || user).review?.removed);
   const score = user.latest_score;
   return (
@@ -533,6 +536,10 @@ function UserDetails({ user, details, onSaved, onDownload, onRemove }) {
       ) : (
         <>
           <ReviewPanel key={`${details.id}-${details.review?.updated_at || ''}`} details={details} onSaved={onSaved} />
+
+          <Block title="Account" delay={0.03}>
+            <AccountControls user={{ ...user, blocked: details.blocked, blocked_at: details.blocked_at }} onBlocked={onBlocked} onDeleted={onDeleted} />
+          </Block>
 
           {user.all_skills?.length > 0 && (
             <Block title="Skills" delay={0.05}>
@@ -714,7 +721,7 @@ function ExperienceSpread({ distribution }) {
 /* ---------- Page ---------- */
 
 const AdminDashboard = () => {
-  const { notify } = useFeedback();
+  const { notify, confirm } = useFeedback();
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({});
   const [analytics, setAnalytics] = useState({});
@@ -723,7 +730,7 @@ const AdminDashboard = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [userDetails, setUserDetails] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [view, setView] = useState('active'); // 'active' | 'removed'
+  const [view, setView] = useState('active'); // 'active' | 'removed' | 'blocked'
   const [statusFilter, setStatusFilter] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
   const [error, setError] = useState('');
@@ -750,13 +757,27 @@ const AdminDashboard = () => {
   const [reloadKey, setReloadKey] = useState(0);
   const isFirstLoad = useRef(true);
   const analyticsRef = useRef(null);
+  const usageRef = useRef(null);
+  const errorsRef = useRef(null);
   const listRef = useRef(null);
+
+  const [usage, setUsage] = useState(null);
+  const [errors, setErrors] = useState(null);
+  const [errorView, setErrorView] = useState('open');
+  const [errorKind, setErrorKind] = useState('');
+  const [openErrors, setOpenErrors] = useState(0);
 
   useEffect(() => {
     fetchDropdownData();
     fetchSummary();
+    fetchUsage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    fetchErrors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [errorView, errorKind]);
 
   useEffect(() => {
     // Debounce typing in the search box; page, sort and filter changes load almost immediately
@@ -808,6 +829,58 @@ const AdminDashboard = () => {
       setAnalytics(analyticsResponse.data);
     } catch (err) {
       if (err.response?.status !== 401) setError('Failed to load users');
+    }
+  };
+
+  const fetchUsage = async () => {
+    try {
+      const { data } = await api.get('/api/admin/usage');
+      setUsage(data);
+    } catch (err) { /* the rest of the page still works */ }
+  };
+
+  const fetchErrors = async () => {
+    try {
+      const params = new URLSearchParams({ view: errorView });
+      if (errorKind) params.append('kind', errorKind);
+      const { data } = await api.get(`/api/admin/errors?${params.toString()}`);
+      setErrors(data);
+      setOpenErrors(data.open_total);
+    } catch (err) { /* the rest of the page still works */ }
+  };
+
+  const resolveError = async (item) => {
+    try {
+      await api.post(`/api/admin/errors/${item.id}/resolve`);
+      setErrors((d) => d && { ...d, errors: d.errors.filter((e) => e.id !== item.id), open_total: Math.max(0, d.open_total - 1) });
+      setOpenErrors((n) => Math.max(0, n - 1));
+      notify('Marked fixed. It comes back if it happens again.');
+    } catch (err) {
+      notify(errorMessage(err, 'Could not update the error'), 'error');
+    }
+  };
+
+  const resolveAllErrors = async () => {
+    const ok = await confirm({ title: 'Mark every open error fixed?', message: 'Any that happen again come back as new.', confirmLabel: 'Mark all fixed' });
+    if (!ok) return;
+    try {
+      const { data } = await api.post('/api/admin/errors/resolve-all');
+      notify(`Marked ${data.resolved} fixed`);
+      fetchErrors();
+    } catch (err) {
+      notify(errorMessage(err, 'Could not update the errors'), 'error');
+    }
+  };
+
+  const clearFixedErrors = async () => {
+    const ok = await confirm({ title: 'Delete fixed errors?', message: 'Fixed errors are removed from the log for good.', confirmLabel: 'Delete', destructive: true });
+    if (!ok) return;
+    try {
+      const { data } = await api.delete('/api/admin/errors/fixed');
+      notify(`Deleted ${data.deleted} fixed error${data.deleted === 1 ? '' : 's'}`);
+      fetchErrors();
+    } catch (err) {
+      notify(errorMessage(err, 'Could not delete the errors'), 'error');
     }
   };
 
@@ -882,6 +955,27 @@ const AdminDashboard = () => {
     }
   };
 
+  const applyBlocked = (id, data) => {
+    const patch = { blocked: data.blocked, blocked_at: data.blocked_at };
+    if (view === 'blocked' && !data.blocked) {
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+      setPagination((p) => ({ ...p, total: Math.max(0, p.total - 1) }));
+    } else {
+      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)));
+    }
+    setSelectedUser((u) => (u && u.id === id ? { ...u, ...patch } : u));
+    setUserDetails((d) => (d && d.id === id ? { ...d, ...patch } : d));
+    fetchSummary();
+  };
+
+  const applyDeleted = (id) => {
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+    setPagination((p) => ({ ...p, total: Math.max(0, p.total - 1) }));
+    setSelectedUsers((prev) => prev.filter((uid) => uid !== id));
+    closeDetails();
+    fetchSummary();
+  };
+
   const bulk = async (action, status) => {
     if (!selectedUsers.length) return;
     try {
@@ -902,12 +996,14 @@ const AdminDashboard = () => {
     setStatusFilter((cur) => (cur === key && key ? '' : key));
     setPage(1);
   };
-  const showRemoved = () => {
-    if (view !== 'removed') setSelectedUsers([]);
-    setView('removed');
+  const showView = (next) => {
+    if (view !== next) setSelectedUsers([]);
+    setView(next);
     setStatusFilter('');
     setPage(1);
   };
+  const showRemoved = () => showView('removed');
+  const showBlocked = () => showView('blocked');
 
   const clearAllFilters = () => {
     setSearchTerm('');
@@ -950,8 +1046,10 @@ const AdminDashboard = () => {
 
   const activeFilterCount = [jobRoleFilter, locationFilter, companyFilter, skillsFilter, minExperience, maxExperience, minScore, hasResume].filter(Boolean).length;
   const removedView = view === 'removed';
+  const blockedView = view === 'blocked';
   const stageLabel = statusFilter === 'none' ? 'not reviewed' : STATUS_BY_VALUE[statusFilter]?.label.toLowerCase();
-  const listTitle = removedView ? 'removed' : stageLabel ? `${stageLabel}` : `user${pagination.total === 1 ? '' : 's'}`;
+  const listTitle = removedView ? 'removed' : blockedView ? 'blocked' : stageLabel ? `${stageLabel}` : `user${pagination.total === 1 ? '' : 's'}`;
+  const scrollTo = (ref) => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   return (
     <AppShell wide toneName="teal">
@@ -960,10 +1058,15 @@ const AdminDashboard = () => {
         toneName="teal"
         title="Everyone on SkillLens."
         accent={2}
-        subtitle="Search every SkillLens user, track them through your stages, and keep private notes only you can see."
+        subtitle="Search every SkillLens user, track them through your stages, keep private notes only you can see, and watch API costs and errors."
         actions={(
           <>
-            <Button variant="outline" onClick={() => analyticsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Analytics</Button>
+            <Button variant="outline" onClick={() => scrollTo(analyticsRef)}>Analytics</Button>
+            <Button variant="outline" onClick={() => scrollTo(usageRef)}>API usage</Button>
+            <Button variant="outline" onClick={() => scrollTo(errorsRef)}>
+              Errors
+              {openErrors > 0 && <span className="rounded-full bg-red px-1.5 text-[12px] font-semibold tabular-nums text-white">{openErrors}</span>}
+            </Button>
             <Button variant="dark" onClick={exportToCSV}>Export CSV</Button>
           </>
         )}
@@ -971,7 +1074,7 @@ const AdminDashboard = () => {
 
       {error && <Notice className="mb-8">{error}</Notice>}
 
-      <Pipeline stats={stats} view={view} statusFilter={statusFilter} onStage={pickStage} onRemoved={showRemoved} />
+      <Pipeline stats={stats} view={view} statusFilter={statusFilter} onStage={pickStage} onRemoved={showRemoved} onBlocked={showBlocked} />
 
       {/* Search, sort and filters */}
       <div ref={listRef} className="mt-16 scroll-mt-24">
@@ -1000,7 +1103,7 @@ const AdminDashboard = () => {
               Filters
               {activeFilterCount > 0 && <span className="rounded-full bg-teal px-1.5 text-[12px] font-semibold tabular-nums text-white">{activeFilterCount}</span>}
             </button>
-            <button type="button" onClick={() => { fetchUsers(page); fetchSummary(); }} className="font-medium text-ink hover:text-teal-ink">Refresh</button>
+            <button type="button" onClick={() => { fetchUsers(page); fetchSummary(); fetchUsage(); fetchErrors(); }} className="font-medium text-ink hover:text-teal-ink">Refresh</button>
           </div>
         </div>
 
@@ -1042,8 +1145,8 @@ const AdminDashboard = () => {
             )}
           </div>
           <p className="text-[14px] text-graphite">
-            {removedView
-              ? <>They return on their own when they use SkillLens again. <button type="button" onClick={() => pickStage('')} className="font-medium text-action-link hover:underline">Back to everyone</button></>
+            {removedView || blockedView
+              ? <>{removedView ? 'They return on their own when they use SkillLens again. ' : 'They cannot sign in until you unblock them. '}<button type="button" onClick={() => pickStage('')} className="font-medium text-action-link hover:underline">Back to everyone</button></>
               : (statusFilter || activeFilterCount > 0 || searchTerm)
                 ? <button type="button" onClick={clearAllFilters} className="font-medium text-action-link hover:underline">Show everyone</button>
                 : pagination.pages > 1 ? `Page ${page} of ${pagination.pages}` : null}
@@ -1054,11 +1157,12 @@ const AdminDashboard = () => {
           <div className="mt-4 space-y-3">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-[84px] !rounded-[22px]" />)}</div>
         ) : users.length === 0 ? (
           <div className="py-20 text-center">
-            <p className="font-display text-[40px] font-semibold tracking-tighter2 text-black/20 md:text-[56px]">{removedView ? 'Nobody removed.' : 'Nobody here yet.'}</p>
+            <p className="font-display text-[40px] font-semibold tracking-tighter2 text-black/20 md:text-[56px]">{removedView ? 'Nobody removed.' : blockedView ? 'Nobody blocked.' : 'Nobody here yet.'}</p>
             <p className="mx-auto mt-4 max-w-[46ch] text-[16px] leading-[1.55] text-graphite">
               {removedView
                 ? 'Users you remove appear here. They return to the main list on their own when they use SkillLens again.'
-                : 'Try a different search, another stage, or fewer filters.'}
+                : blockedView ? 'Open someone\'s details and choose Block sign-in to stop them from using SkillLens.'
+                  : 'Try a different search, another stage, or fewer filters.'}
             </p>
           </div>
         ) : (
@@ -1094,6 +1198,22 @@ const AdminDashboard = () => {
         </Section>
       </div>
 
+      <div ref={usageRef} className="scroll-mt-20">
+        <Section index="04" title="API usage and cost" note="Gemini, Apify and every job source: what was used today and this month, against each daily limit.">
+          <ApiUsage usage={usage} />
+        </Section>
+      </div>
+
+      <div ref={errorsRef} className="scroll-mt-20">
+        <Section index="05" title="Errors" note="Crashes in the API and in browsers, and failing outside services. A repeat raises the count instead of adding a row.">
+          <ErrorLog
+            data={errors} view={errorView} kind={errorKind}
+            onView={setErrorView} onKind={setErrorKind}
+            onResolve={resolveError} onResolveAll={resolveAllErrors} onClearFixed={clearFixedErrors}
+          />
+        </Section>
+      </div>
+
       <BulkBar
         count={selectedUsers.length}
         removedView={removedView}
@@ -1105,7 +1225,10 @@ const AdminDashboard = () => {
 
       <Drawer open={Boolean(selectedUser)} onClose={closeDetails} label={selectedUser ? `Details for ${nameOf(selectedUser)}` : 'User details'}>
         {selectedUser && (
-          <UserDetails user={selectedUser} details={userDetails} onSaved={applyReview} onDownload={downloadUserResume} onRemove={setRemoved} />
+          <UserDetails
+            user={selectedUser} details={userDetails} onSaved={applyReview} onDownload={downloadUserResume} onRemove={setRemoved}
+            onBlocked={applyBlocked} onDeleted={applyDeleted}
+          />
         )}
       </Drawer>
     </AppShell>

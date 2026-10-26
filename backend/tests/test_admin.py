@@ -124,10 +124,10 @@ def test_admin_can_mark_note_and_remove_without_deleting(app, client, admin_sess
     from models.database import User
 
     member = create_user('member@example.com', full_name='Member')
-    r = client.patch(f'{API}/users/{member.id}/review', headers=admin_session, json={'status': 'shortlisted', 'note': 'Strong SQL'})
-    assert r.get_json()['review']['status'] == 'shortlisted'
-    assert client.get(f'{API}/users?status=shortlisted').get_json()['total_users'] == 1
-    assert client.get(f'{API}/stats').get_json()['status_counts'] == {'shortlisted': 1}
+    r = client.patch(f'{API}/users/{member.id}/review', headers=admin_session, json={'status': 'follow_up', 'note': 'Strong SQL'})
+    assert r.get_json()['review']['status'] == 'follow_up'
+    assert client.get(f'{API}/users?status=follow_up').get_json()['total_users'] == 1
+    assert client.get(f'{API}/stats').get_json()['status_counts'] == {'follow_up': 1}
 
     client.post(f'{API}/users/{member.id}/remove', headers=admin_session)
     assert member.id not in _ids(client) and member.id in _ids(client, 'removed')
@@ -140,7 +140,7 @@ def test_admin_can_mark_note_and_remove_without_deleting(app, client, admin_sess
                         json={'job_title': 'Data Analyst', 'years_of_experience': 2}).status_code == 200
     users = client.get(f'{API}/users').get_json()['users']
     back = next(u for u in users if u['id'] == member.id)
-    assert back['review']['returned'] and back['review']['status'] == 'shortlisted'
+    assert back['review']['returned'] and back['review']['status'] == 'follow_up'
 
     client.post(f'{API}/users/bulk', headers=admin_session, json={'user_ids': [member.id], 'action': 'remove'})
     restored = client.post(f'{API}/users/bulk', headers=admin_session, json={'user_ids': [member.id], 'action': 'restore'})

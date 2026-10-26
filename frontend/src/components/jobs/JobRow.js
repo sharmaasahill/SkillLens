@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Expand, Line, MiniRing, Rise, ratioColor } from '../ui/studio';
 import { cx } from '../ui/primitives';
 import { lpa } from '../../lib/format';
@@ -29,9 +30,12 @@ function experienceLabel(exp) {
 }
 
 const PART_LABELS = { skills: 'Skills', role: 'Role', experience: 'Experience', freshness: 'Freshness' };
+// The resume page needs a real job description to compare against
+const MIN_JD_WORDS = 15;
 
 /** One live job as an editorial row. Click to see why it fits and what to add. */
 function JobRow({ job, rank, attribution }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState(false);
   const source = attribution?.[job.source] || {};
@@ -39,6 +43,11 @@ function JobRow({ job, rank, attribution }) {
   const pay = salaryLabel(job.salary);
   const description = job.description || '';
   const shown = full || description.length <= 700 ? description : `${description.slice(0, 700).trim()}...`;
+  const canCheck = description.trim().split(/\s+/).length >= MIN_JD_WORDS;
+  // Opens the resume page with this job's description already filled in
+  const checkResume = () => navigate('/resume-analyzer', {
+    state: { jd: { text: `${job.title}${job.company ? ` at ${job.company}` : ''}\n\n${description}`, title: job.title, company: job.company } },
+  });
 
   return (
     <Rise delay={Math.min(rank, 8) * 0.03} amount={0.05}>
@@ -117,6 +126,11 @@ function JobRow({ job, rank, attribution }) {
                   className="inline-flex h-10 items-center gap-2 rounded-full bg-action px-5 text-[15px] font-medium text-white transition-colors hover:bg-action-hover">
                   Apply <span aria-hidden="true">&rarr;</span>
                 </a>
+                {canCheck && (
+                  <button type="button" onClick={checkResume} className="text-[14px] font-medium text-action-link hover:underline">
+                    Check my resume for this job
+                  </button>
+                )}
                 {source.url && (
                   // Job boards such as Remote OK ask for a followed link back, so the referrer is kept here
                   // eslint-disable-next-line react/jsx-no-target-blank

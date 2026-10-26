@@ -15,12 +15,24 @@ def user_identity(user):
     return str(user.id) if isinstance(user, User) else str(user)
 
 
+@jwt.additional_claims_loader
+def session_claims(identity):
+    # The account's session version goes into every token; raising it signs out every open session
+    return {'sv': (identity.session_version or 0) if isinstance(identity, User) else 0}
+
+
 @jwt.user_lookup_loader
 def load_user(_header, payload):
+    """The token's user, or None (so the token is refused) when the account is gone, blocked or signed out."""
     try:
-        return db.session.get(User, int(payload['sub']))
+        user = db.session.get(User, int(payload['sub']))
     except (TypeError, ValueError):
         return None
+    if user is None or user.blocked_at is not None:
+        return None
+    if int(payload.get('sv', 0)) != (user.session_version or 0):
+        return None
+    return user
 
 
 def admin_required(fn):

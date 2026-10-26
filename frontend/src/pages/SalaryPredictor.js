@@ -7,6 +7,7 @@ import { Button, Notice, Segmented, cx } from '../components/ui/primitives';
 import { Combobox, Select } from '../components/ui/Select';
 import { EASE, Glass, Rise, Section, SegmentDial } from '../components/ui/studio';
 import { lpa, money, signedPercent } from '../lib/format';
+import OfferChecker from '../components/salary/OfferChecker';
 
 const EMPTY_FORM = { job_title: '', years_of_experience: '', city: '', work_mode: 'On-site', skills: '' };
 const FALLBACK_CITIES = ['Bengaluru', 'Hyderabad', 'Pune', 'Mumbai', 'Chennai', 'Gurugram', 'Noida', 'Delhi', 'Kolkata', 'Ahmedabad', 'Remote'];
@@ -257,6 +258,8 @@ function SalaryPredictor() {
   const [comparison, setComparison] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // The inputs behind the shown estimate, so an offer is checked against the same profile
+  const [lastRequest, setLastRequest] = useState(null);
 
   useEffect(() => {
     api.get('/salary-options').then((res) => setOptions(res.data)).catch(() => {});
@@ -294,6 +297,7 @@ function SalaryPredictor() {
         const res = await api.post('/predict', requestData);
         setResult(res.data);
       }
+      setLastRequest(requestData);
     } catch (err) {
       setError(errorMessage(err, mode === 'compare' ? 'Comparison failed' : 'Estimate failed'));
     } finally {
@@ -337,7 +341,10 @@ function SalaryPredictor() {
         <AnimatePresence mode="wait">
           <motion.div key={`${mode}-${shown ? 'r' : 'e'}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
             {shown ? (
-              mode === 'compare' ? <CompareResult results={comparison} metrics={metrics} /> : <QuickResult result={result} />
+              <>
+                {mode === 'compare' ? <CompareResult results={comparison} metrics={metrics} /> : <QuickResult result={result} />}
+                {lastRequest && <OfferChecker key={JSON.stringify(lastRequest)} request={lastRequest} index={mode === 'compare' ? '04' : '03'} />}
+              </>
             ) : (
               <div className="relative overflow-hidden py-20 text-center">
                 <p aria-hidden="true" className="select-none font-display text-[96px] font-semibold leading-none tracking-tighter2 text-transparent md:text-[180px]" style={{ backgroundImage: 'linear-gradient(180deg, rgba(52,199,89,0.16), rgba(48,176,199,0.04))', WebkitBackgroundClip: 'text', backgroundClip: 'text' }}>₹ ? LPA</p>

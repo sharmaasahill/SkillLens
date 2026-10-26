@@ -10,21 +10,26 @@
 ![PostgreSQL](https://img.shields.io/badge/database-PostgreSQL-336791?style=flat&logo=postgresql)
 ![Docker](https://img.shields.io/badge/deploy-Docker-2496ED?style=flat&logo=docker)
 ![License](https://img.shields.io/badge/license-MIT-blue)
+![CI](https://github.com/sharmaasahill/SkillLens/actions/workflows/ci.yml/badge.svg)
 
 ---
 
 ## Features
 
 - **Salary Predictor (India)** - Estimates annual CTC in INR from job title, years of experience, city, work mode and skills. Trained on 31,566 salaries disclosed in Naukri.com postings. Shows how much each input moved the estimate.
+- **Offer checker** - "I got ₹12 LPA, is that good?" Places an offer among similar 2025 postings for the same role, experience, city and skills (as a percentile), and suggests what to ask for.
 - **Advanced estimate** - Blends the linear model with gradient-boosted trees and adds a likely range and a wide range from quantile models, side by side with the quick estimate.
 - **Resume Analyzer** - Extracts skills from PDF resumes with an 870-skill taxonomy (including Indian-market skills such as Tally, GST, SAP), reads Indian degrees and CGPA, calculates an ATS score, and flags personal details recruiters do not need. Paste or upload a job description to also get a match score, the must-have skills you are missing and the words to add.
 - **AI coach (optional, Google Gemini)** - What a recruiter takes away in 6 seconds, rewrites of the weakest bullets with [placeholders] instead of invented numbers, likely interview questions, and requirement-by-requirement fit against a job description. Personal details are removed before sending, every answer is checked against the resume (made-up quotes and new numbers are dropped), results are saved so repeats are free, and daily limits protect the free quota. The ATS score never comes from AI.
+- **Cover letter (optional, Google Gemini)** - A short draft for one resume and one job description. Only facts from the two are used; a sentence with a number neither of them gives is dropped, and missing details become [placeholders]. Copy or download it as text.
 - **Market fit** - For a target role, the skills Indian employers ask for (share of hiring companies, from the 2025 postings) and which of them the resume shows.
 - **Recruiter checks** - Repeated opening verbs, skills listed but never shown in a job or project, overlapping roles and gaps, first-person writing. No AI needed.
-- **Live job search** - Fresh openings from job boards (JSearch/Google for Jobs, Jooble, Adzuna, Careerjet, TheirStack), Apify scrapers (Naukri, LinkedIn, Wellfound), 45 company career pages (Greenhouse, Lever, Ashby) and remote boards (Remotive, Himalayas, Remote OK), de-duplicated and ranked against your resume with the skills you have and the ones each job also asks for.
-- **Resume library** - Keep up to 5 resumes and pick a primary one, which drives salary suggestions and job ranking. PDFs are stored in the database, so they survive hosts that wipe the disk on restart.
-- **Professional Profile** - Users maintain a profile (work, education, skills, links) with a profile resume and change history.
-- **Admin Dashboard** - One admin account (set in settings) can search and filter users by role, location, company, experience, skills and score, track them through stages, keep private notes, view analytics, export CSV and download resumes. Regular users never see it, and its code is only downloaded after an admin sign-in.
+- **Live job search** - Fresh openings from job boards (JSearch/Google for Jobs, Jooble, Adzuna, Careerjet, TheirStack), Apify scrapers (Naukri, LinkedIn, Wellfound), 45 company career pages (Greenhouse, Lever, Ashby) and remote boards (Remotive, Himalayas, Remote OK), de-duplicated and ranked against your resume with the skills you have and the ones each job also asks for. "Check my resume for this job" opens the Resume page with that job's description filled in.
+- **Resume library** - Keep up to 5 resumes and pick a primary one, which drives salary suggestions and job ranking. PDFs are stored in the database, so they survive hosts that wipe the disk on restart. The dashboard charts every score over time ("58 → 71 → 82").
+- **Professional Profile** - Users maintain a profile (work, education, skills, links) with a profile resume and change history, change their password (other devices are signed out), and can delete their account with all its data.
+- **Admin Dashboard** - One admin account (set in settings) can search and filter users by role, location, company, experience, skills and score, mark them Verified, Follow up or Flagged, keep private notes, view analytics, export CSV and download resumes. It can also block sign-in, give a temporary password, or delete an account. Regular users never see it, and its code is only downloaded after an admin sign-in.
+- **API usage and cost** - Gemini uses, Apify dollars this month (read from Apify), job searches, and every job source's calls against its daily limit, with a 14-day chart and the last error of any failing source.
+- **Error log** - Crashes in the API (with the traceback), crashes in users' browsers, and failing outside services (job sources, Gemini) appear in the admin dashboard, grouped so a repeat raises a count. Mark them fixed; no email or outside service is used.
 - **Secure auth** - One sign-in page for everyone and two roles: users and a single admin. httpOnly cookie sessions with short-lived access tokens, silent refresh, CSRF protection and rate-limited login. Press and hold the eye to see a password; sign-up asks for the password twice and shows live whether they match.
 - **Scroll-driven landing page** - Clean white, Apple-inspired UI built with Tailwind CSS and Framer Motion. Every landing animation follows the scroll: it moves while you scroll, stops when you stop and plays backwards when you scroll up, on laptops, tablets and phones. Fully responsive, and respects the "reduce motion" setting.
 
@@ -174,11 +179,13 @@ To run a command against the live database from your computer, set `DATABASE_URL
 
 ```bash
 cd backend
-pytest                         # API, auth, admin, storage, salary, resume and job models
+pytest                         # API, auth, admin tools, storage, salary, resume and job models
 
 cd frontend
 npm test -- --watchAll=false   # API client, sign-in, route guards, formatting
 ```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the backend tests, the frontend lint, tests and production build on every push to `master` and every pull request.
 
 ---
 
@@ -199,7 +206,8 @@ All settings come from environment files that are excluded from git. Copy the `.
 | `CORS_ORIGINS` | Comma-separated frontend origins allowed to call the API (only needed when the frontend runs on another address, as with `npm start`) |
 | `PROXY_COUNT` | Proxies in front of the app. `1` on Render, so rate limits see each visitor's real IP |
 | `RATELIMIT_STORAGE_URI` | `memory://` locally; a Redis URI when running several workers |
-| `AUTH_RATE_LIMIT` | Limit for login and register |
+| `AUTH_RATE_LIMIT` | Limit for login, register, password change and account deletion |
+| `CLIENT_ERROR_RATE_LIMIT` | How many browser error reports one visitor may send (default `10 per minute;100 per day`) |
 | `PRELOAD_MODELS` | Load ML models at startup (`true`) or on first use |
 | `GUNICORN_THREADS` | Threads in the production server (default 8) |
 | `FLASK_DEBUG` | `true` for local development only |
@@ -263,6 +271,14 @@ There is one sign-in page for everyone. Signing in with `ADMIN_EMAIL` and `ADMIN
 
 The admin cannot use the user tools (salary, resume, jobs), and users get "Access denied" from every admin page and API.
 
+From a user's details the admin can:
+
+- **Block sign-in.** The person is signed out everywhere at once and cannot sign in until unblocked. Their data stays.
+- **Reset password.** Without email, this shows a temporary password once, for the admin to send privately. The old password and every open session stop working; the user changes it on their Profile page.
+- **Delete the account.** The profile, every resume and its file, AI answers, job searches and history are deleted.
+
+Signing everyone out works through a session version stored with the account and carried in every login token: raising it makes older tokens invalid.
+
 ---
 
 ## Directory Structure
@@ -271,6 +287,8 @@ The admin cannot use the user tools (salary, resume, jobs), and users get "Acces
 SkillLens/
   Dockerfile                One container: builds React, serves it and the API with Gunicorn
   .dockerignore             Keeps secrets and local data out of the image
+  .github/workflows/ci.yml  Tests, lint and build on every push
+  LICENSE                   MIT for the code, CC BY-NC-SA 4.0 for the bundled data
   backend/
     app.py                  Entry point (creates the app, runs the dev server)
     gunicorn.conf.py        Production server settings
@@ -282,7 +300,8 @@ SkillLens/
       security.py           JWT user loading, admin-only and user-only decorators
       cli.py                Maintenance commands (reset-data, rescore-resumes, ...)
       routes/               Blueprints (auth, profile, resumes, salary, jobs, admin, frontend)
-      services/             Business logic, model registry, file storage, admin, job search
+      services/             Business logic: model registry, file storage, admin, accounts, error log,
+                            API usage, AI review, cover letters, job search
     migrations/             Alembic database migrations
     tests/                  pytest suite
     .env.example            Backend settings template
@@ -312,7 +331,11 @@ SkillLens/
       components/
         landing/            Scroll-driven landing page sections
         jobs/               Job results and source picker
-        resume/             AI coach, market fit, recruiter checks
+        resume/             AI coach, cover letter, market fit, recruiter checks
+        admin/              API usage, error log, account controls
+        salary/             Offer checker
+        dashboard/          Score over time
+        profile/            Password change and account deletion
         ui/                 Design system: buttons, fields, password field, modals, toasts, app shell
       contexts/             Auth state
       lib/                  Formatting, dashboard stats and resume insight rules

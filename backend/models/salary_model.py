@@ -249,6 +249,31 @@ class IndiaSalaryPredictor:
             'model_version': MODEL_VERSION,
         }
 
+    def offer_position(self, data, offer):
+        """Where an offer (INR a year) sits among similar postings, as a percentile from 1 to 99.
+
+        The model gives five points of the salary spread for this role, experience, city and skills:
+        the 5th, 20th, 50th (the estimate), 80th and 95th percentiles. The offer is placed between
+        them on a log scale, the way salaries spread.
+        """
+        _, _, _, blend, q = self.model.predict(self._row(data))
+        probs = [0.05, RANGE_Q[0], 0.50, RANGE_Q[1], 0.95]
+        logs = [q[INTERVAL_Q[0]][0], q[RANGE_Q[0]][0], blend[0], q[RANGE_Q[1]][0], q[INTERVAL_Q[1]][0]]
+        # Quantile models can cross slightly; the spread must only go up
+        logs = list(np.maximum.accumulate(logs) + np.arange(5) * 1e-9)
+        x = float(np.log(max(offer, 1)))
+        percentile = int(round(float(np.interp(x, logs, probs)) * 100))
+        values = [float(np.exp(v)) for v in logs]
+        return {
+            'offer': _round_inr(offer),
+            'percentile': int(np.clip(percentile, 1, 99)),
+            'below_range': bool(x < logs[0]),
+            'above_range': bool(x > logs[-1]),
+            'median': _round_inr(values[2]),
+            'likely_range': {'min': _round_inr(values[1]), 'max': _round_inr(values[3])},
+            'wide_range': {'min': _round_inr(values[0]), 'max': _round_inr(values[4])},
+        }
+
     def options(self):
         return {
             'cities': self.model.cities,

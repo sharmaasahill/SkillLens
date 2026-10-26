@@ -74,6 +74,11 @@ def _review_dict(review, user):
     }
 
 
+def _account(user):
+    return {'blocked': user.blocked_at is not None,
+            'blocked_at': user.blocked_at.isoformat() if user.blocked_at else None}
+
+
 def search_users(q):
     """Filtered, sorted, paginated user list (the admin account is never listed). `q` is a validated AdminUserQuery."""
     agg = _resume_aggregates()
@@ -87,7 +92,10 @@ def search_users(q):
         .where(User.is_admin.is_(False))
     )
     removed = _removed_condition()
-    stmt = stmt.where(removed if q.view == 'removed' else or_(UserReview.user_id.is_(None), ~removed))
+    if q.view == 'blocked':
+        stmt = stmt.where(User.blocked_at.is_not(None))
+    else:
+        stmt = stmt.where(removed if q.view == 'removed' else or_(UserReview.user_id.is_(None), ~removed))
     if q.status == 'none':
         stmt = stmt.where(or_(UserReview.status.is_(None), UserReview.status == ''))
     elif q.status:
@@ -150,6 +158,7 @@ def search_users(q):
             'resume_count': resume_count or 0,
             'latest_score': latest_score,
             'review': _review_dict(review, user),
+            **_account(user),
             'last_active_at': user.last_active_at.isoformat() if user.last_active_at else None,
             'all_skills': [s for s, _ in skills_by_user[user.id].most_common(TOP_SKILLS_PER_USER)],
         })
@@ -175,6 +184,7 @@ def user_details(user_id):
 
     data = user_profile(user)
     data['review'] = _review_dict(db.session.get(UserReview, user.id), user)
+    data.update(_account(user))
     data['resume_history'] = [{
         'id': r.id,
         'filename': r.filename,
@@ -236,6 +246,8 @@ def stats():
     return {
         'status_counts': status_counts,
         'removed_count': removed_count or 0,
+        'blocked_count': db.session.scalar(
+            select(func.count(User.id)).where(regular_users, User.blocked_at.is_not(None))) or 0,
         'total_users': db.session.scalar(select(func.count(User.id)).where(regular_users)),
         'total_resumes': db.session.scalar(select(func.count(Resume.id))),
         'users_with_profiles': db.session.scalar(

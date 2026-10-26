@@ -5,7 +5,7 @@ from flask_jwt_extended import current_user
 
 from ..schemas import MarketFitRequest
 from ..security import user_required
-from ..services import ai_review, ml, resumes
+from ..services import ai_review, cover_letter, ml, resumes
 from ..services.serializers import resume_entry
 from . import json_body
 
@@ -73,6 +73,15 @@ def ai_review_resume(resume_id):
     return jsonify(ai_review.review(current_user, resume, jd_text))
 
 
+@bp.post('/resumes/<int:resume_id>/cover-letter')
+@user_required(activity=True)
+def write_cover_letter(resume_id):
+    """Cover letter draft by Gemini for this resume and a job description (jd_text or jd_file, required)."""
+    resume = resumes.owned_resume(current_user, resume_id)
+    jd_text = resumes.jd_text_from_request(_form(), request.files)
+    return jsonify(cover_letter.write(current_user, resume, jd_text))
+
+
 @bp.post('/resumes/<int:resume_id>/market-fit')
 @user_required
 def market_fit(resume_id):
@@ -104,6 +113,7 @@ def resume_history():
         'resumes': [resume_entry(r, primary_id=primary.id if primary else None) for r in items],
         'primary_id': primary.id if primary else None,
         'primary_experience_years': resumes.experience_years(primary),
+        'score_history': resumes.score_history(current_user),
         **resumes.library_limits(),
     })
 

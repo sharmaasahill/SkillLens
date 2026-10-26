@@ -9,7 +9,7 @@ from models.database import User
 from ..errors import ApiError
 from ..schemas import AdminUserQuery, BulkReviewRequest, UserReviewRequest
 from ..security import admin_required
-from ..services import admin, storage
+from ..services import accounts, admin, error_log, storage, usage
 from . import json_body
 
 bp = Blueprint('admin', __name__, url_prefix='/api/admin')
@@ -109,3 +109,79 @@ def bulk_review():
     data = json_body(BulkReviewRequest)
     kwargs = {'remove': True} if data.action == 'remove' else {'remove': False} if data.action == 'restore' else {'status': data.status}
     return jsonify({'users': admin.update_review(data.user_ids, current_user, **kwargs)})
+
+
+# ----- account controls -----
+
+@bp.post('/users/<int:user_id>/block')
+@admin_required
+def block_user(user_id):
+    """Block sign-in for this account. Every open session of it stops working at once."""
+    user = accounts.set_blocked(admin.get_user(user_id), True)
+    return jsonify({'id': user.id, 'blocked': True, 'blocked_at': user.blocked_at.isoformat()})
+
+
+@bp.post('/users/<int:user_id>/unblock')
+@admin_required
+def unblock_user(user_id):
+    user = accounts.set_blocked(admin.get_user(user_id), False)
+    return jsonify({'id': user.id, 'blocked': False, 'blocked_at': None})
+
+
+@bp.post('/users/<int:user_id>/reset-password')
+@admin_required
+def reset_user_password(user_id):
+    """A new temporary password, shown to the admin once. The user's open sessions end."""
+    temporary = accounts.reset_password(admin.get_user(user_id))
+    response = jsonify({'temporary_password': temporary})
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@bp.delete('/users/<int:user_id>')
+@admin_required
+def delete_user(user_id):
+    """Delete the account and all its data. This cannot be undone."""
+    accounts.delete_account(admin.get_user(user_id))
+    return jsonify({'message': 'Account deleted'})
+
+
+# ----- API usage and errors -----
+
+@bp.get('/usage')
+@admin_required
+def api_usage():
+    return jsonify(usage.overview())
+
+
+@bp.get('/errors')
+@admin_required
+def list_errors():
+    view = 'fixed' if request.args.get('view') == 'fixed' else 'open'
+    return jsonify(error_log.listing(view, request.args.get('kind') or None))
+
+
+@bp.get('/errors/count')
+@admin_required
+def error_count():
+    return jsonify({'open_total': error_log.open_total()})
+
+
+@bp.post('/errors/<int:error_id>/resolve')
+@admin_required
+def resolve_error(error_id):
+    if not error_log.resolve(error_id):
+        raise ApiError('Error not found or already fixed', 404)
+    return jsonify({'resolved': 1})
+
+
+@bp.post('/errors/resolve-all')
+@admin_required
+def resolve_all_errors():
+    return jsonify({'resolved': error_log.resolve()})
+
+
+@bp.delete('/errors/fixed')
+@admin_required
+def clear_fixed_errors():
+    return jsonify({'deleted': error_log.clear_fixed()})

@@ -36,6 +36,10 @@ class User(db.Model):
     languages = db.Column(db.String(200))  # Languages spoken
     achievements = db.Column(db.Text)  # Key achievements
     is_admin = db.Column(db.Boolean, default=False)
+    # Set by the admin. A blocked account cannot sign in, and its open sessions stop working.
+    blocked_at = db.Column(db.DateTime)
+    # Goes up when the password is reset or the account is blocked, which signs out every open session
+    session_version = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -124,7 +128,7 @@ class UserReview(db.Model):
     """The admin's status and private note for a user. One row per user."""
     __tablename__ = 'user_reviews'
 
-    STATUSES = ('shortlisted', 'contacted', 'interviewing', 'hired', 'rejected')
+    STATUSES = ('verified', 'follow_up', 'flagged')
 
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
     status = db.Column(db.String(20))
@@ -190,3 +194,42 @@ class StoredFile(db.Model):
     path = db.Column(db.String(255), primary_key=True)  # same relative path as the disk copy
     data = db.Column(db.LargeBinary, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ResumeScore(db.Model):
+    """One ATS score a resume got, so the dashboard can show how scores changed over time.
+
+    Kept after the resume itself is deleted (the file name is copied), and removed with the account.
+    """
+    __tablename__ = 'resume_scores'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    resume_id = db.Column(db.Integer)  # no foreign key: the point stays when the resume is deleted
+    filename = db.Column(db.String(255))
+    score = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ErrorLog(db.Model):
+    """Errors for the admin dashboard, grouped: the same error again raises `count` instead of adding a row.
+
+    kind: 'server' (a crash in the API), 'client' (a crash in someone's browser) or
+    'service' (an outside service failed: a job source, Gemini or Apify).
+    """
+    __tablename__ = 'error_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    fingerprint = db.Column(db.String(64), nullable=False, index=True)
+    kind = db.Column(db.String(20), nullable=False)
+    level = db.Column(db.String(10), nullable=False, default='error')  # error or warning
+    source = db.Column(db.String(120), nullable=False)  # "GET /api/x", "browser", "job:careerjet", "gemini"
+    message = db.Column(db.String(500), nullable=False)
+    detail = db.Column(db.Text)  # traceback or browser stack of the latest occurrence
+    status = db.Column(db.Integer)
+    path = db.Column(db.String(300))
+    user_id = db.Column(db.Integer)  # no foreign key: errors stay after an account is deleted (anonymised)
+    count = db.Column(db.Integer, nullable=False, default=1)
+    first_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    resolved_at = db.Column(db.DateTime)

@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify
 
 from ..errors import ApiError
-from ..schemas import SalaryRequest
+from ..schemas import OfferCheckRequest, SalaryRequest
 from ..security import user_required
 from ..services import ml
 from . import json_body
@@ -63,6 +63,42 @@ def compare():
             'higher_prediction': 'advanced' if difference > 0 else 'basic' if difference < 0 else 'equal',
         },
     })
+
+
+VERDICTS = [  # (below this percentile, key, headline)
+    (20, 'low', 'Below what similar roles usually pay.'),
+    (40, 'fair_low', 'Fair, but on the low side.'),
+    (60, 'fair', 'Right in the middle of the market.'),
+    (80, 'good', 'A good offer.'),
+    (101, 'strong', 'A strong offer.'),
+]
+
+
+def _lakh(value):
+    """Rs value rounded to a quarter lakh, the way people ask in a negotiation."""
+    return round(value / 25000) * 25000
+
+
+@bp.post('/salary/offer-check')
+@user_required(activity=True)
+def offer_check():
+    """Where an offer sits among similar 2025 postings, and what to ask for."""
+    data = json_body(OfferCheckRequest).model_dump()
+    offer = data.pop('offer_lpa') * 100000
+    result = _predict(lambda d: ml.salary_model().offer_position(d, offer), data)
+    pct = result['percentile']
+    key, headline = next((k, h) for limit, k, h in VERDICTS if pct < limit)
+    if pct < 50:
+        ask = _lakh(result['median'])
+        advice = 'Asking for about the middle of the market is reasonable for this profile.'
+    elif pct < 80:
+        ask = _lakh(result['likely_range']['max'])
+        advice = 'There may be room to ask for the top of the likely range, if your skills match the role well.'
+    else:
+        ask = None
+        advice = 'This is already above most similar postings. Negotiate on joining bonus, notice period or role instead.'
+    return jsonify({'success': True, 'currency': 'INR', **result, 'verdict': key, 'headline': headline,
+                    'ask_for': ask, 'advice': advice, 'input_data': _input(data)})
 
 
 @bp.get('/salary-options')

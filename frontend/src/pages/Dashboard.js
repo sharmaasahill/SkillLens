@@ -9,6 +9,7 @@ import { pdfError } from '../components/ui/Dropzone';
 import { CountNumber, EASE, Marquee, MiniRing, Orbit, Rise, Section } from '../components/ui/studio';
 import { calculateQuickStats, calculateUserStats, normalizeSkills, profileCompletion } from '../lib/careerStats';
 import { WRAP, breakable, dateLabel, firstName, greeting } from '../lib/format';
+import ScoreTrend from '../components/dashboard/ScoreTrend';
 
 const TOOLS = [
   { to: '/salary-predictor', index: '01', title: 'Salary', line: 'Your CTC in lakhs, from 31,566 real Indian salaries.', a: '#34c759', b: '#30b0c7' },
@@ -120,12 +121,14 @@ function Dashboard() {
   const [maxResumes, setMaxResumes] = useState(5);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [scoreHistory, setScoreHistory] = useState([]);
 
   const fetchResumes = useCallback(async () => {
     try {
       const { data } = await api.get('/resume-history');
       setResumes(data.resumes || []);
       setMaxResumes(data.max_resumes || 5);
+      setScoreHistory(data.score_history || []);
     } catch (err) { /* the page still works without history */ }
   }, []);
 
@@ -285,7 +288,11 @@ function Dashboard() {
         )}
       </Section>
 
-      <Section index="05" title="Next moves" note="What would make the biggest difference right now.">
+      <Section index="05" title="Score over time" note="Every upload, and every re-analysis that changed a score. Hover a dot for details.">
+        <ScoreTrend points={scoreHistory} />
+      </Section>
+
+      <Section index="06" title="Next moves" note="What would make the biggest difference right now.">
         <ol>
           {nextMoves.map((move, i) => (
             <Rise key={move.text} delay={i * 0.06}>

@@ -45,7 +45,39 @@ def register_error_handlers(app):
     @app.errorhandler(Exception)
     def handle_unexpected_error(exc):
         logger.exception('Unhandled error')
+        _record_crash(exc)
         return jsonify({'error': 'Internal server error'}), 500
+
+
+def _record_crash(exc):
+    """Put a crash in the admin dashboard's error log, with where it happened and who it happened to."""
+    import os
+    import traceback
+
+    from flask import request
+
+    from .extensions import db
+    from .services import error_log
+
+    try:
+        db.session.rollback()  # the failed request may have left the session half-done
+    except Exception:  # noqa: BLE001
+        pass
+    frames = traceback.extract_tb(exc.__traceback__)
+    last = frames[-1] if frames else None
+    where = f'{os.path.basename(last.filename)}:{last.lineno}' if last else ''
+    rule = request.url_rule.rule if request.url_rule is not None else request.path
+    user_id = None
+    try:
+        from flask_jwt_extended import get_jwt_identity
+        identity = get_jwt_identity()
+        user_id = int(identity) if identity else None
+    except Exception:  # noqa: BLE001 - no verified token in this request
+        pass
+    error_log.record(
+        'server', f'{request.method} {rule}', f'{type(exc).__name__}: {exc}',
+        detail=''.join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+        status=500, path=request.path, user_id=user_id, where=where)
 
 
 def register_jwt_handlers(jwt):

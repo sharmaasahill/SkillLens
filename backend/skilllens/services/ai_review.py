@@ -25,7 +25,7 @@ from models.database import AiResult
 
 from ..errors import ApiError
 from ..extensions import db
-from . import gemini, quota
+from . import error_log, gemini, quota
 
 KIND = 'resume_review'
 PROMPT_VERSION = 'review-v1'
@@ -298,11 +298,24 @@ def review(user, resume, jd_text=None):
     jd = (jd_text or '').strip()[:MAX_JD_CHARS] or None
     key = hashlib.sha256('\x1f'.join([PROMPT_VERSION, text, jd or '']).encode('utf-8')).hexdigest()
 
-    saved = AiResult.query.filter_by(user_id=user.id, cache_key=key).first()
+    saved = saved_result(user, key)
     if saved is not None:
         return {'review': json.loads(saved.result), 'model': saved.model, 'cached': True, 'removed': removed,
                 'created_at': saved.created_at.isoformat() if saved.created_at else None, 'ai': status(user)}
 
+    raw, model = ask_gemini(user, _prompt(text, jd), _schema(bool(jd)), SYSTEM, what='AI review')
+    result = _clean(raw, text, bool(jd))
+    row = save_result(user, resume, KIND, key, model, result)
+    return {'review': result, 'model': model, 'cached': False, 'removed': removed,
+            'created_at': row.created_at.isoformat() if row.created_at else None, 'ai': status(user)}
+
+
+def ask_gemini(user, prompt, schema, system, what='AI review', max_tokens=8192):
+    """Use one of today's AI uses (the user's and the site's) and ask Gemini. Returns (answer dict, model).
+
+    Shared by the AI review and the cover letter, so both count against the same daily limits.
+    A failure is put in the admin dashboard's error log.
+    """
     total, per_user = _limits()
     if not quota.take(_user_bucket(user), per_user):
         raise ApiError(f'You have used your {per_user} AI reviews for today. Try again tomorrow.', 429)
@@ -311,16 +324,22 @@ def review(user, resume, jd_text=None):
         raise ApiError("Today's AI reviews for this site are used up. Try again tomorrow.", 429)
 
     try:
-        raw, model = gemini.generate_json(_prompt(text, jd), _schema(bool(jd)), system=SYSTEM)
+        raw, model = gemini.generate_json(prompt, schema, system=system, max_tokens=max_tokens)
     except gemini.GeminiError as exc:
         if not exc.quota:  # nothing useful came back, so the attempt should not count against the user
             quota.give_back(_user_bucket(user))
+        error_log.record('service', 'gemini', f'{what}: {exc.message}', status=exc.status,
+                         level='warning' if exc.quota else 'error', user_id=user.id)
         raise ApiError(exc.message, exc.status)
-    result = _clean(raw if isinstance(raw, dict) else {}, text, bool(jd))
+    return (raw if isinstance(raw, dict) else {}), model
 
-    row = AiResult(user_id=user.id, resume_id=resume.id, kind=KIND, cache_key=key, model=model,
-                   result=json.dumps(result))
+
+def saved_result(user, key):
+    return AiResult.query.filter_by(user_id=user.id, cache_key=key).first()
+
+
+def save_result(user, resume, kind, key, model, result):
+    row = AiResult(user_id=user.id, resume_id=resume.id, kind=kind, cache_key=key, model=model, result=json.dumps(result))
     db.session.add(row)
     db.session.commit()
-    return {'review': result, 'model': model, 'cached': False, 'removed': removed,
-            'created_at': row.created_at.isoformat() if row.created_at else None, 'ai': status(user)}
+    return row

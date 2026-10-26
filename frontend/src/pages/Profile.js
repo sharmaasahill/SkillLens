@@ -9,6 +9,7 @@ import { pdfError } from '../components/ui/Dropzone';
 import { CountNumber, EASE, Orbit, RevealText, Rise, Section } from '../components/ui/studio';
 import { editFormFrom, profileCompletion } from '../lib/careerStats';
 import { WRAP, breakable, dateLabel, dateTimeLabel, downloadBlob } from '../lib/format';
+import AccountSettings from '../components/profile/AccountSettings';
 
 const SECTIONS = [
   {
@@ -256,6 +257,10 @@ function Profile() {
         ) : (
           <p className="text-[16px] text-graphite">Changes appear here after you edit your profile.</p>
         )}
+      </Section>
+
+      <Section index="07" title="Account" note={`Signed in as ${profile.email}.`}>
+        <AccountSettings />
       </Section>
 
       <AnimatePresence>

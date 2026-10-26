@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from flask import current_app
 
 from models import jd_matcher
-from models.database import AiResult, Resume
+from models.database import AiResult, Resume, ResumeScore
 from models.resume_analyzer import ResumeAnalyzer, analyze_text, extract_skills_from_resume
 
 from ..errors import ApiError
@@ -126,6 +126,7 @@ def upload_resume(user, file_storage, make_primary=False, jd_text=None):
         resume.set_skills(skills)
         db.session.add(resume)
         db.session.flush()
+        _record_score(resume)
         if resume.is_primary:
             Resume.query.filter(Resume.user_id == user.id, Resume.id != resume.id).update({'is_primary': False})
             _sync_profile_resume(user)
@@ -146,8 +147,30 @@ def reanalyze(user, resume_id, jd_text=None):
     # Keep the library in step with the latest rules, so matching and the admin dashboard see the same skills and score
     resume.set_skills(analysis['skills'])
     resume.score = analysis['ats_analysis']['score']
+    _record_score(resume)
     db.session.commit()
     return resume, with_jd(analysis, analysis['text'], analysis['skills'], jd_text)
+
+
+def _record_score(resume):
+    """Add a point to the score history, unless this resume's last point already has this score."""
+    score = float(resume.score or 0)
+    last = (ResumeScore.query.filter_by(user_id=resume.user_id, resume_id=resume.id)
+            .order_by(ResumeScore.created_at.desc(), ResumeScore.id.desc()).first())
+    if last is not None and abs(last.score - score) < 0.5:
+        return
+    db.session.add(ResumeScore(user_id=resume.user_id, resume_id=resume.id, filename=resume.filename,
+                               score=score, created_at=datetime.utcnow()))
+
+
+def score_history(user, limit=30):
+    """The latest score points, oldest first, for the dashboard chart."""
+    rows = (ResumeScore.query.filter_by(user_id=user.id)
+            .order_by(ResumeScore.created_at.desc(), ResumeScore.id.desc()).limit(limit).all())
+    return [{
+        'score': round(r.score), 'filename': r.filename, 'resume_id': r.resume_id,
+        'created_at': r.created_at.isoformat() if r.created_at else None,
+    } for r in reversed(rows)]
 
 
 def experience_years(resume):

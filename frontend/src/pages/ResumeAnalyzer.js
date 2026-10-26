@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
@@ -15,6 +15,7 @@ import {
   flattenSkills, getIndustrySpecificAdvice, getScoreLabel, wordCount,
 } from '../lib/resumeInsights';
 import AiCoach from '../components/resume/AiCoach';
+import CoverLetter from '../components/resume/CoverLetter';
 import MarketFit from '../components/resume/MarketFit';
 import RecruiterChecks from '../components/resume/RecruiterChecks';
 
@@ -196,6 +197,8 @@ function Results({ analysis, fileName, jd }) {
 
       <AiCoach resumeId={analysis.id} jd={jd} status={analysis.ai} />
 
+      <CoverLetter resumeId={analysis.id} jd={jd} status={analysis.ai} />
+
       {ats.breakdown?.length > 0 && (
         <Section index="01" title="How the score adds up" note="Seven parts, 100 points. Each arc of the dial is one part.">
           <div className="space-y-6">
@@ -297,7 +300,11 @@ function Results({ analysis, fileName, jd }) {
 }
 
 function ResumeAnalyzer() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [library, setLibrary] = useState({ resumes: [], max: 5 });
+  // A job sent from the Jobs page ("Check my resume for this job")
+  const [fromJob, setFromJob] = useState(null);
   const [source, setSource] = useState('upload'); // 'upload' | 'saved'
   const [savedId, setSavedId] = useState('');
   const [file, setFile] = useState(null);
@@ -325,6 +332,16 @@ function ResumeAnalyzer() {
     } catch (err) { /* the upload path still works */ }
   };
   useEffect(() => { loadLibrary(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const jd = location.state?.jd;
+    if (!jd?.text) return;
+    setJdMode('paste');
+    setJdText(jd.text);
+    setFromJob({ title: jd.title, company: jd.company });
+    // Clear it from the history entry, so a reload does not fill it in again
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const full = library.resumes.length >= library.max;
   const jdWords = jdText.trim() ? jdText.trim().split(/\s+/).length : 0;
@@ -392,6 +409,13 @@ function ResumeAnalyzer() {
         accent={3}
         subtitle="Score any of your resumes the way applicant tracking systems read them. Add a job description to see how well it fits that exact role."
       />
+
+      {fromJob && (
+        <Notice toneName="blue" className="mb-6">
+          The job description for <span className="font-medium">{fromJob.title}{fromJob.company ? ` at ${fromJob.company}` : ''}</span> is filled in below.
+          Pick a resume and press Analyze to see how well it fits, then write a cover letter for it.
+        </Notice>
+      )}
 
       <Glass innerClassName="!p-0">
         <div className="grid grid-cols-1 md:grid-cols-2 md:divide-x md:divide-black/[0.07]">

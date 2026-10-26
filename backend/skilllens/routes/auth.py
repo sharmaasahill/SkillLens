@@ -73,6 +73,9 @@ def login():
     password_ok = check_password_hash(user.password if user else _DUMMY_HASH, data.password)
     if not user or not password_ok:
         raise ApiError('Invalid email or password', 401)
+    # Checked only after the password is right, so it reveals nothing to someone guessing
+    if user.blocked_at is not None:
+        raise ApiError('This account has been blocked. Contact SkillLens support if you think this is a mistake.', 403)
     return _session_response(user)
 
 

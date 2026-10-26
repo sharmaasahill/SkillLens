@@ -12,6 +12,7 @@
 import hashlib
 import json
 import logging
+import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
@@ -22,7 +23,7 @@ from models.database import JobSearch, JobSourceResult
 
 from ...errors import ApiError
 from ...extensions import db
-from .. import quota
+from .. import error_log, quota
 from . import ranking, sources
 from .common import SourceError, canonical_city, norm_key
 
@@ -108,15 +109,26 @@ def _run(app, row_id, name, search):
             jobs, error = sources.fetch(name, search), None
         except SourceError as exc:
             jobs, error = [], exc.message
-        row = db.session.get(JobSourceResult, row_id)
-        if row is None:
-            return
-        row.status = 'error' if error else 'done'
-        row.error = (error or '')[:300] or None
-        row.jobs = json.dumps(jobs)
-        row.finished_at = datetime.utcnow()
-        db.session.commit()
-        db.session.remove()
+            # Quota and rate limits are expected now and then; anything else needs a look
+            level = 'warning' if exc.status in (402, 429) else 'error'
+            error_log.record('service', f'job:{name}', f'{sources.SOURCES[name].label}: {exc.message}',
+                             status=exc.status, level=level)
+        try:
+            row = db.session.get(JobSourceResult, row_id)
+            if row is None:
+                return
+            row.status = 'error' if error else 'done'
+            row.error = (error or '')[:300] or None
+            row.jobs = json.dumps(jobs)
+            row.finished_at = datetime.utcnow()
+            db.session.commit()
+        except Exception as exc:  # noqa: BLE001 - a background thread has nobody to report to
+            db.session.rollback()
+            logger.exception('Saving results from %s failed', name)
+            error_log.record('server', f'job search: {name}', f'{type(exc).__name__}: {exc}',
+                             detail=traceback.format_exc())
+        finally:
+            db.session.remove()
 
 
 def owned(user, search_id):
