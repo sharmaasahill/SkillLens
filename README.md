@@ -51,6 +51,7 @@ I didn't want the AI to invent anything, so a few rules are built in:
 
 ### Accounts and the admin side
 - **One sign-in page** for everyone, with email and password or **Continue with Google**.
+- **Date of birth at sign-up**, because SkillLens is for people aged 18 or older. Google doesn't share it, so Google sign-ups (and older accounts) are asked for it once before they go on.
 - **Profile:** you can edit everything, change your password, or delete your account and all your data in one go.
 - **Admin dashboard** (one admin account):
   - Search and filter users, mark them Verified, Follow up or Flagged, and keep private notes.
@@ -292,7 +293,7 @@ The server talks to Google directly (OpenID Connect with PKCE), so no extra pack
    - `http://localhost:5000/auth/google/callback`
 5. Put the client ID and secret into `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 
-If a Google email matches an existing account, it signs into that account; otherwise a new account is made. The admin can't use Google, and always signs in with email, password and the authenticator code.
+If a Google email matches an existing account, it signs into that account; otherwise a new account is made, and the person is asked for their date of birth once. The admin can't use Google, and always signs in with email, password and the authenticator code.
 
 ### Backups
 

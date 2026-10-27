@@ -53,7 +53,7 @@ export function calculateQuickStats(resumes) {
 }
 
 export const PROFILE_FIELDS = [
-  'full_name', 'phone_number', 'address', 'age', 'current_work', 'current_company', 'current_location',
+  'full_name', 'phone_number', 'address', 'date_of_birth', 'current_work', 'current_company', 'current_location',
   'total_experience', 'linkedin_url', 'website_url', 'bio', 'skills_summary', 'education',
   'certifications', 'languages', 'achievements',
 ];

@@ -73,6 +73,7 @@ test('creating an account needs the privacy box ticked', async () => {
   const register = jest.fn().mockResolvedValue({ email: 'n@example.com', is_admin: false });
   renderAuth({ register }, { path: '/auth?mode=signup' });
   fireEvent.change(screen.getByLabelText('Full Name'), { target: { value: 'New Person' } });
+  fireEvent.change(screen.getByLabelText('Date of birth'), { target: { value: '1998-05-14' } });
   fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'n@example.com' } });
   fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'mango-river-lamp-7' } });
   fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'mango-river-lamp-7' } });
@@ -83,7 +84,16 @@ test('creating an account needs the privacy box ticked', async () => {
   fireEvent.click(screen.getByRole('checkbox'));
   fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
   expect(await screen.findByText('User home')).toBeInTheDocument();
-  expect(register).toHaveBeenCalledWith('n@example.com', 'mango-river-lamp-7', 'New Person', true);
+  expect(register).toHaveBeenCalledWith('n@example.com', 'mango-river-lamp-7', 'New Person', true, '1998-05-14');
+});
+
+test('the date of birth only allows ages 18 to 100', () => {
+  renderAuth({}, { path: '/auth?mode=signup' });
+  const born = screen.getByLabelText('Date of birth');
+  const year = new Date().getFullYear();
+  expect(born).toBeRequired();
+  expect(born.getAttribute('max').slice(0, 4)).toBe(String(year - 18));
+  expect(born.getAttribute('min').slice(0, 4)).toBe(String(year - 100));
 });
 
 test('shows Continue with Google only when the server has it set up', () => {

@@ -31,6 +31,8 @@ function List({ items }) {
 function Privacy() {
   const site = useSiteInfo();
   useEffect(() => {
+    // Open at the top, even when the link was clicked far down another page
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.title = 'Privacy Policy - SkillLens';
     return () => { document.title = 'SkillLens'; };
   }, []);
@@ -58,8 +60,8 @@ function Privacy() {
 
         <Block title="What we collect">
           <List items={[
-            ['Account', 'your email, your name, and your password (stored only as a one-way hash we cannot read). If you sign in with Google, we receive your name, email and Google account id, never your Google password.'],
-            ['Profile', 'anything you choose to fill in: phone, address, age, current role and company, location, experience, education, skills, links and a short bio.'],
+            ['Account', 'your email, your name, your date of birth, and your password (stored only as a one-way hash we cannot read). The date of birth is used to check that you are 18 or older. If you sign in with Google, we receive your name, email and Google account id, never your Google password.'],
+            ['Profile', 'anything you choose to fill in: phone, address, current role and company, location, experience, education, skills, links and a short bio.'],
             ['Resumes', 'the PDF files you upload, the text read from them, and their scores and skills. Up to five at a time.'],
             ['What you ask', 'job descriptions you paste for a match, the role and city of job searches, and the inputs of salary estimates.'],
             ['AI answers', 'AI reviews and cover letters we write for you, saved so asking again is free.'],

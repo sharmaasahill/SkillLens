@@ -21,7 +21,10 @@ def _validation_details(exc):
     details = []
     for err in exc.errors():
         field = '.'.join(str(part) for part in err.get('loc', ()))
-        details.append({'field': field or None, 'message': err.get('msg', 'Invalid value')})
+        message = err.get('msg', 'Invalid value')
+        # Our own checks raise ValueError, which pydantic prefixes with "Value error, "
+        message = message.removeprefix('Value error, ')
+        details.append({'field': field or None, 'message': message})
     return details
 
 

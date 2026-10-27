@@ -67,7 +67,9 @@ api.interceptors.response.use(
 export function errorMessage(error, fallback = 'Something went wrong') {
   const data = error?.response?.data;
   if (data?.details?.length) {
-    return data.details.map((d) => (d.field ? `${d.field}: ${d.message}` : d.message)).join('; ');
+    // "date_of_birth" reads as "Date of birth"
+    const label = (field) => field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ');
+    return data.details.map((d) => (d.field ? `${label(d.field)}: ${d.message}` : d.message)).join('; ');
   }
   return data?.error || data?.message || fallback;
 }

@@ -1,4 +1,5 @@
 """Request validation schemas (pydantic). Routes call `Schema.model_validate(data)`."""
+from datetime import date
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
@@ -15,10 +16,30 @@ def _blank_to_none(value):
 
 # ---------- Auth ----------
 
+MIN_AGE = 18  # the Privacy Policy says SkillLens is for people aged 18 or older
+
+
+def _check_birth_date(value):
+    """A real date of birth: not in the future, at least 18 years ago, and not more than 100."""
+    if value is None:
+        return value
+    from .services.serializers import age_on
+    today = date.today()
+    if value >= today:
+        raise ValueError('Date of birth must be in the past')
+    age = age_on(value, today)
+    if age < MIN_AGE:
+        raise ValueError(f'SkillLens is for people aged {MIN_AGE} or older')
+    if age > 100:
+        raise ValueError('Check the year of birth')
+    return value
+
+
 class RegisterRequest(_Schema):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=100)
+    date_of_birth: date
     # The "I agree to the Privacy Policy" box. An account cannot be made without it.
     accept_privacy: bool = Field(False, validate_default=True)
 
@@ -26,6 +47,11 @@ class RegisterRequest(_Schema):
     @classmethod
     def lower_email(cls, value):
         return value.lower()
+
+    @field_validator('date_of_birth')
+    @classmethod
+    def real_birth_date(cls, value):
+        return _check_birth_date(value)
 
     @field_validator('accept_privacy')
     @classmethod
@@ -92,7 +118,7 @@ class ProfileUpdateRequest(_Schema):
     full_name: Optional[str] = Field(None, max_length=100)
     phone_number: Optional[str] = Field(None, max_length=20, pattern=r'^[0-9+()\-.\s]*$')
     address: Optional[str] = Field(None, max_length=200)
-    age: Optional[int] = Field(None, ge=14, le=100)
+    date_of_birth: Optional[date] = None
     current_work: Optional[str] = Field(None, max_length=150)
     current_company: Optional[str] = Field(None, max_length=150)
     current_location: Optional[str] = Field(None, max_length=150)
@@ -110,6 +136,11 @@ class ProfileUpdateRequest(_Schema):
     @classmethod
     def blanks_to_none(cls, value):
         return _blank_to_none(value)
+
+    @field_validator('date_of_birth')
+    @classmethod
+    def real_birth_date(cls, value):
+        return _check_birth_date(value)
 
     @field_validator('linkedin_url', 'website_url')
     @classmethod

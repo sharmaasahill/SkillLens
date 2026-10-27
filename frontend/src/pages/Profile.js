@@ -8,7 +8,7 @@ import { useFeedback } from '../components/ui/overlays';
 import { pdfError } from '../components/ui/Dropzone';
 import { CountNumber, EASE, Orbit, RevealText, Rise, Section } from '../components/ui/studio';
 import { editFormFrom, profileCompletion } from '../lib/careerStats';
-import { WRAP, breakable, dateLabel, dateTimeLabel, downloadBlob } from '../lib/format';
+import { WRAP, birthDateBounds, birthDateLabel, breakable, dateLabel, dateTimeLabel, downloadBlob } from '../lib/format';
 import AccountSettings from '../components/profile/AccountSettings';
 
 const SECTIONS = [
@@ -17,7 +17,7 @@ const SECTIONS = [
     fields: [
       { name: 'full_name', label: 'Full name', placeholder: 'Your full name' },
       { name: 'phone_number', label: 'Phone', type: 'tel', placeholder: '+91 98765 43210' },
-      { name: 'age', label: 'Age', type: 'number', placeholder: '25', min: 18, max: 100 },
+      { name: 'date_of_birth', label: 'Date of birth', type: 'date', ...birthDateBounds() },
       { name: 'address', label: 'Address', placeholder: 'City, State' },
     ],
   },
@@ -52,8 +52,9 @@ const SECTIONS = [
 
 const INPUT = 'block w-full border-0 border-b border-black/15 bg-transparent px-0 py-1.5 text-[17px] text-ink placeholder:text-silver focus:border-action focus:outline-none focus:ring-0';
 
-function Value({ field, value }) {
+function Value({ field, value, age }) {
   if (value === null || value === undefined || String(value).trim() === '') return <span className="text-silver">Not added</span>;
+  if (field.type === 'date') return <span>{birthDateLabel(value)}{age != null ? ` (${age} years)` : ''}</span>;
   if (field.type === 'url') {
     return <a href={value} target="_blank" rel="noopener noreferrer" className="break-all text-action-link hover:underline">{value.replace(/^https?:\/\/(www\.)?/, '')}</a>;
   }
@@ -84,7 +85,7 @@ function SpecSection({ section, profile, editing, form, onChange }) {
                       <input id={`f-${field.name}`} name={field.name} type={field.type || 'text'} min={field.min} max={field.max} step={field.step}
                         value={form[field.name] ?? ''} onChange={onChange} placeholder={field.placeholder} className={INPUT} />
                     )
-                  ) : <Value field={field} value={profile[field.name]} />}
+                  ) : <Value field={field} value={profile[field.name]} age={profile.age} />}
                 </motion.div>
               </AnimatePresence>
             </dd>

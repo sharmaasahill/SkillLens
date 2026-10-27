@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import BirthDateGate from './BirthDateGate';
 
 /** Three bouncing dots in the product colours, shown while a page or session loads. */
 export function PageLoader() {
@@ -33,6 +34,8 @@ function ProtectedRoute({ children, adminOnly = false }) {
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/auth" replace />;
   if (adminOnly !== Boolean(user.is_admin)) return <Navigate to={homeFor(user)} replace />;
+  // Google sign-ups and older accounts add their date of birth once before going on
+  if (user.needs_date_of_birth) return <BirthDateGate />;
   return children;
 }
 

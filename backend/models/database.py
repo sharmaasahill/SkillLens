@@ -15,7 +15,8 @@ class User(db.Model):
     full_name = db.Column(db.String(100))
     phone_number = db.Column(db.String(20))
     address = db.Column(db.String(200))
-    age = db.Column(db.Integer)
+    age = db.Column(db.Integer)  # no longer used: replaced by date_of_birth (kept so old data is not lost)
+    date_of_birth = db.Column(db.Date)
     # New professional fields
     current_work = db.Column(db.String(150))  # Current job title/role
     current_company = db.Column(db.String(150))  # Current company name
@@ -73,7 +74,8 @@ class ProfileHistory(db.Model):
     full_name = db.Column(db.String(100))
     phone_number = db.Column(db.String(20))
     address = db.Column(db.String(200))
-    age = db.Column(db.Integer)
+    age = db.Column(db.Integer)  # no longer used
+    date_of_birth = db.Column(db.Date)
     # New professional fields for history tracking
     current_work = db.Column(db.String(150))
     current_company = db.Column(db.String(150))

@@ -67,8 +67,8 @@ test('does not try to refresh after a failed login', async () => {
 });
 
 test('errorMessage prefers validation details, then the error field', () => {
-  const validation = { response: { data: { error: 'Invalid input', details: [{ field: 'age', message: 'too low' }] } } };
-  expect(errorMessage(validation)).toBe('age: too low');
+  const validation = { response: { data: { error: 'Invalid input', details: [{ field: 'date_of_birth', message: 'too low' }] } } };
+  expect(errorMessage(validation)).toBe('Date of birth: too low');
   expect(errorMessage({ response: { data: { error: 'Nope' } } })).toBe('Nope');
   expect(errorMessage({}, 'Fallback')).toBe('Fallback');
 });

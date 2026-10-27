@@ -22,7 +22,8 @@ STRONG = 'mango-river-lamp-7'
 
 
 def _register(client, **extra):
-    body = {'email': 'new@example.com', 'password': STRONG, 'full_name': 'New Person', 'accept_privacy': True, **extra}
+    body = {'email': 'new@example.com', 'password': STRONG, 'full_name': 'New Person', 'date_of_birth': '1998-05-14',
+            'accept_privacy': True, **extra}
     return client.post('/auth/register', json=body)
 
 
@@ -58,7 +59,8 @@ def test_easy_passwords_are_refused(client, weak):
 
 
 def test_privacy_consent_is_required_and_recorded(client):
-    missing = client.post('/auth/register', json={'email': 'a@example.com', 'password': STRONG, 'full_name': 'A'})
+    missing = client.post('/auth/register', json={'email': 'a@example.com', 'password': STRONG, 'full_name': 'A',
+                                                  'date_of_birth': '1998-05-14'})
     assert missing.status_code == 400 and missing.get_json()['details'][0]['field'] == 'accept_privacy'
     assert _register(client).status_code == 201
     user = User.query.filter_by(email='new@example.com').one()

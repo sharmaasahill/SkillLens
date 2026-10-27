@@ -58,6 +58,7 @@ def register():
         email=data.email,
         password=passwords.hash_password(data.password),
         full_name=data.full_name,
+        date_of_birth=data.date_of_birth,
         is_admin=False,
         privacy_accepted_at=datetime.utcnow(),
         privacy_version=current_app.config['PRIVACY_VERSION'],

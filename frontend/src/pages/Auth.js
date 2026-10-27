@@ -7,6 +7,7 @@ import { homeFor } from '../components/ProtectedRoute';
 import { LensMark } from '../components/ui/studio';
 import { PasswordField, PasswordMatch, matchState } from '../components/ui/PasswordField';
 import { useSiteInfo } from '../lib/siteInfo';
+import { birthDateBounds } from '../lib/format';
 
 const FIELD = 'block w-full rounded-xl border bg-white px-4 py-3.5 text-[17px] text-ink placeholder:text-silver transition focus:outline-none focus:ring-4';
 // The confirm field's border turns green when both passwords match and red when they differ
@@ -54,6 +55,7 @@ function Auth() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [fullName, setFullName] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState(GOOGLE_ERRORS[searchParams.get('error')] || '');
   const [loading, setLoading] = useState(false);
@@ -103,7 +105,7 @@ function Auth() {
         // The admin email lands on the admin dashboard, everyone else on their dashboard
         navigate(homeFor(result), { replace: true });
       } else {
-        navigate(homeFor(await register(email, password, fullName, agreed)), { replace: true });
+        navigate(homeFor(await register(email, password, fullName, agreed, dateOfBirth)), { replace: true });
       }
     } catch (err) {
       setError(err.response?.status === 401 ? 'Invalid email or password' : errorMessage(err, 'An error occurred'));
@@ -137,6 +139,7 @@ function Auth() {
 
   const field = `${FIELD} ${FIELD_TONE.normal}`;
   const confirmTone = match === 'match' || match === 'mismatch' ? FIELD_TONE[match] : FIELD_TONE.normal;
+  const born = birthDateBounds();
   const googleHref = `${API_URL}/auth/google/start?mode=${isLogin ? 'signin' : 'signup'}`;
 
   const switchMode = () => {
@@ -204,6 +207,15 @@ function Auth() {
                     <label htmlFor="fullName" className="sr-only">Full Name</label>
                     <input id="fullName" name="fullName" type="text" required autoComplete="name"
                       className={field} placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                  </div>
+                )}
+                {!isLogin && (
+                  <div>
+                    <label htmlFor="dateOfBirth" className="mb-1.5 block px-1 text-[13px] text-graphite">Date of birth</label>
+                    <input id="dateOfBirth" name="dateOfBirth" type="date" required autoComplete="bday"
+                      min={born.min} max={born.max} aria-describedby="dob-note"
+                      className={field} value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
+                    <p id="dob-note" className="mt-1.5 px-1 text-[12px] text-silver">SkillLens is for people aged 18 or older.</p>
                   </div>
                 )}
                 <div>

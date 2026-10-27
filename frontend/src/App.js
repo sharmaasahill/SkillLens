@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './contexts/AuthContext';
 import { FeedbackProvider } from './components/ui/overlays';
 import ProtectedRoute, { PageLoader } from './components/ProtectedRoute';
+import ScrollToTop from './components/ScrollToTop';
 
 // Each page is its own bundle, so visitors only download the page they open
 const Landing = lazy(() => import('./pages/Landing'));
@@ -20,6 +21,7 @@ function App() {
     <AuthProvider>
       <FeedbackProvider>
         <Router>
+          <ScrollToTop />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Public routes */}

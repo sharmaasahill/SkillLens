@@ -22,6 +22,8 @@ def _snapshot(user):
 
 def update_profile(user, changes):
     """Apply validated changes (a dict of provided fields only) and record history."""
+    if changes.get('date_of_birth', 0) is None:
+        changes.pop('date_of_birth')  # a date of birth can be corrected, but not removed
     db.session.add(_snapshot(user))
     for field, value in changes.items():
         setattr(user, field, value)

@@ -33,6 +33,25 @@ export const dateLabel = (value) => (value ? new Date(value).toLocaleDateString(
 
 export const dateTimeLabel = (value) => (value ? new Date(value).toLocaleString('en-IN') : '-');
 
+/**
+ * A calendar date such as a birthday ("1998-05-14") as "14/5/1998". new Date("1998-05-14") would
+ * read it as midnight UTC, which is the day before in time zones west of London.
+ */
+export const birthDateLabel = (iso) => {
+  const [y, m, d] = String(iso || '').split('-').map(Number);
+  return y && m && d ? new Date(y, m - 1, d).toLocaleDateString('en-IN') : '-';
+};
+
+/** The date `years` years before today, as "YYYY-MM-DD" for a date input's min or max. */
+export const yearsAgo = (years, now = new Date()) => {
+  const day = new Date(now.getFullYear() - years, now.getMonth(), now.getDate());
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+};
+
+/** min and max for a date-of-birth input: aged 18 to 100, the same rule the server checks. */
+export const birthDateBounds = (now = new Date()) => ({ min: yearsAgo(100, now), max: yearsAgo(18, now) });
+
 export const firstName = (fullName) => (fullName || '').trim().split(/\s+/)[0] || '';
 
 export function greeting(now = new Date()) {

@@ -11,7 +11,8 @@ def _cookie_headers(response):
 
 def test_register_sets_httponly_cookies_and_no_token_in_body(client):
     response = client.post('/auth/register', json={
-        'email': 'New@Example.com', 'password': 'mango-river-lamp-7', 'full_name': 'New User', 'accept_privacy': True})
+        'email': 'New@Example.com', 'password': 'mango-river-lamp-7', 'full_name': 'New User',
+        'date_of_birth': '1998-05-14', 'accept_privacy': True})
     assert response.status_code == 201
     body = response.get_json()
     assert body['user']['email'] == 'new@example.com'
@@ -28,7 +29,8 @@ def test_register_sets_httponly_cookies_and_no_token_in_body(client):
 def test_register_rejects_duplicates_and_bad_input(client):
     create_user('taken@example.com')
     assert client.post('/auth/register', json={
-        'email': 'taken@example.com', 'password': 'password123', 'full_name': 'X', 'accept_privacy': True}).status_code == 409
+        'email': 'taken@example.com', 'password': 'password123', 'full_name': 'X', 'date_of_birth': '1998-05-14',
+        'accept_privacy': True}).status_code == 409
 
     response = client.post('/auth/register', json={'email': 'not-an-email', 'password': 'short', 'full_name': ''})
     assert response.status_code == 400
@@ -65,7 +67,7 @@ def test_one_login_admin_email_is_admin_and_others_are_users(client):
 
 
 def test_nobody_can_register_the_admin_email(client):
-    response = client.post('/auth/register', json={**ADMIN, 'password': 'password123', 'full_name': 'Sneaky', 'accept_privacy': True})
+    response = client.post('/auth/register', json={**ADMIN, 'password': 'password123', 'full_name': 'Sneaky', 'date_of_birth': '1998-05-14', 'accept_privacy': True})
     assert response.status_code == 409
 
 

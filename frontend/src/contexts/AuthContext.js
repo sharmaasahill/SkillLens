@@ -39,8 +39,16 @@ export function AuthProvider({ children }) {
     return { user: startSession(data), recoveryLeft: data.recovery_codes_left };
   }, [startSession]);
 
-  const register = useCallback(async (email, password, fullName, acceptPrivacy) => {
-    const { data } = await api.post('/auth/register', { email, password, full_name: fullName, accept_privacy: acceptPrivacy });
+  const register = useCallback(async (email, password, fullName, acceptPrivacy, dateOfBirth) => {
+    const { data } = await api.post('/auth/register', {
+      email, password, full_name: fullName, accept_privacy: acceptPrivacy, date_of_birth: dateOfBirth,
+    });
+    return startSession(data);
+  }, [startSession]);
+
+  // Read the account again after it changes, e.g. once a missing date of birth is added
+  const refreshUser = useCallback(async () => {
+    const { data } = await api.get('/auth/me');
     return startSession(data);
   }, [startSession]);
 
@@ -55,8 +63,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, verifyTwoFactor, register, logout }),
-    [user, loading, login, verifyTwoFactor, register, logout]
+    () => ({ user, loading, login, verifyTwoFactor, register, refreshUser, logout }),
+    [user, loading, login, verifyTwoFactor, register, refreshUser, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

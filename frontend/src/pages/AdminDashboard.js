@@ -6,7 +6,7 @@ import { Button, Notice, Skeleton, cx } from '../components/ui/primitives';
 import { Select } from '../components/ui/Select';
 import { useFeedback } from '../components/ui/overlays';
 import { CountNumber, EASE, Line, MiniRing, Section, WordCloud, arcPath, scoreColor } from '../components/ui/studio';
-import { WRAP, breakable, dateLabel, downloadBlob, toCsv } from '../lib/format';
+import { WRAP, birthDateLabel, breakable, dateLabel, downloadBlob, toCsv } from '../lib/format';
 import AccountControls from '../components/admin/AccountControls';
 import ApiUsage from '../components/admin/ApiUsage';
 import ErrorLog from '../components/admin/ErrorLog';
@@ -551,7 +551,7 @@ function UserDetails({ user, details, onSaved, onDownload, onRemove, onBlocked, 
 
           <Block title="Contact and work" delay={0.1}>
             <Facts items={[
-              ['Email', details.email], ['Phone', details.phone_number], ['Age', details.age], ['Address', details.address],
+              ['Email', details.email], ['Phone', details.phone_number], ['Date of birth', details.date_of_birth ? `${birthDateLabel(details.date_of_birth)} (${details.age} years)` : null], ['Address', details.address],
               ['Position', details.current_work], ['Company', details.current_company], ['Location', details.current_location],
               ['Experience', details.total_experience ? `${details.total_experience} years` : null],
             ]}
