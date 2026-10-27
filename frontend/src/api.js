@@ -6,7 +6,7 @@ import { API_URL } from './config';
 // JSON on login/refresh; it is not a credential on its own.
 const CSRF_ACCESS = 'csrf_access_token';
 const CSRF_REFRESH = 'csrf_refresh_token';
-const NO_REFRESH_PATHS = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout'];
+const NO_REFRESH_PATHS = ['/auth/login', '/auth/2fa', '/auth/register', '/auth/refresh', '/auth/logout'];
 
 export const csrf = {
   save(data = {}) {

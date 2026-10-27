@@ -50,8 +50,10 @@ def create_app(config_object=Config, overrides=None):
     )
 
     from . import security  # noqa: F401  (registers JWT user loaders)
+    from . import headers
     register_jwt_handlers(jwt)
     register_error_handlers(app)
+    headers.register(app)
 
     from .routes import register_blueprints
     register_blueprints(app)

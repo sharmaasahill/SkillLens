@@ -259,8 +259,8 @@ function Profile() {
         )}
       </Section>
 
-      <Section index="07" title="Account" note={`Signed in as ${profile.email}.`}>
-        <AccountSettings />
+      <Section index="07" title="Account" note={`Signed in as ${profile.email}${profile.google_linked ? ', linked to Google' : ''}.`}>
+        <AccountSettings profile={profile} onChanged={() => load().catch(() => {})} />
       </Section>
 
       <AnimatePresence>

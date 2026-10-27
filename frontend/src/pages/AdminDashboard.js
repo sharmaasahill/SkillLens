@@ -10,6 +10,7 @@ import { WRAP, breakable, dateLabel, downloadBlob, toCsv } from '../lib/format';
 import AccountControls from '../components/admin/AccountControls';
 import ApiUsage from '../components/admin/ApiUsage';
 import ErrorLog from '../components/admin/ErrorLog';
+import TwoFactorSetup from '../components/admin/TwoFactorSetup';
 
 const PER_PAGE = 12;
 const TEAL = '#30b0c7';
@@ -766,6 +767,8 @@ const AdminDashboard = () => {
   const [errorView, setErrorView] = useState('open');
   const [errorKind, setErrorKind] = useState('');
   const [openErrors, setOpenErrors] = useState(0);
+  const [twoFactor, setTwoFactor] = useState(null);
+  const securityRef = useRef(null);
 
   useEffect(() => {
     fetchDropdownData();
@@ -1073,6 +1076,12 @@ const AdminDashboard = () => {
       />
 
       {error && <Notice className="mb-8">{error}</Notice>}
+      {twoFactor && !twoFactor.enabled && (
+        <Notice toneName="orange" className="mb-8">
+          Two-factor sign-in is off. Anyone with the admin password can open this dashboard and every user&apos;s data.{' '}
+          <button type="button" onClick={() => scrollTo(securityRef)} className="font-medium underline">Turn it on</button>
+        </Notice>
+      )}
 
       <Pipeline stats={stats} view={view} statusFilter={statusFilter} onStage={pickStage} onRemoved={showRemoved} onBlocked={showBlocked} />
 
@@ -1211,6 +1220,12 @@ const AdminDashboard = () => {
             onView={setErrorView} onKind={setErrorKind}
             onResolve={resolveError} onResolveAll={resolveAllErrors} onClearFixed={clearFixedErrors}
           />
+        </Section>
+      </div>
+
+      <div ref={securityRef} className="scroll-mt-20">
+        <Section index="06" title="Two-factor sign-in" note="A 6-digit code from Google Authenticator on top of the admin password.">
+          <TwoFactorSetup onChange={setTwoFactor} />
         </Section>
       </div>
 

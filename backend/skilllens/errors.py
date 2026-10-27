@@ -37,7 +37,7 @@ def register_error_handlers(app):
     @app.errorhandler(HTTPException)
     def handle_http_error(exc):
         messages = {
-            413: 'File is too large (max 16 MB)',
+            413: 'File is too large (max 5 MB)',
             429: 'Too many requests. Please slow down and try again shortly.',
         }
         return jsonify({'error': messages.get(exc.code, exc.description)}), exc.code

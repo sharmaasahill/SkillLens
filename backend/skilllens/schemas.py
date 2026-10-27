@@ -19,11 +19,30 @@ class RegisterRequest(_Schema):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=100)
+    # The "I agree to the Privacy Policy" box. An account cannot be made without it.
+    accept_privacy: bool = Field(False, validate_default=True)
 
     @field_validator('email')
     @classmethod
     def lower_email(cls, value):
         return value.lower()
+
+    @field_validator('accept_privacy')
+    @classmethod
+    def must_accept(cls, value):
+        if value is not True:
+            raise ValueError('Agree to the Privacy Policy to create an account')
+        return value
+
+
+class TwoFactorLoginRequest(_Schema):
+    challenge: str = Field(min_length=10, max_length=500)
+    code: str = Field(min_length=6, max_length=20)
+
+
+class TwoFactorCodeRequest(_Schema):
+    code: str = Field(min_length=6, max_length=20)
+
 
 
 class LoginRequest(_Schema):
@@ -42,12 +61,20 @@ class _Password(BaseModel):
 
 
 class ChangePasswordRequest(_Password):
-    current_password: str = Field(min_length=1, max_length=128)
+    # Not needed by accounts made with Google, which have no password yet
+    current_password: Optional[str] = Field(None, max_length=128)
     new_password: str = Field(min_length=8, max_length=128)
 
 
-class DeleteAccountRequest(_Password):
+class TwoFactorOffRequest(_Password):
     password: str = Field(min_length=1, max_length=128)
+    code: str = Field(min_length=6, max_length=20)
+
+
+class DeleteAccountRequest(_Password):
+    password: Optional[str] = Field(None, max_length=128)
+    # Accounts made with Google confirm by typing their email instead of a password
+    confirm_email: Optional[str] = Field(None, max_length=120)
 
 
 class ClientErrorReport(_Schema):
@@ -111,6 +138,16 @@ class SalaryRequest(_Schema):
     @classmethod
     def clean_skills(cls, value):
         return [s.strip()[:40] for s in value if isinstance(s, str) and s.strip()]
+
+
+class CityCompareRequest(SalaryRequest):
+    """The same inputs as an estimate, plus up to 12 cities to compare (empty: the biggest job markets)."""
+    cities: List[str] = Field(default_factory=list, max_length=12)
+
+    @field_validator('cities')
+    @classmethod
+    def clean_cities(cls, value):
+        return [c.strip()[:60] for c in value if isinstance(c, str) and c.strip()]
 
 
 class OfferCheckRequest(SalaryRequest):

@@ -7,6 +7,7 @@ import ProtectedRoute, { PageLoader } from './components/ProtectedRoute';
 // Each page is its own bundle, so visitors only download the page they open
 const Landing = lazy(() => import('./pages/Landing'));
 const Auth = lazy(() => import('./pages/Auth'));
+const Privacy = lazy(() => import('./pages/Privacy'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Profile = lazy(() => import('./pages/Profile'));
 const SalaryPredictor = lazy(() => import('./pages/SalaryPredictor'));
@@ -24,6 +25,7 @@ function App() {
               {/* Public routes */}
               <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/privacy" element={<Privacy />} />
 
               {/* User routes */}
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

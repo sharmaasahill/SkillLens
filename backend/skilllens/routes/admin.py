@@ -7,9 +7,9 @@ from flask_jwt_extended import current_user
 from models.database import User
 
 from ..errors import ApiError
-from ..schemas import AdminUserQuery, BulkReviewRequest, UserReviewRequest
+from ..schemas import AdminUserQuery, BulkReviewRequest, TwoFactorCodeRequest, TwoFactorOffRequest, UserReviewRequest
 from ..security import admin_required
-from ..services import accounts, admin, error_log, storage, usage
+from ..services import accounts, admin, error_log, storage, two_factor, usage
 from . import json_body
 
 bp = Blueprint('admin', __name__, url_prefix='/api/admin')
@@ -185,3 +185,53 @@ def resolve_all_errors():
 @admin_required
 def clear_fixed_errors():
     return jsonify({'deleted': error_log.clear_fixed()})
+
+
+# ----- two-factor sign-in for the admin -----
+
+@bp.get('/2fa')
+@admin_required
+def two_factor_status():
+    return jsonify(two_factor.status(current_user))
+
+
+@bp.post('/2fa/setup')
+@admin_required
+def two_factor_setup():
+    """A new secret and its QR code. Nothing changes until the first code is confirmed."""
+    response = jsonify(two_factor.begin_setup(current_user))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@bp.post('/2fa/enable')
+@admin_required
+def two_factor_enable():
+    codes = two_factor.finish_setup(current_user, json_body(TwoFactorCodeRequest).code)
+    response = jsonify({**two_factor.status(current_user), 'recovery_codes': codes})
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@bp.post('/2fa/disable')
+@admin_required
+def two_factor_disable():
+    """Turning it off needs the password and a current code, so a stolen session alone cannot do it."""
+    data = json_body(TwoFactorOffRequest)
+    accounts.check_password(current_user, data.password)
+    if not two_factor.check_code(current_user, data.code):
+        raise ApiError('That code is not right.', 403)
+    two_factor.disable(current_user)
+    return jsonify(two_factor.status(current_user))
+
+
+@bp.post('/2fa/recovery-codes')
+@admin_required
+def two_factor_new_recovery_codes():
+    if not two_factor.enabled(current_user):
+        raise ApiError('Turn on two-factor sign-in first.', 400)
+    if not two_factor.check_code(current_user, json_body(TwoFactorCodeRequest).code, allow_recovery=False):
+        raise ApiError('That code is not right.', 403)
+    response = jsonify({**two_factor.status(current_user), 'recovery_codes': two_factor.regenerate_recovery_codes(current_user)})
+    response.headers['Cache-Control'] = 'no-store'
+    return response

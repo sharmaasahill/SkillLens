@@ -274,6 +274,28 @@ class IndiaSalaryPredictor:
             'wide_range': {'min': _round_inr(values[0]), 'max': _round_inr(values[4])},
         }
 
+    def compare_cities(self, data, cities):
+        """The advanced estimate and likely range for the same profile in each city, in one model call."""
+        cities = [c for c in dict.fromkeys(cities) if c in self.model.cities and c != 'Remote']
+        if not cities:
+            return []
+        n = len(cities)
+        rows = {
+            'title': [data['job_title']] * n,
+            'experience': [data['years_of_experience']] * n,
+            'city': cities,
+            'work_mode': [data.get('work_mode') or 'On-site'] * n,
+            'skills': [data.get('skills') or []] * n,
+        }
+        _, _, _, blend, q = self.model.predict(rows, quantiles=RANGE_Q)
+        out = []
+        for i, city in enumerate(cities):
+            salary = float(np.exp(blend[i]))
+            low, high = sorted((float(np.exp(q[RANGE_Q[0]][i])), float(np.exp(q[RANGE_Q[1]][i]))))
+            out.append({'city': city, 'predicted_salary': _round_inr(salary),
+                        'salary_range': {'min': _round_inr(min(low, salary)), 'max': _round_inr(max(high, salary))}})
+        return sorted(out, key=lambda r: r['predicted_salary'], reverse=True)
+
     def options(self):
         return {
             'cities': self.model.cities,

@@ -41,6 +41,11 @@ def validate_pdf(file_storage):
     file_storage.stream.seek(0)
     if head != PDF_MAGIC:
         raise ApiError('File is not a valid PDF', 400)
+    file_storage.stream.seek(0, os.SEEK_END)
+    size = file_storage.stream.tell()
+    file_storage.stream.seek(0)
+    if size > current_app.config.get('MAX_RESUME_BYTES', 5 * 1024 * 1024):
+        raise ApiError('The PDF is larger than 5 MB. Export it again with smaller images.', 413)
 
 
 def save_pdf(file_storage, user_id, subfolder=None):

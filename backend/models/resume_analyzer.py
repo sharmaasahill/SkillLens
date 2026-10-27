@@ -18,7 +18,7 @@ import logging
 import re
 from datetime import datetime
 
-import PyPDF2
+import pypdf
 
 from . import skills_taxonomy as taxonomy
 
@@ -192,7 +192,7 @@ DEGREE_RE = re.compile(
 # ---------------------------------------------------------------------------
 
 def extract_text_from_pdf(file_path):
-    """Extract text from a PDF, using pdfplumber when installed and PyPDF2 otherwise."""
+    """Extract text from a PDF, using pdfplumber when installed and pypdf otherwise."""
     text = ''
     if PDFPLUMBER_AVAILABLE:
         try:
@@ -206,10 +206,10 @@ def extract_text_from_pdf(file_path):
     # Accepts a path or an open binary file (used for uploaded job descriptions)
     if hasattr(file_path, 'read'):
         file_path.seek(0)
-        reader = PyPDF2.PdfReader(file_path)
+        reader = pypdf.PdfReader(file_path)
     else:
         with open(file_path, 'rb') as handle:
-            reader = PyPDF2.PdfReader(io.BytesIO(handle.read()))
+            reader = pypdf.PdfReader(io.BytesIO(handle.read()))
     if reader.is_encrypted:
         raise ValueError('PDF is encrypted and cannot be read')
     pages = []

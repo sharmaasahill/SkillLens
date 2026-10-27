@@ -9,11 +9,12 @@ import logging
 
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import check_password_hash
 
 from models.database import User
 
 from ..extensions import db
+from . import passwords
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ def admin_email():
 
 
 def is_admin_email(email):
-    return bool(email) and email.strip().lower() == admin_email()
+    return bool(email) and bool(admin_email()) and email.strip().lower() == admin_email()
 
 
 def sync_admin():
@@ -32,8 +33,8 @@ def sync_admin():
     Returns the admin user, or None when ADMIN_PASSWORD is not set (admin sign-in is then off).
     """
     email, password = admin_email(), current_app.config['ADMIN_PASSWORD']
-    if not password:
-        logger.warning('ADMIN_PASSWORD is not set, so the admin account cannot sign in.')
+    if not email or not password:
+        logger.warning('ADMIN_EMAIL or ADMIN_PASSWORD is not set, so the admin account cannot sign in.')
         return None
 
     # Only one admin: any other account marked as admin becomes a regular user
@@ -46,7 +47,7 @@ def sync_admin():
         db.session.add(user)
     user.is_admin = True
     if not user.password or not check_password_hash(user.password, password):
-        user.password = generate_password_hash(password, method='pbkdf2:sha256')
+        user.password = passwords.hash_password(password)
     try:
         db.session.commit()
     except IntegrityError:

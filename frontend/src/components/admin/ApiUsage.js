@@ -5,6 +5,7 @@ import { EASE, Line, ratioColor } from '../ui/studio';
 import { dateLabel } from '../../lib/format';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
+const mb = (bytes) => `${(Number(bytes || 0) / (1024 * 1024)).toFixed(bytes > 100 * 1024 * 1024 ? 0 : 1)} MB`;
 const usd = (n) => `$${Number(n || 0).toFixed(2)}`;
 
 function Meter({ label, used, limit, note, tone }) {
@@ -122,6 +123,17 @@ function ApiUsage({ usage }) {
           note={`${fmt(searches.month)} this month. Each user can run ${searches.user_daily_limit} a day; repeats of the same search are free.`}
         />
       </div>
+
+      {usage.storage && (
+        <div className="mt-14 max-w-[520px]">
+          <Meter
+            label="Database storage"
+            used={usage.storage.database_bytes != null ? mb(usage.storage.database_bytes) : '-'}
+            limit={usage.storage.database_bytes != null ? mb(usage.storage.limit_bytes) : 0}
+            note={`Resume files ${mb(usage.storage.resume_files_bytes)} (${fmt(usage.storage.resume_files)} PDFs). ${fmt(usage.storage.cached_job_results)} cached job results; those older than ${usage.storage.keep_days} days are deleted automatically.`}
+          />
+        </div>
+      )}
 
       <div className="mt-14">
         <p className="mb-4 text-[13px] font-semibold uppercase tracking-[0.14em] text-silver">Calls per day</p>

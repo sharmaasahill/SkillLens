@@ -40,6 +40,20 @@ class User(db.Model):
     blocked_at = db.Column(db.DateTime)
     # Goes up when the password is reset or the account is blocked, which signs out every open session
     session_version = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    # Two-factor sign-in (admin): authenticator app secret, a secret being set up, and the last code
+    # step used, so the same 6-digit code can never be used twice
+    totp_secret = db.Column(db.String(64))
+    totp_pending_secret = db.Column(db.String(64))
+    totp_enabled_at = db.Column(db.DateTime)
+    totp_last_step = db.Column(db.BigInteger)
+    recovery_codes = db.Column(db.Text)  # JSON list of sha256 hashes of unused one-time recovery codes
+    # Google sign-in: Google's permanent id for the person. Accounts made with Google have no password
+    # until the person sets one.
+    google_sub = db.Column(db.String(64), unique=True)
+    has_password = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+    # When the person agreed to the privacy policy, and which version
+    privacy_accepted_at = db.Column(db.DateTime)
+    privacy_version = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

@@ -5,7 +5,7 @@ import { motion, useTransform } from 'framer-motion';
 const PROFILE = { role: 'Data Scientist', years: 5, city: 'Bengaluru' };
 const ESTIMATE = 1586000;
 const BASIC = 1823000;
-const RANGE = [650000, 2097000];
+const RANGE = [643000, 1883000];
 // effect = change vs. an average posting; weight = share of the explanation (bar length)
 const FACTORS = [
   { name: 'Job title', effect: 73.6, weight: 44.6 },

@@ -1,13 +1,13 @@
 import React, { useId, useState } from 'react';
 import { Spinner, cx } from './primitives';
 
-const MAX_BYTES = 16 * 1024 * 1024;
+const MAX_BYTES = 5 * 1024 * 1024;
 
-/** Validate a picked file the same way everywhere: PDF only, 16 MB max. Returns an error string or ''. */
+/** Validate a picked file the same way everywhere: PDF only, 5 MB max. Returns an error string or ''. */
 export function pdfError(file) {
   if (!file) return '';
   if (file.type !== 'application/pdf') return 'Please upload a PDF file';
-  if (file.size > MAX_BYTES) return 'File size should be less than 16MB';
+  if (file.size > MAX_BYTES) return 'The PDF should be under 5 MB';
   return '';
 }
 
@@ -49,7 +49,7 @@ function Dropzone({ onFile, busy = false, busyLabel = 'Uploading...', file, titl
       </p>
       <p className="mt-1 text-[14px] text-graphite">
         {busy ? 'This usually takes a few seconds.' : (
-          <>or <span className="text-action-link">choose a file</span>. PDF only, up to 16 MB.</>
+          <>or <span className="text-action-link">choose a file</span>. PDF only, up to 5 MB.</>
         )}
       </p>
     </label>

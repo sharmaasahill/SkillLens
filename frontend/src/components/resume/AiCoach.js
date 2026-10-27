@@ -208,7 +208,7 @@ function AiCoach({ resumeId, jd, status }) {
     <Section
       index="AI"
       title="AI coach"
-      note="Google Gemini reads your resume like a recruiter. Your name, phone, email and links are removed before it is sent."
+      note={<>Google Gemini reads your resume like a recruiter. Your name, phone, email and links are removed before it is sent; Google may use free-tier requests to improve its products. <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-action-link hover:underline">Privacy</a></>}
       aside={!state.data && !state.loading && (
         <div>
           <Button onClick={run} disabled={left <= 0}>{hasJd ? 'Review against this JD' : 'Run AI review'}</Button>

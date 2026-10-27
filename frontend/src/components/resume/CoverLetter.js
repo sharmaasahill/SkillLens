@@ -63,7 +63,7 @@ function CoverLetter({ resumeId, jd, status }) {
     <Section
       index="AI"
       title="Cover letter"
-      note="A short draft from your resume and this job description. Your name, phone, email and links are removed before it is sent."
+      note={<>A short draft from your resume and this job description. Your name, phone, email and links are removed before it is sent to Google Gemini. <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-action-link hover:underline">Privacy</a></>}
       aside={hasJd && !state.data && !state.loading && (
         <div>
           <Button onClick={write} disabled={left <= 0}>Write cover letter</Button>

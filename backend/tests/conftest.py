@@ -38,7 +38,7 @@ def make_client(app):
 
 
 def create_user(email, password=PASSWORD, is_admin=False, **fields):
-    user = User(email=email, password=generate_password_hash(password, method='pbkdf2:sha256'),
+    user = User(email=email, password=generate_password_hash(password, method='pbkdf2:sha256:1000'),
                 is_admin=is_admin, **fields)
     db.session.add(user)
     db.session.commit()

@@ -1,0 +1,32 @@
+# Dependabot opens a pull request when a package needs an update, most importantly for security fixes.
+# CI runs on each one, so a green tick means the update is safe to merge.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      flask:
+        patterns: ['Flask*', 'flask*', 'Werkzeug', 'itsdangerous']
+    ignore:
+      # The salary model file must be retrained for a new scikit-learn (flask --app app build-india-data)
+      - dependency-name: scikit-learn
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly

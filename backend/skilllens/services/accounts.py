@@ -11,7 +11,7 @@ from datetime import datetime
 
 from flask import current_app
 from sqlalchemy import delete as sql_delete
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import check_password_hash
 
 from models.database import (
     AiResult, ApiUsage, ErrorLog, JobSearch, ProfileHistory, Resume, ResumeScore, StoredFile, User, UserReview,
@@ -19,6 +19,7 @@ from models.database import (
 
 from ..errors import ApiError
 from ..extensions import db
+from . import passwords
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ MIN_PASSWORD = 8
 
 
 def _hash(password):
-    return generate_password_hash(password, method='pbkdf2:sha256')
+    return passwords.hash_password(password)
 
 
 def sign_out_everywhere(user):
@@ -38,14 +39,26 @@ def check_password(user, password):
         raise ApiError('That password is not correct.', 403)
 
 
+def confirm_identity(user, password=None, confirm_email=None):
+    """The password, or for an account made with Google (no password yet), the account's email typed again."""
+    if user.has_password:
+        check_password(user, password)
+    elif (confirm_email or '').strip().lower() != user.email:
+        raise ApiError('Type your email address exactly to confirm.', 403)
+
+
 def change_password(user, current, new):
-    """The user's own password change. Other devices are signed out; this one gets new tokens from the route."""
-    check_password(user, current)
+    """The user's own password change (or first password, for Google accounts). Other devices are
+    signed out; this one gets new tokens from the route."""
+    if user.has_password:
+        check_password(user, current)
     if len(new or '') < MIN_PASSWORD:
         raise ApiError(f'The new password needs at least {MIN_PASSWORD} characters.', 400)
-    if check_password_hash(user.password, new):
+    if user.has_password and check_password_hash(user.password, new):
         raise ApiError('The new password is the same as the current one.', 400)
+    passwords.check(new, email=user.email, name=user.full_name)
     user.password = _hash(new)
+    user.has_password = True
     sign_out_everywhere(user)
     db.session.commit()
 
@@ -54,6 +67,7 @@ def reset_password(user):
     """Admin reset without email: a new temporary password, shown once to the admin to pass on."""
     temporary = secrets.token_urlsafe(9)  # 12 characters
     user.password = _hash(temporary)
+    user.has_password = True
     sign_out_everywhere(user)
     db.session.commit()
     return temporary

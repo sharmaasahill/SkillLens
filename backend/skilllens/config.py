@@ -48,17 +48,37 @@ class Config:
     JWT_REFRESH_COOKIE_PATH = '/auth/'
     JWT_SESSION_COOKIE = False  # persist cookies until the token expires
 
-    # The one admin account. Every other email is a regular user. The password is never stored in
-    # code: set ADMIN_PASSWORD in backend/.env locally and in the host's settings (Render) live.
-    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin.skilllens@gmail.com').strip().lower()
+    # The one admin account. Every other email is a regular user. Neither the email nor the password
+    # is written in code: set both in backend/.env locally and in the host's settings (Render) live.
+    # Without them, admin sign-in is off.
+    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', '').strip().lower()
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '')
+
+    # Privacy policy shown at /privacy. Raise the version when the policy changes.
+    PRIVACY_VERSION = '2026-10'
+    CONTACT_EMAIL = os.environ.get('CONTACT_EMAIL', '').strip()
+
+    # Google sign-in (see README, "Google sign-in"). Off until both are set.
+    GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '').strip()
+    GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '').strip()
+    # Optional: the exact callback address registered with Google. Worked out from the request if empty.
+    GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', '').strip()
+    # Where to send the browser after Google sign-in. Empty means this site (production). Locally,
+    # with the React dev server, use http://localhost:3000.
+    FRONTEND_URL = os.environ.get('FRONTEND_URL', '').strip().rstrip('/')
+
+    # Housekeeping: cached job results older than this are deleted, and the database size is shown
+    # against this limit in the admin dashboard (Neon's free plan: 1 GB per project)
+    CACHE_KEEP_DAYS = int(os.environ.get('CACHE_KEEP_DAYS', '7'))
+    DATABASE_LIMIT_MB = int(os.environ.get('DATABASE_LIMIT_MB', '1024'))
 
     # CORS
     CORS_ORIGINS = _list('CORS_ORIGINS', 'http://localhost:3000')
 
     # Uploads
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', os.path.join(BACKEND_DIR, 'uploaded_resumes'))
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB
+    MAX_RESUME_BYTES = 5 * 1024 * 1024  # a resume PDF is rarely over 1 MB
+    MAX_CONTENT_LENGTH = 11 * 1024 * 1024  # one request: a resume plus a job description file (5 MB each)
 
     # Rate limiting (use a Redis URI in production so limits are shared across workers)
     RATELIMIT_ENABLED = _bool('RATELIMIT_ENABLED', True)
@@ -103,6 +123,8 @@ class TestingConfig(Config):
     TESTING = True
     JWT_SECRET_KEY = 'test-secret-key-that-is-long-enough-for-hs256'
     SQLALCHEMY_DATABASE_URI = 'sqlite://'
+    PASSWORD_HASH_METHOD = 'pbkdf2:sha256:1000'  # fast hashing in tests only
+    GOOGLE_CLIENT_ID = GOOGLE_CLIENT_SECRET = CONTACT_EMAIL = ''
     ADMIN_EMAIL = 'admin@example.com'
     ADMIN_PASSWORD = 'admin-password-123'
     RATELIMIT_ENABLED = False

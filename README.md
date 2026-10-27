@@ -17,6 +17,7 @@
 ## Features
 
 - **Salary Predictor (India)** - Estimates annual CTC in INR from job title, years of experience, city, work mode and skills. Trained on 31,566 salaries disclosed in Naukri.com postings. Shows how much each input moved the estimate.
+- **City comparison** - The same role, experience and skills across India's biggest job markets, best paid first, with the difference from your city ("+₹1.2 LPA vs Pune").
 - **Offer checker** - "I got ₹12 LPA, is that good?" Places an offer among similar 2025 postings for the same role, experience, city and skills (as a percentile), and suggests what to ask for.
 - **Advanced estimate** - Blends the linear model with gradient-boosted trees and adds a likely range and a wide range from quantile models, side by side with the quick estimate.
 - **Resume Analyzer** - Extracts skills from PDF resumes with an 870-skill taxonomy (including Indian-market skills such as Tally, GST, SAP), reads Indian degrees and CGPA, calculates an ATS score, and flags personal details recruiters do not need. Paste or upload a job description to also get a match score, the must-have skills you are missing and the words to add.
@@ -30,7 +31,10 @@
 - **Admin Dashboard** - One admin account (set in settings) can search and filter users by role, location, company, experience, skills and score, mark them Verified, Follow up or Flagged, keep private notes, view analytics, export CSV and download resumes. It can also block sign-in, give a temporary password, or delete an account. Regular users never see it, and its code is only downloaded after an admin sign-in.
 - **API usage and cost** - Gemini uses, Apify dollars this month (read from Apify), job searches, and every job source's calls against its daily limit, with a 14-day chart and the last error of any failing source.
 - **Error log** - Crashes in the API (with the traceback), crashes in users' browsers, and failing outside services (job sources, Gemini) appear in the admin dashboard, grouped so a repeat raises a count. Mark them fixed; no email or outside service is used.
-- **Secure auth** - One sign-in page for everyone and two roles: users and a single admin. httpOnly cookie sessions with short-lived access tokens, silent refresh, CSRF protection and rate-limited login. Press and hold the eye to see a password; sign-up asks for the password twice and shows live whether they match.
+- **Secure auth** - One sign-in page for everyone and two roles: users and a single admin. Email and password, or **Continue with Google**. httpOnly cookie sessions with short-lived access tokens, silent refresh, CSRF protection and rate-limited login. Easy-to-guess passwords ("password123", your name plus a number) are refused. Press and hold the eye to see a password; sign-up asks for it twice and shows live whether they match, and needs the privacy box ticked.
+- **Admin two-factor sign-in** - A 6-digit code from Google Authenticator (free) on top of the admin password, with 8 one-time recovery codes. A code works once, and wrong codes are limited per day.
+- **Security headers** - Content-Security-Policy (scripts only from this site, no framing), HSTS, nosniff, a strict referrer policy and no caching of personal data. Uploads are limited to 5 MB.
+- **Privacy** - A plain-language Privacy Policy at `/privacy` (what is collected, who handles it, how long it is kept, and rights under India's DPDP Act), with consent recorded at sign-up.
 - **Scroll-driven landing page** - Clean white, Apple-inspired UI built with Tailwind CSS and Framer Motion. Every landing animation follows the scroll: it moves while you scroll, stops when you stop and plays backwards when you scroll up, on laptops, tablets and phones. Fully responsive, and respects the "reduce motion" setting.
 
 ### How the ATS score works
@@ -99,7 +103,8 @@ Every job links back to its source, as Remotive, Himalayas and Remote OK require
 - Flask (app factory + blueprints), Flask-JWT-Extended, Flask-SQLAlchemy, Flask-Migrate (Alembic), Flask-Limiter, Flask-CORS
 - Pydantic request validation
 - SQLite locally, PostgreSQL in production (psycopg 3)
-- PyPDF2 for PDF text extraction
+- pypdf for PDF text extraction
+- pyotp and segno for admin two-factor sign-in
 - Gunicorn
 - pytest
 
@@ -170,6 +175,8 @@ Run from the `backend` folder:
 | `flask --app app rescore-resumes` | Re-score stored resumes after changing the scoring rules (`--dry-run` to preview) |
 | `flask --app app check-job-sources` | Show which job sources are set up (`--paid` also tests keyed sources) |
 | `flask --app app build-india-data` | Rebuild the dataset and retrain the salary model |
+| `flask --app app cleanup` | Delete cached job results and searches older than `CACHE_KEEP_DAYS`, and usage counters older than 120 days (also runs by itself at most every 6 hours) |
+| `flask --app app admin-2fa-off` | Turn off the admin's two-factor sign-in when the phone and recovery codes are both lost |
 
 To run a command against the live database from your computer, set `DATABASE_URL` for that one command, for example `DATABASE_URL="postgresql://..." flask --app app reset-data`.
 
@@ -185,7 +192,7 @@ cd frontend
 npm test -- --watchAll=false   # API client, sign-in, route guards, formatting
 ```
 
-GitHub Actions (`.github/workflows/ci.yml`) runs the backend tests, the frontend lint, tests and production build on every push to `master` and every pull request.
+GitHub Actions (`.github/workflows/ci.yml`) runs the backend tests, the frontend lint, tests and production build, and a Docker image build on every push to `master` and every pull request. Dependabot (`.github/dependabot.yml`) opens a pull request when a package has an update; scikit-learn minor updates are skipped because the salary model must be retrained for them.
 
 ---
 
@@ -200,7 +207,12 @@ All settings come from environment files that are excluded from git. Copy the `.
 | `JWT_SECRET_KEY` | Required. Signs login tokens. Generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `JWT_ACCESS_MINUTES`, `JWT_REFRESH_DAYS` | Session lifetime (defaults 15 minutes / 7 days) |
 | `JWT_COOKIE_SECURE`, `JWT_COOKIE_SAMESITE` | Set `JWT_COOKIE_SECURE=true` on HTTPS (the live site). Use `JWT_COOKIE_SAMESITE=None` only if the frontend and API are on different domains |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | The one admin account (see Admin Account). Admin sign-in is off until `ADMIN_PASSWORD` is set |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | The one admin account (see Admin Account). Both are required; admin sign-in is off without them |
+| `CONTACT_EMAIL` | Shown on the Privacy Policy page for questions and data requests |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in (see below). The button is hidden until both are set |
+| `GOOGLE_REDIRECT_URI` | Optional: the exact callback registered with Google |
+| `FRONTEND_URL` | Locally with `npm start`: `http://localhost:3000`, where Google sign-in returns to. Empty on the live site |
+| `CACHE_KEEP_DAYS`, `DATABASE_LIMIT_MB` | How long cached job results are kept (7), and the database limit shown in the dashboard (1024) |
 | `DATABASE_URL` | SQLAlchemy URL, defaults to SQLite in `backend/instance/`. A Neon/PostgreSQL `postgresql://` link works as is |
 | `UPLOAD_FOLDER` | Working copies of resume PDFs, defaults to `backend/uploaded_resumes` (the database keeps the real copy) |
 | `CORS_ORIGINS` | Comma-separated frontend origins allowed to call the API (only needed when the frontend runs on another address, as with `npm start`) |
@@ -240,7 +252,7 @@ Flask serves `frontend/build`, so after building, the whole app is available at 
 
 The live site runs as one Docker container on Render, with its database on Neon. Serving the React build and the API from the same address keeps the login cookies first-party, so no cross-site cookie setup is needed.
 
-- **`Dockerfile`** builds the React app (Node 22, no source maps), installs the Python backend (3.11), runs `flask --app app db upgrade`, then starts Gunicorn.
+- **`Dockerfile`** builds the React app (Node 22, no source maps, no inline scripts so the Content-Security-Policy can forbid them), installs the Python backend (3.11), runs `flask --app app db upgrade`, then starts Gunicorn.
 - **`backend/gunicorn.conf.py`** uses one worker with 8 threads (the ML models, caches and job-search threads live in memory and fit Render's 512 MB free plan) and a 180-second timeout for AI reviews. Models load in the background, so the site answers immediately.
 - **Resume PDFs** are saved in the `stored_files` table. Render's disk is wiped on every restart; a missing file is rewritten from the database when it is next needed.
 
@@ -248,9 +260,37 @@ Steps:
 
 1. Create a free PostgreSQL database on [Neon](https://neon.tech) and copy its connection string (pooling off).
 2. On [Render](https://render.com), create a **Web Service** from this GitHub repo with language **Docker** and the **Free** plan.
-3. Under **Environment**, set `DATABASE_URL` (the Neon link), `JWT_SECRET_KEY`, `JWT_COOKIE_SECURE=true`, `PROXY_COUNT=1`, `ADMIN_PASSWORD`, and any API keys you use.
+3. Under **Environment**, set `DATABASE_URL` (the Neon link), `JWT_SECRET_KEY`, `JWT_COOKIE_SECURE=true`, `PROXY_COUNT=1`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CONTACT_EMAIL`, and any API keys you use (Google sign-in: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`).
 4. Deploy. Every push to `master` redeploys, and new migrations run automatically on start.
 5. Optional: point a free uptime monitor at `/health` every 5 minutes, so the free service does not sleep.
+
+---
+
+## Google sign-in
+
+The server talks to Google directly (OpenID Connect with PKCE); no extra package or frontend SDK is used.
+
+1. Open [Google Cloud Console](https://console.cloud.google.com), create a project, then open **Google Auth Platform**.
+2. **Branding**: app name SkillLens, your support email, home page `https://skilllens-ljqu.onrender.com`, privacy policy `https://skilllens-ljqu.onrender.com/privacy`.
+3. **Audience**: External, then **Publish app** so anyone can sign in (only `openid`, `email` and `profile` are used, which need no Google review).
+4. **Clients** > **Create client** > Web application. Authorized redirect URIs:
+   `https://skilllens-ljqu.onrender.com/auth/google/callback` and `http://localhost:5000/auth/google/callback`.
+5. Put the client ID and secret in `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (locally in `backend/.env`, live on Render).
+
+A Google email that matches an existing account signs into that account. New accounts need the privacy box ticked. The admin always signs in with email, password and the authenticator code.
+
+---
+
+## Backups
+
+`.github/workflows/backup.yml` dumps the live database every Sunday, encrypts it with AES-256 and keeps it as a GitHub artifact for 30 days. Add two repository secrets: `DATABASE_URL` (the Neon link) and `BACKUP_PASSPHRASE` (a long random phrase). Run it once by hand from the Actions tab to check.
+
+To restore: download the artifact, then
+
+```bash
+gpg --decrypt skilllens-YYYY-MM-DD.dump.gpg > skilllens.dump
+pg_restore --clean --if-exists --no-owner --dbname "NEON_LINK" skilllens.dump
+```
 
 ---
 
@@ -287,7 +327,9 @@ Signing everyone out works through a session version stored with the account and
 SkillLens/
   Dockerfile                One container: builds React, serves it and the API with Gunicorn
   .dockerignore             Keeps secrets and local data out of the image
-  .github/workflows/ci.yml  Tests, lint and build on every push
+  .github/workflows/ci.yml  Tests, lint, build and Docker build on every push
+  .github/workflows/backup.yml  Weekly encrypted database backup
+  .github/dependabot.yml    Pull requests for package updates
   LICENSE                   MIT for the code, CC BY-NC-SA 4.0 for the bundled data
   backend/
     app.py                  Entry point (creates the app, runs the dev server)
@@ -301,7 +343,9 @@ SkillLens/
       cli.py                Maintenance commands (reset-data, rescore-resumes, ...)
       routes/               Blueprints (auth, profile, resumes, salary, jobs, admin, frontend)
       services/             Business logic: model registry, file storage, admin, accounts, error log,
-                            API usage, AI review, cover letters, job search
+                            API usage, AI review, cover letters, job search, two-factor and Google
+                            sign-in, password checks, cleanup
+      headers.py            Security headers on every response
     migrations/             Alembic database migrations
     tests/                  pytest suite
     .env.example            Backend settings template
@@ -333,7 +377,7 @@ SkillLens/
         jobs/               Job results and source picker
         resume/             AI coach, cover letter, market fit, recruiter checks
         admin/              API usage, error log, account controls
-        salary/             Offer checker
+        salary/             Offer checker, city comparison
         dashboard/          Score over time
         profile/            Password change and account deletion
         ui/                 Design system: buttons, fields, password field, modals, toasts, app shell

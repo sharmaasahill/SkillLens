@@ -12,6 +12,33 @@ from .extensions import db
 
 
 def register_commands(app: Flask):
+    @app.cli.command('admin-2fa-off')
+    @click.option('--yes', is_flag=True, help='Do not ask for confirmation.')
+    def admin_2fa_off(yes):
+        """Turn off two-factor sign-in for the admin (the phone and the recovery codes are both lost).
+
+        Run it where DATABASE_URL points to the right database. Turn it on again from the dashboard.
+        """
+        from models.database import User
+        from .services import two_factor
+
+        admin = User.query.filter_by(is_admin=True).first()
+        if admin is None or not two_factor.enabled(admin):
+            click.echo('Two-factor sign-in is not on for any admin account.')
+            return
+        if not yes:
+            click.confirm(f'Turn off two-factor sign-in for {admin.email}?', abort=True)
+        two_factor.disable(admin)
+        click.echo(f'Two-factor sign-in is off for {admin.email}. Sign in with the password and set it up again.')
+
+    @app.cli.command('cleanup')
+    def cleanup_command():
+        """Delete old cached job results, old job searches and old usage counters now."""
+        from .services import maintenance
+
+        for name, count in maintenance.cleanup().items():
+            click.echo(f'{name}: deleted {count}')
+
     @app.cli.command('reset-data')
     @click.option('--yes', is_flag=True, help='Do not ask for confirmation.')
     def reset_data(yes):

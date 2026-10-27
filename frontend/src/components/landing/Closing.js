@@ -105,6 +105,7 @@ export function Footer() {
             <a href="#jobs" className="hover:underline">Live jobs</a>
             <Link to="/auth" className="hover:underline">Sign in</Link>
             <Link to="/auth?mode=signup" className="hover:underline">Create account</Link>
+            <Link to="/privacy" className="hover:underline">Privacy Policy</Link>
           </nav>
         </div>
         <p className="mt-8 text-silver">Copyright {year} SkillLens. All rights reserved.</p>

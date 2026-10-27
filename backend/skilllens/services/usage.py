@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from models.database import ApiUsage, JobSourceResult
 
 from ..extensions import db
-from . import gemini
+from . import gemini, maintenance
 from .jobs import sources
 from .jobs.common import SourceError, request_json
 
@@ -119,6 +119,7 @@ def overview():
             'user_daily_limit': int(cfg.get('JOB_SEARCH_USER_DAILY_LIMIT') or 30),
         },
         'sources': job_sources,
+        'storage': maintenance.storage(),
         'daily': [{
             'day': d.isoformat(),
             'gemini': gemini_days.get(d, 0),

@@ -8,6 +8,7 @@ import { Combobox, Select } from '../components/ui/Select';
 import { EASE, Glass, Rise, Section, SegmentDial } from '../components/ui/studio';
 import { lpa, money, signedPercent } from '../lib/format';
 import OfferChecker from '../components/salary/OfferChecker';
+import CityCompare from '../components/salary/CityCompare';
 
 const EMPTY_FORM = { job_title: '', years_of_experience: '', city: '', work_mode: 'On-site', skills: '' };
 const FALLBACK_CITIES = ['Bengaluru', 'Hyderabad', 'Pune', 'Mumbai', 'Chennai', 'Gurugram', 'Noida', 'Delhi', 'Kolkata', 'Ahmedabad', 'Remote'];
@@ -344,6 +345,12 @@ function SalaryPredictor() {
               <>
                 {mode === 'compare' ? <CompareResult results={comparison} metrics={metrics} /> : <QuickResult result={result} />}
                 {lastRequest && <OfferChecker key={JSON.stringify(lastRequest)} request={lastRequest} index={mode === 'compare' ? '04' : '03'} />}
+                {lastRequest && (
+                  <CityCompare
+                    key={`cities-${JSON.stringify(lastRequest)}`} request={lastRequest}
+                    allCities={options?.cities || FALLBACK_CITIES} index={mode === 'compare' ? '05' : '04'}
+                  />
+                )}
               </>
             ) : (
               <div className="relative overflow-hidden py-20 text-center">

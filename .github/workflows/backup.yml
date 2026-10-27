@@ -1,0 +1,59 @@
+# Weekly encrypted backup of the live database, kept as a GitHub artifact for 30 days.
+#
+# Needs two repository secrets (Settings > Secrets and variables > Actions):
+#   DATABASE_URL        the Neon connection link (the same one Render uses)
+#   BACKUP_PASSPHRASE   a long random phrase; without it a backup cannot be opened
+#
+# The dump is encrypted before it leaves the runner, so even people who can download artifacts
+# (on a public repository, any signed-in GitHub user) only get unreadable bytes.
+# To restore, see README, "Backups".
+name: Database backup
+
+on:
+  schedule:
+    - cron: '30 20 * * 0'   # Sundays at 20:30 UTC (Monday 02:00 in India)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check the secrets are set
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::Add DATABASE_URL and BACKUP_PASSPHRASE as repository secrets first."
+            exit 1
+          fi
+
+      - name: Dump the database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # pg_dump from the newest PostgreSQL can read every older server version
+        run: |
+          docker run --rm -e DATABASE_URL postgres:18 \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges "$DATABASE_URL"' > skilllens.dump
+          test -s skilllens.dump
+          echo "Dump size: $(du -h skilllens.dump | cut -f1)"
+
+      - name: Encrypt it
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 --output "skilllens-$(date -u +%Y-%m-%d).dump.gpg" skilllens.dump <<< "$BACKUP_PASSPHRASE"
+          shred -u skilllens.dump
+
+      - name: Keep it for 30 days
+        uses: actions/upload-artifact@v4
+        with:
+          name: skilllens-db-backup
+          path: skilllens-*.dump.gpg
+          retention-days: 30
+          if-no-files-found: error

@@ -23,7 +23,7 @@ from models.database import JobSearch, JobSourceResult
 
 from ...errors import ApiError
 from ...extensions import db
-from .. import error_log, quota
+from .. import error_log, maintenance, quota
 from . import ranking, sources
 from .common import SourceError, canonical_city, norm_key
 
@@ -93,6 +93,7 @@ def start(user, role, city=None, days=14, remote_only=False, wanted=None):
     item = JobSearch(id=uuid.uuid4().hex, user_id=user.id, query=json.dumps(search), results=json.dumps(results), created_at=now)
     db.session.add(item)
     db.session.commit()
+    maintenance.maybe_cleanup()  # old cached results go, at most every six hours
 
     app = current_app._get_current_object()
     for row_id, name in to_run:

@@ -441,7 +441,7 @@ function ResumeAnalyzer() {
                 </Notice>
               ) : (
                 <>
-                  <FileLine accept=".pdf,application/pdf" file={file} onFile={pickResume} busy={busy && source === 'upload'} title="Add a PDF resume" note="Drop it here or choose a file, up to 16 MB" />
+                  <FileLine accept=".pdf,application/pdf" file={file} onFile={pickResume} busy={busy && source === 'upload'} title="Add a PDF resume" note="Drop it here or choose a file, up to 5 MB" />
                   {library.resumes.length > 0 && (
                     <label className="mt-4 flex items-center gap-2.5 text-[14px] text-ink">
                       <input type="checkbox" checked={makePrimary} onChange={(e) => setMakePrimary(e.target.checked)} className="h-4 w-4 accent-[#0071e3]" />

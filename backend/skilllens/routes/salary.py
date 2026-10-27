@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify
 
 from ..errors import ApiError
-from ..schemas import OfferCheckRequest, SalaryRequest
+from ..schemas import CityCompareRequest, OfferCheckRequest, SalaryRequest
 from ..security import user_required
 from ..services import ml
 from . import json_body
@@ -99,6 +99,28 @@ def offer_check():
         advice = 'This is already above most similar postings. Negotiate on joining bonus, notice period or role instead.'
     return jsonify({'success': True, 'currency': 'INR', **result, 'verdict': key, 'headline': headline,
                     'ask_for': ask, 'advice': advice, 'input_data': _input(data)})
+
+
+DEFAULT_CITIES = 8  # the cities with the most salary postings
+
+
+@bp.post('/salary/cities')
+@user_required(activity=True)
+def compare_cities():
+    """The same role, experience and skills across cities. The chosen city is always included."""
+    data = json_body(CityCompareRequest).model_dump()
+    model = ml.salary_model()
+    wanted = data.pop('cities') or [c for c in model.options()['cities'] if c != 'Remote'][:DEFAULT_CITIES]
+    if data.get('city') and data['city'] not in wanted:
+        wanted = [data['city'], *wanted]
+    rows = _predict(lambda d: model.compare_cities(d, wanted), data)
+    if not rows:
+        raise ApiError('None of those cities have enough salary postings to compare.', 400)
+    top = rows[0]['predicted_salary']
+    for row in rows:
+        row['vs_top_pct'] = round((row['predicted_salary'] / top - 1) * 100, 1) if top else 0
+    return jsonify({'success': True, 'currency': 'INR', 'cities': rows, 'your_city': data.get('city'),
+                    'input_data': _input(data)})
 
 
 @bp.get('/salary-options')

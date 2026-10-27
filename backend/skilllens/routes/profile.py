@@ -36,7 +36,7 @@ def change_password():
 def delete_account():
     """Delete the account and all its data. The password is asked again, so nobody can do it by accident."""
     data = json_body(DeleteAccountRequest)
-    accounts.check_password(current_user, data.password)
+    accounts.confirm_identity(current_user, data.password, data.confirm_email)
     accounts.delete_account(current_user)
     response = jsonify({'message': 'Your account and all its data have been deleted.'})
     unset_jwt_cookies(response)

@@ -26,14 +26,21 @@ export function AuthProvider({ children }) {
     return data.user;
   }, []);
 
-  // One sign-in for everyone: the server decides whether the account is the admin or a user
+  // One sign-in for everyone: the server decides whether the account is the admin or a user.
+  // The admin with two-factor sign-in gets { twoFactor: challenge } instead, and sends the code next.
   const login = useCallback(async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
+    if (data.two_factor_required) return { twoFactor: data.challenge };
     return startSession(data);
   }, [startSession]);
 
-  const register = useCallback(async (email, password, fullName) => {
-    const { data } = await api.post('/auth/register', { email, password, full_name: fullName });
+  const verifyTwoFactor = useCallback(async (challenge, code) => {
+    const { data } = await api.post('/auth/2fa', { challenge, code });
+    return { user: startSession(data), recoveryLeft: data.recovery_codes_left };
+  }, [startSession]);
+
+  const register = useCallback(async (email, password, fullName, acceptPrivacy) => {
+    const { data } = await api.post('/auth/register', { email, password, full_name: fullName, accept_privacy: acceptPrivacy });
     return startSession(data);
   }, [startSession]);
 
@@ -48,8 +55,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, register, logout }),
-    [user, loading, login, register, logout]
+    () => ({ user, loading, login, verifyTwoFactor, register, logout }),
+    [user, loading, login, verifyTwoFactor, register, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

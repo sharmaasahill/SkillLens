@@ -5,7 +5,7 @@ import { CountUp, Reveal, money } from './motion';
 // Real outputs for: Data Scientist, 5 years, Bengaluru, Python + SQL + Machine Learning
 const BASIC = 1823000;
 const ADVANCED = 1586000;
-const RANGE = [650000, 2097000];
+const RANGE = [643000, 1883000];
 const SCALE_MAX = 2200000;
 // Measured on companies the model never saw in training
 const MEDIAN_ERROR = 22.5;

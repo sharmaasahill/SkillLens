@@ -16,7 +16,8 @@ def user_summary(user):
 
 
 def user_profile(user):
-    data = {'id': user.id, 'email': user.email, 'is_admin': bool(user.is_admin)}
+    data = {'id': user.id, 'email': user.email, 'is_admin': bool(user.is_admin),
+            'has_password': bool(user.has_password), 'google_linked': bool(user.google_sub)}
     data.update({field: getattr(user, field) for field in PROFILE_FIELDS})
     data.update({
         'profile_resume_filename': user.profile_resume_filename,
