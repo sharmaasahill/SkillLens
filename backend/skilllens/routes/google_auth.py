@@ -36,7 +36,7 @@ def start():
     mode = 'signup' if request.args.get('mode') == 'signup' else 'signin'
     if not google_auth.configured():
         return _back_to_sign_in('off', mode)
-    url, cookie = google_auth.start(mode, consent=request.args.get('consent') == '1')
+    url, cookie = google_auth.start(mode)
     response = redirect(url)
     response.set_cookie(google_auth.COOKIE, cookie, max_age=google_auth.COOKIE_SECONDS, path='/auth/google',
                         httponly=True, secure=current_app.config.get('JWT_COOKIE_SECURE', False), samesite='Lax')
@@ -67,8 +67,7 @@ def callback():
                 return _back_to_sign_in('admin', mode)
             user.google_sub = person['sub']  # Google has verified this email: link it to the account
     if user is None:
-        if not person['consent']:
-            return _back_to_sign_in('consent', 'signup')
+        # The sign-in page says that continuing with Google means agreeing to the Privacy Policy
         user = User(
             email=person['email'], full_name=person['name'] or person['email'].split('@')[0],
             # A random password nobody knows; the person can set a real one on the Profile page

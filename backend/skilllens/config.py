@@ -52,7 +52,8 @@ class Config:
     # is written in code: set both in backend/.env locally and in the host's settings (Render) live.
     # Without them, admin sign-in is off.
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', '').strip().lower()
-    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '')
+    # Spaces around a pasted value (a common slip in hosting dashboards) are ignored
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '').strip()
 
     # Privacy policy shown at /privacy. Raise the version when the policy changes.
     PRIVACY_VERSION = '2026-10'

@@ -7,7 +7,7 @@
    client secret and the PKCE verifier), so the token cannot be faked on the way.
 4. The token is checked: our client id, Google as issuer, not expired, our nonce, a verified email.
 5. The person is matched by Google's permanent id, then by email (a Google-verified email links to an
-   existing SkillLens account). New people need to have ticked the privacy box.
+   existing SkillLens account). New people get an account straight away.
 
 The admin always signs in with email, password and the authenticator code, never with Google.
 """
@@ -56,7 +56,7 @@ def _b64(data):
     return base64.urlsafe_b64encode(data).rstrip(b'=').decode('ascii')
 
 
-def start(mode, consent):
+def start(mode):
     """(Google URL to send the browser to, signed cookie value)."""
     state, nonce, verifier = secrets.token_urlsafe(24), secrets.token_urlsafe(24), secrets.token_urlsafe(48)
     params = {
@@ -70,8 +70,7 @@ def start(mode, consent):
         'code_challenge_method': 'S256',
         'prompt': 'select_account',
     }
-    cookie = _serializer().dumps({'state': state, 'nonce': nonce, 'verifier': verifier,
-                                  'mode': mode, 'consent': bool(consent)})
+    cookie = _serializer().dumps({'state': state, 'nonce': nonce, 'verifier': verifier, 'mode': mode})
     return f'{AUTHORIZE_URL}?{urllib.parse.urlencode(params)}', cookie
 
 
@@ -125,5 +124,4 @@ def finish(args, cookie):
         'email': claims['email'].strip().lower(),
         'name': (claims.get('name') or '').strip()[:100],
         'mode': saved.get('mode'),
-        'consent': bool(saved.get('consent')),
     }

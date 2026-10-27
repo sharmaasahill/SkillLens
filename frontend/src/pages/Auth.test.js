@@ -89,12 +89,20 @@ test('creating an account needs the privacy box ticked', async () => {
 test('shows Continue with Google only when the server has it set up', () => {
   renderAuth({}, { site: { google_sign_in: true } });
   const google = screen.getByRole('link', { name: /continue with google/i });
-  expect(google.getAttribute('href')).toContain('/auth/google/start?mode=signin&consent=0');
+  expect(google.getAttribute('href')).toMatch(/\/auth\/google\/start\?mode=signin$/);
 });
 
 test('explains why Google sent the person back', () => {
-  renderAuth({}, { path: '/auth?mode=signup&error=google_consent' });
-  expect(screen.getByRole('alert')).toHaveTextContent('tick the box');
+  renderAuth({}, { path: '/auth?error=google_cancelled' });
+  expect(screen.getByRole('alert')).toHaveTextContent('Google sign-in was cancelled');
+});
+
+test('Continue with Google works on the sign-up page without ticking the box', () => {
+  renderAuth({}, { site: { google_sign_in: true }, path: '/auth?mode=signup' });
+  const google = screen.getByRole('link', { name: /continue with google/i });
+  expect(google.getAttribute('href')).toMatch(/mode=signup$/);
+  fireEvent.click(google);
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 });
 
 test('shows a plain message for a wrong email or password', async () => {

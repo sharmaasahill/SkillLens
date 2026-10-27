@@ -46,6 +46,7 @@ def sync_admin():
         user = User(email=email, full_name='SkillLens Admin')
         db.session.add(user)
     user.is_admin = True
+    user.has_password = True  # even if this email first signed up with Google
     if not user.password or not check_password_hash(user.password, password):
         user.password = passwords.hash_password(password)
     try:

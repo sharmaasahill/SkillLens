@@ -22,7 +22,6 @@ const GOOGLE_ERRORS = {
   google_state: 'That sign-in link expired. Press Continue with Google again.',
   google_failed: 'Google sign-in did not work just now. Try again in a minute.',
   google_unverified: 'Your Google email is not verified yet. Verify it with Google, or sign up with email.',
-  google_consent: 'To create an account with Google, first tick the box to agree to the Privacy Policy.',
   google_blocked: 'This account has been blocked. Contact SkillLens support if you think this is a mistake.',
   google_admin: 'The admin signs in with email, password and the authenticator code.',
   google_off: 'Google sign-in is not set up on this site yet.',
@@ -138,19 +137,12 @@ function Auth() {
 
   const field = `${FIELD} ${FIELD_TONE.normal}`;
   const confirmTone = match === 'match' || match === 'mismatch' ? FIELD_TONE[match] : FIELD_TONE.normal;
-  const googleHref = `${API_URL}/auth/google/start?mode=${isLogin ? 'signin' : 'signup'}&consent=${agreed ? 1 : 0}`;
+  const googleHref = `${API_URL}/auth/google/start?mode=${isLogin ? 'signin' : 'signup'}`;
 
   const switchMode = () => {
     setIsLogin(!isLogin);
     setError('');
     setConfirm('');
-  };
-
-  const onGoogle = (e) => {
-    if (!isLogin && !agreed) {
-      e.preventDefault();
-      setError('Tick the box to agree to the Privacy Policy, then continue with Google.');
-    }
   };
 
   const errorBox = error && (
@@ -261,12 +253,16 @@ function Auth() {
                 <>
                   <Divider />
                   <a
-                    href={googleHref} onClick={onGoogle}
+                    href={googleHref}
                     className="flex w-full items-center justify-center gap-3 rounded-xl border border-hairline bg-white py-3 text-[16px] font-medium text-ink transition hover:bg-mist focus:outline-none focus-visible:ring-4 focus-visible:ring-action/15"
                   >
                     <GoogleMark />
                     Continue with Google
                   </a>
+                  <p className="mt-3 text-center text-[12px] leading-[1.5] text-silver">
+                    New here? Continuing with Google creates your account under our{' '}
+                    <Link to="/privacy" target="_blank" className="underline hover:text-graphite">Privacy Policy</Link>.
+                  </p>
                 </>
               )}
 

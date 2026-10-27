@@ -166,8 +166,8 @@ def _id_token(claims):
     return f"{part({'alg': 'RS256'})}.{part(claims)}.signature"
 
 
-def _google_flow(client, monkeypatch, mode='signup', consent=True, email='person@gmail.com', sub='g-1', **claims):
-    start = client.get(f"/auth/google/start?mode={mode}&consent={'1' if consent else '0'}")
+def _google_flow(client, monkeypatch, mode='signup', email='person@gmail.com', sub='g-1', **claims):
+    start = client.get(f"/auth/google/start?mode={mode}")
     assert start.status_code == 302 and start.location.startswith(google_auth.AUTHORIZE_URL)
     params = urllib.parse.parse_qs(urllib.parse.urlparse(start.location).query)
     assert params['code_challenge_method'] == ['S256'] and params['redirect_uri'] == ['http://localhost/auth/google/callback']
@@ -205,15 +205,25 @@ def test_google_sign_up_creates_an_account(client, google_on, monkeypatch):
     assert client.get('/api/site').get_json()['google_sign_in'] is True
 
 
-def test_google_needs_consent_for_new_accounts(client, google_on, monkeypatch):
-    callback, _ = _google_flow(client, monkeypatch, mode='signin', consent=False)
-    assert 'error=google_consent' in callback.location and 'mode=signup' in callback.location
-    assert User.query.filter_by(email='person@gmail.com').first() is None
+def test_google_from_the_sign_in_page_creates_the_account_too(client, google_on, monkeypatch):
+    callback, _ = _google_flow(client, monkeypatch, mode='signin')
+    assert callback.location.endswith('/dashboard')
+    assert User.query.filter_by(email='person@gmail.com').one().privacy_accepted_at is not None
+
+
+def test_a_google_account_with_the_admin_email_becomes_the_admin(app, client, google_on, monkeypatch):
+    # Signed up with Google while ADMIN_EMAIL was missing: setting it later makes that account the admin
+    app.config['ADMIN_EMAIL'] = ''
+    _google_flow(client, monkeypatch, email=TestingConfig.ADMIN_EMAIL, sub='g-admin')
+    app.config['ADMIN_EMAIL'] = TestingConfig.ADMIN_EMAIL
+    body = client.post('/auth/login', json=ADMIN).get_json()
+    assert body['user']['is_admin'] is True
+    assert User.query.filter_by(email=TestingConfig.ADMIN_EMAIL).one().has_password is True
 
 
 def test_google_links_an_existing_account_and_refuses_the_admin(client, google_on, monkeypatch, make_client):
     create_user('person@gmail.com', full_name='Priya')
-    callback, _ = _google_flow(client, monkeypatch, mode='signin', consent=False)
+    callback, _ = _google_flow(client, monkeypatch, mode='signin')
     assert callback.location.endswith('/dashboard')
     assert User.query.filter_by(email='person@gmail.com').one().google_sub == 'g-1'
 
@@ -222,7 +232,7 @@ def test_google_links_an_existing_account_and_refuses_the_admin(client, google_o
 
 
 def test_google_rejects_a_wrong_state_or_unverified_email(client, google_on, monkeypatch):
-    client.get('/auth/google/start?mode=signup&consent=1')
+    client.get('/auth/google/start?mode=signup')
     assert 'error=google_state' in client.get('/auth/google/callback?code=abc&state=forged').location
     callback, _ = _google_flow(client, monkeypatch, email_verified=False)
     assert 'error=google_unverified' in callback.location
