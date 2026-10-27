@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from models.resume_analyzer import ResumeAnalyzer, analyze_text
+from models.resume_analyzer import analyze_text, experience_years
 from models.resume_checks import bullets, repeated_verbs, review, timeline, unproven_skills
 
 # A two-column style resume as PDF text comes out: no bullet symbols, wrapped lines, labelled skill lists
@@ -52,7 +52,7 @@ def test_timeline_flags_overlaps_but_not_education():
 
 def test_degree_dates_on_their_own_line_are_not_work_experience():
     # Two-column PDFs put the degree dates on a separate line; they used to add 4 years of "experience"
-    assert ResumeAnalyzer()._extract_experience_info(RESUME)['total_years'] <= 3
+    assert experience_years(RESUME) <= 3
 
 
 def test_checks_come_with_every_analysis():

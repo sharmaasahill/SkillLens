@@ -20,9 +20,15 @@ def age_on(born, today=None):
     return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
 
 
+def picture_version(user):
+    """When the profile photo last changed (the page loads /profile/picture?v=<this>), or None."""
+    return _iso(user.picture_updated_at) if user.picture_path else None
+
+
 def user_summary(user):
     return {
         'id': user.id, 'email': user.email, 'full_name': user.full_name, 'is_admin': bool(user.is_admin),
+        'picture': picture_version(user),
         # Accounts made before date of birth was asked for, or with Google, are asked once on their next visit
         'needs_date_of_birth': not user.is_admin and user.date_of_birth is None,
     }
@@ -36,7 +42,8 @@ def _fields(record):
 
 def user_profile(user):
     data = {'id': user.id, 'email': user.email, 'is_admin': bool(user.is_admin),
-            'has_password': bool(user.has_password), 'google_linked': bool(user.google_sub)}
+            'has_password': bool(user.has_password), 'google_linked': bool(user.google_sub),
+            'picture': picture_version(user), 'picture_source': user.picture_source if user.picture_path else None}
     data.update(_fields(user))
     data['age'] = age_on(user.date_of_birth)
     data.update({

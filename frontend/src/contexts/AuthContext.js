@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import api, { csrf, setSessionExpiredHandler } from '../api';
 
 const AuthContext = createContext(null);
@@ -6,6 +6,8 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const avatarRef = useRef(null);
 
   useEffect(() => {
     setSessionExpiredHandler(() => setUser(null));
@@ -19,6 +21,26 @@ export function AuthProvider({ children }) {
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
+
+  // The profile photo is loaded once here and shared by the navigation bar and the Profile page.
+  // It needs the sign-in cookie, so it is fetched like any other API call and shown from memory.
+  const pictureVersion = user?.picture || null;
+  useEffect(() => {
+    const show = (url) => {
+      if (avatarRef.current) URL.revokeObjectURL(avatarRef.current);
+      avatarRef.current = url;
+      setAvatarUrl(url);
+    };
+    if (!pictureVersion) {
+      show(null);
+      return undefined;
+    }
+    let cancelled = false;
+    api.get('/profile/picture', { responseType: 'blob', params: { v: pictureVersion } })
+      .then(({ data }) => { if (!cancelled) show(URL.createObjectURL(data)); })
+      .catch(() => { if (!cancelled) show(null); });
+    return () => { cancelled = true; };
+  }, [pictureVersion]);
 
   const startSession = useCallback((data) => {
     csrf.save(data);
@@ -63,8 +85,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, verifyTwoFactor, register, refreshUser, logout }),
-    [user, loading, login, verifyTwoFactor, register, refreshUser, logout]
+    () => ({ user, loading, avatarUrl, login, verifyTwoFactor, register, refreshUser, logout }),
+    [user, loading, avatarUrl, login, verifyTwoFactor, register, refreshUser, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

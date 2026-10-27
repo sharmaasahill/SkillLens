@@ -2,7 +2,6 @@
 **/.env
 **/.env.*
 !**/.env.example
-**/kaggle.json
 **/__pycache__
 **/*.pyc
 **/*.db
@@ -10,7 +9,6 @@
 backend/venv
 backend/instance
 backend/uploaded_resumes
-backend/build
 backend/data/raw
 backend/tests
 frontend/node_modules

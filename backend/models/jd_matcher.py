@@ -18,7 +18,7 @@ from collections import Counter
 
 from . import skills_taxonomy as taxonomy
 from .resume_analyzer import (
-    DEGREE_RE, INDIAN_CITIES, KEYWORD_PATTERNS, ResumeAnalyzer, _match_terms, extract_text_from_pdf, find_skill_keys,
+    DEGREE_RE, INDIAN_CITIES, KEYWORD_PATTERNS, _match_terms, experience_years, extract_text_from_pdf, find_skill_keys,
 )
 
 # How industry keywords that are not in the skills taxonomy are shown
@@ -235,7 +235,7 @@ def match(resume_text, jd_text, resume_skills=None):
     keyword_ratio = len(found_kw) / len(keywords) if keywords else None
 
     required = _years_required(jd)
-    resume_years = ResumeAnalyzer()._extract_experience_info(resume_text).get('total_years', 0)
+    resume_years = experience_years(resume_text)
     if required is None:
         exp_ratio, exp_note = None, 'The JD does not state years of experience'
     elif resume_years >= required['min']:

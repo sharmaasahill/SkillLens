@@ -60,8 +60,8 @@ function Privacy() {
 
         <Block title="What we collect">
           <List items={[
-            ['Account', 'your email, your name, your date of birth, and your password (stored only as a one-way hash we cannot read). The date of birth is used to check that you are 18 or older. If you sign in with Google, we receive your name, email and Google account id, never your Google password.'],
-            ['Profile', 'anything you choose to fill in: phone, address, current role and company, location, experience, education, skills, links and a short bio.'],
+            ['Account', 'your email, your name, your date of birth, and your password (stored only as a one-way hash we cannot read). The date of birth is used to check that you are 18 or older. If you sign in with Google, we receive your name, email, profile photo and Google account id, never your Google password.'],
+            ['Profile', 'anything you choose to fill in: a photo, phone, address, current role and company, location, experience, education, skills, links and a short bio.'],
             ['Resumes', 'the PDF files you upload, the text read from them, and their scores and skills. Up to five at a time.'],
             ['What you ask', 'job descriptions you paste for a match, the role and city of job searches, and the inputs of salary estimates.'],
             ['AI answers', 'AI reviews and cover letters we write for you, saved so asking again is free.'],
@@ -90,7 +90,7 @@ function Privacy() {
             ['Hosting', 'the app runs on Render and the database on Neon, on servers in Singapore. Data is sent over HTTPS.'],
             ['Google Gemini (AI)', 'only when you press AI review or Write cover letter. Your name, phone numbers, email and links are removed from the resume first. SkillLens uses Gemini\'s free tier, under which Google may use what is sent to improve its products.'],
             ['Job sources', 'only the role, city and date range of a search are sent (to Google for Jobs, Adzuna, Jooble, Careerjet, TheirStack, Apify and company career pages). Never your resume.'],
-            ['Google sign-in', 'if you choose it, Google tells us who you are. See Google\'s own privacy policy for what Google keeps.'],
+            ['Google sign-in', 'if you choose it, Google tells us who you are and we save a copy of your Google profile photo (you can remove it on the Profile page). See Google\'s own privacy policy for what Google keeps.'],
           ]}
           />
         </Block>

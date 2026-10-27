@@ -15,7 +15,6 @@ class User(db.Model):
     full_name = db.Column(db.String(100))
     phone_number = db.Column(db.String(20))
     address = db.Column(db.String(200))
-    age = db.Column(db.Integer)  # no longer used: replaced by date_of_birth (kept so old data is not lost)
     date_of_birth = db.Column(db.Date)
     # New professional fields
     current_work = db.Column(db.String(150))  # Current job title/role
@@ -52,6 +51,11 @@ class User(db.Model):
     # until the person sets one.
     google_sub = db.Column(db.String(64), unique=True)
     has_password = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+    # Profile photo: its stored_files path, where it came from ('upload' or 'google', or 'removed'
+    # once the person removed it, so Google sign-in does not bring it back), and when it changed
+    picture_path = db.Column(db.String(255))
+    picture_source = db.Column(db.String(10))
+    picture_updated_at = db.Column(db.DateTime)
     # When the person agreed to the privacy policy, and which version
     privacy_accepted_at = db.Column(db.DateTime)
     privacy_version = db.Column(db.String(20))
@@ -74,7 +78,6 @@ class ProfileHistory(db.Model):
     full_name = db.Column(db.String(100))
     phone_number = db.Column(db.String(20))
     address = db.Column(db.String(200))
-    age = db.Column(db.Integer)  # no longer used
     date_of_birth = db.Column(db.Date)
     # New professional fields for history tracking
     current_work = db.Column(db.String(150))
@@ -200,7 +203,7 @@ class JobSourceResult(db.Model):
 
 
 class StoredFile(db.Model):
-    """The bytes of an uploaded resume PDF.
+    """The bytes of an uploaded resume PDF or profile photo.
 
     Free hosts (like Render) wipe the server disk on every restart, so the database keeps the real
     copy. The disk copy under UPLOAD_FOLDER is only a working copy, rebuilt from here when missing.

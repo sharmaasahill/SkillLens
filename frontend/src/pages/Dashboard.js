@@ -5,7 +5,7 @@ import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
 import { Button, Notice, Spinner, cx } from '../components/ui/primitives';
 import { useFeedback } from '../components/ui/overlays';
-import { pdfError } from '../components/ui/Dropzone';
+import { pdfError } from '../lib/files';
 import { CountNumber, EASE, Marquee, MiniRing, Orbit, Rise, Section } from '../components/ui/studio';
 import { calculateQuickStats, calculateUserStats, normalizeSkills, profileCompletion } from '../lib/careerStats';
 import { WRAP, breakable, dateLabel, firstName, greeting } from '../lib/format';

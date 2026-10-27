@@ -22,11 +22,6 @@ import pypdf
 
 from . import skills_taxonomy as taxonomy
 
-try:
-    import pdfplumber
-    PDFPLUMBER_AVAILABLE = True
-except ImportError:
-    PDFPLUMBER_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +172,6 @@ INDIAN_CITIES = [
     'Thiruvananthapuram', 'Trivandrum', 'Patna', 'Ranchi', 'Raipur', 'Dehradun', 'Ludhiana', 'Guwahati',
     'Aurangabad', 'Rajkot', 'Udaipur', 'Kanpur', 'Varanasi', 'Mangaluru', 'Mangalore', 'Hubli', 'Goa',
 ]
-CITY_RE = re.compile(r'\b(' + '|'.join(re.escape(c) for c in sorted(INDIAN_CITIES, key=len, reverse=True)) + r')\b')
 
 # Indian degrees, longest first so "B.Tech" is not read as "B"
 DEGREE_RE = re.compile(
@@ -192,18 +186,7 @@ DEGREE_RE = re.compile(
 # ---------------------------------------------------------------------------
 
 def extract_text_from_pdf(file_path):
-    """Extract text from a PDF, using pdfplumber when installed and pypdf otherwise."""
-    text = ''
-    if PDFPLUMBER_AVAILABLE:
-        try:
-            with pdfplumber.open(file_path) as pdf:
-                text = '\n'.join(page.extract_text() or '' for page in pdf.pages)
-            if text.strip():
-                return _normalise(text)
-        except Exception as exc:
-            logger.warning('pdfplumber failed: %s', exc)
-
-    # Accepts a path or an open binary file (used for uploaded job descriptions)
+    """Extract the text of a PDF. Accepts a path, or an open binary file (used for uploaded job descriptions)."""
     if hasattr(file_path, 'read'):
         file_path.seek(0)
         reader = pypdf.PdfReader(file_path)
@@ -682,108 +665,24 @@ def years_from_date_ranges(text, today=None):
     return int(round(min(total, 45)))
 
 
-class ResumeAnalyzer:
-    """Resume analysis with experience, education and contact extraction."""
+# "5+ years of experience", "experience: 3 years", "over 10 years"...
+EXPERIENCE_PATTERNS = [re.compile(p) for p in (
+    r'(\d+)\+?\s*years?\s*(?:of\s*)?experience',
+    r'experience[:\s]*(\d+)\+?\s*years?',
+    r'(\d+)\+?\s*years?\s*(?:in|of)',
+    r'over\s*(\d+)\s*years?',
+    r'more\s*than\s*(\d+)\s*years?',
+)]
 
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
 
-    def analyze_resume(self, file_path):
-        try:
-            text = extract_text_from_pdf(file_path)
-            data = analyze_text(text)
-            experience_summary = self._extract_experience_info(text)
-            contact_info = self._extract_contact_info(text)
-            return {
-                'extracted_skills': data['skills'],
-                'experience_summary': experience_summary,
-                'education_info': self._extract_education_info(text),
-                'contact_info': contact_info,
-                'ats_analysis': data['ats_analysis'],
-                'raw_text': text,
-                'analysis_summary': {
-                    'total_skills_found': len(data['skills']),
-                    'text_length': len(text),
-                    'ats_score': data['ats_analysis']['score'],
-                    'has_contact_info': bool(contact_info.get('email') or contact_info.get('phone')),
-                    'estimated_experience': experience_summary.get('total_years', 0),
-                },
-            }
-        except Exception as exc:
-            self.logger.error('Error analyzing resume: %s', exc)
-            raise ValueError(f'Failed to analyze resume: {exc}')
+def experience_years(text):
+    """Years of experience a resume states, or else the years its job dates add up to.
 
-    def _extract_experience_info(self, text):
-        """Years of experience and experience level from resume text."""
-        info = {'total_years': 0, 'companies': [], 'positions': [], 'experience_level': 'Entry'}
-        try:
-            patterns = [
-                r'(\d+)\+?\s*years?\s*(?:of\s*)?experience',
-                r'experience[:\s]*(\d+)\+?\s*years?',
-                r'(\d+)\+?\s*years?\s*(?:in|of)',
-                r'over\s*(\d+)\s*years?',
-                r'more\s*than\s*(\d+)\s*years?',
-            ]
-            lower = text.lower()
-            for pattern in patterns:
-                matches = [int(m) for m in re.findall(pattern, lower) if int(m) <= 50]
-                if matches:
-                    info['total_years'] = max(matches)
-                    break
-            if not info['total_years']:
-                # Most Indian resumes give dates ("2019 - Present") rather than a total
-                info['total_years'] = years_from_date_ranges(text)
-
-            years = info['total_years']
-            info['experience_level'] = (
-                'Entry' if years == 0 else 'Junior' if years <= 2 else 'Mid-level' if years <= 5
-                else 'Senior' if years <= 10 else 'Executive'
-            )
-
-            company_patterns = [
-                r'(?:worked?\s*(?:at|for|with)|employed\s*(?:at|by))\s+([A-Z][A-Za-z\s&]+?(?:Pvt\.?\s?Ltd\.?|Private Limited|Limited|Ltd\.?|LLP)?)(?=[,.\n]|$)',
-                r'\b([A-Z][A-Za-z&]+(?:\s[A-Z][A-Za-z&]+){0,4}\s(?:Pvt\.?\s?Ltd\.?|Private Limited|Limited|Ltd\.?|LLP|Technologies|Solutions|Infotech|Consultancy Services))\b',
-            ]
-            companies = set()
-            for pattern in company_patterns:
-                companies.update(m.strip() for m in re.findall(pattern, text) if len(m.strip()) > 2)
-            info['companies'] = list(companies)[:5]
-        except Exception as exc:
-            self.logger.warning('Error extracting experience info: %s', exc)
-        return info
-
-    def _extract_education_info(self, text):
-        info = {'degrees': [], 'institutions': [], 'graduation_years': [], 'cgpa': None}
-        try:
-            degrees = []
-            for match in DEGREE_RE.finditer(text):
-                label = re.sub(r'[\s.]', '', match.group()).upper().replace('PHD', 'PhD')
-                if label not in degrees:
-                    degrees.append(label)
-            info['degrees'] = degrees
-            institutions = re.findall(r'\b((?:[A-Z][A-Za-z.&]+\s){0,6}(?:University|Institute|College|IIT|NIT|IIIT|IIM|BITS|Vidyalaya|School)'
-                                      r'(?:\s(?:of|for)\s[A-Z][A-Za-z&]+(?:\s[A-Z][A-Za-z&]+){0,4})?)', text)
-            info['institutions'] = list(dict.fromkeys(i.strip() for i in institutions))[:4]
-            cgpa = re.search(r'(?i)\b(?:cgpa|cpi|gpa)\s*[:\-]?\s*(\d{1,2}(?:\.\d{1,2})?)\s*(?:/\s*10)?', text)
-            info['cgpa'] = float(cgpa.group(1)) if cgpa and float(cgpa.group(1)) <= 10 else None
-            years = {int(y) for y in re.findall(r'\b(19\d{2}|20\d{2})\b', text) if 1950 <= int(y) <= datetime.now().year + 4}
-            info['graduation_years'] = sorted(years)
-        except Exception as exc:
-            self.logger.warning('Error extracting education info: %s', exc)
-        return info
-
-    def _extract_contact_info(self, text):
-        info = {'email': None, 'phone': None, 'linkedin': None, 'location': None}
-        try:
-            email = EMAIL_RE.search(text)
-            info['email'] = email.group() if email else None
-            phone = next((m.group().strip() for m in PHONE_RE.finditer(text)
-                          if 10 <= len(re.sub(r'\D', '', m.group())) <= 13), None)
-            info['phone'] = phone
-            linkedin = re.search(r'(?i)(?:https?://)?(?:www\.)?linkedin\.com/in/[\w-]+', text)
-            info['linkedin'] = linkedin.group().lower() if linkedin else None
-            city = CITY_RE.search(text[:1500])  # the header area, where candidates put their city
-            info['location'] = city.group(1) if city else None
-        except Exception as exc:
-            self.logger.warning('Error extracting contact info: %s', exc)
-        return info
+    Most Indian resumes give dates ("2019 - Present") rather than a total, so both are needed.
+    """
+    lower = (text or '').lower()
+    for pattern in EXPERIENCE_PATTERNS:
+        stated = [int(m) for m in pattern.findall(lower) if int(m) <= 50]
+        if stated:
+            return max(stated)
+    return years_from_date_ranges(text or '')

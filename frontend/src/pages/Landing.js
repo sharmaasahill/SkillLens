@@ -8,8 +8,9 @@ import SalarySection from '../components/landing/SalarySection';
 import ResumeSection from '../components/landing/ResumeSection';
 import JobsSection from '../components/landing/JobsSection';
 import { CallToAction, Footer, Numbers } from '../components/landing/Closing';
+import BackToTop from '../components/landing/BackToTop';
 
-/** Public marketing page. Always light, whatever theme the app itself uses. */
+/** Public marketing page. */
 function Landing() {
   const { user } = useAuth();
   const signedIn = Boolean(user);
@@ -17,12 +18,9 @@ function Landing() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const hadDark = root.classList.contains('dark');
-    root.classList.remove('dark');
     root.style.scrollBehavior = 'smooth';
     document.title = 'SkillLens - Know what your skills are worth';
     return () => {
-      if (hadDark) root.classList.add('dark');
       root.style.scrollBehavior = '';
       document.title = 'SkillLens';
     };
@@ -44,6 +42,7 @@ function Landing() {
         <CallToAction signedIn={signedIn} home={home} />
       </main>
       <Footer />
+      <BackToTop />
     </div>
   );
 }

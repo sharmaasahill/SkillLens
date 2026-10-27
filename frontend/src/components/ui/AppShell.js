@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { EASE, cx } from './primitives';
 import { Atmosphere, LensMark, RevealText } from './studio';
+import Avatar from './Avatar';
 
 const USER_LINKS = [
   { to: '/dashboard', label: 'Overview', toneName: 'gray', end: true },
@@ -17,14 +18,14 @@ const ADMIN_LINKS = [
   { to: '/admin', label: 'Users', toneName: 'teal' },
 ];
 
-// The account button shows the person's first name rather than a letter avatar
+// The account button shows the person's first name (after their photo, if they have one), not a letter avatar
 function shortNameOf(user) {
   const first = (user?.full_name || '').trim().split(/\s+/)[0];
   return first || (user?.email || '').split('@')[0] || 'Account';
 }
 
 function AccountMenu() {
-  const { user, logout } = useAuth();
+  const { user, avatarUrl, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -51,8 +52,9 @@ function AccountMenu() {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={`Account menu for ${shortNameOf(user)}`}
-        className="group flex max-w-[160px] items-center gap-1 text-[12px] font-medium text-ink/80 transition-colors hover:text-ink"
+        className="group flex max-w-[180px] items-center gap-1 text-[12px] font-medium text-ink/80 transition-colors hover:text-ink"
       >
+        {avatarUrl && <Avatar src={avatarUrl} size={24} className="mr-1 ring-1 ring-black/10" />}
         <span className="truncate">{shortNameOf(user)}</span>
         <svg viewBox="0 0 16 16" className={cx('h-3 w-3 shrink-0 text-silver transition-transform duration-300 group-hover:text-ink', open && 'rotate-180')} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
           <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
@@ -68,9 +70,12 @@ function AccountMenu() {
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.2, ease: EASE }}
           >
-            <div className="px-3 py-2.5">
-              <p className="truncate text-[14px] font-semibold text-ink">{user?.full_name || 'Your account'}</p>
-              <p className="truncate text-[12px] text-graphite">{user?.email}</p>
+            <div className="flex items-center gap-3 px-3 py-2.5">
+              {avatarUrl && <Avatar src={avatarUrl} size={40} className="ring-1 ring-black/10" />}
+              <div className="min-w-0">
+                <p className="truncate text-[14px] font-semibold text-ink">{user?.full_name || 'Your account'}</p>
+                <p className="truncate text-[12px] text-graphite">{user?.email}</p>
+              </div>
             </div>
             <div className="my-1 h-px bg-black/[0.06]" />
             {!user?.is_admin && (
@@ -141,8 +146,6 @@ function AppShell({ children, wide = false, toneName }) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.remove('dark');
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });

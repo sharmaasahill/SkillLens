@@ -69,14 +69,6 @@ function Auth() {
   const site = useSiteInfo();
   const { user, loading: sessionLoading, login, verifyTwoFactor, register } = useAuth();
 
-  // The sign-in page follows the landing page's light look
-  useEffect(() => {
-    const root = document.documentElement;
-    const hadDark = root.classList.contains('dark');
-    root.classList.remove('dark');
-    return () => { if (hadDark) root.classList.add('dark'); };
-  }, []);
-
   useEffect(() => { if (challenge) codeRef.current?.focus(); }, [challenge, useRecovery]);
 
   const match = matchState(password, confirm);

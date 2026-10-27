@@ -98,7 +98,6 @@ class JobMarket:
                 cols.append(self.vocab.setdefault(key, len(self.vocab)))
                 rows.append(i)
         self.matrix = sp.csr_matrix((np.ones(len(rows), dtype=np.float32), (rows, cols)), shape=(self.size, len(self.vocab)))
-        self.skill_counts = np.asarray(self.matrix.sum(axis=0)).ravel()
         self.names = np.array(list(self.vocab), dtype=object)
         for (key, tag), _ in sorted(spellings.items(), key=lambda kv: -kv[1]):
             known = skills_taxonomy.SKILLS.get(key)

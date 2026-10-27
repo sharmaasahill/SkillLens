@@ -1,7 +1,5 @@
-import React, { useId } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
-import { tone } from './tones';
-import { Combobox, Select } from './Select';
+import React from 'react';
+import { motion } from 'framer-motion';
 
 export const EASE = [0.28, 0.11, 0.32, 1];
 
@@ -47,180 +45,6 @@ export function Spinner({ className = 'h-5 w-5' }) {
   );
 }
 
-/* ---------- Surfaces ---------- */
-
-export function Card({ as: Component = 'div', className = '', children, ...props }) {
-  return (
-    <Component className={cx('rounded-[24px] bg-white p-6 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_28px_-12px_rgba(0,0,0,0.12)] ring-1 ring-black/[0.04] md:p-8', className)} {...props}>
-      {children}
-    </Component>
-  );
-}
-
-export function SectionTitle({ eyebrow, title, action, toneName, className = '' }) {
-  return (
-    <div className={cx('mb-5 flex items-end justify-between gap-4', className)}>
-      <div>
-        {eyebrow && <p className={cx('text-[13px] font-semibold', toneName ? tone(toneName).text : 'text-graphite')}>{eyebrow}</p>}
-        <h2 className="font-display text-[22px] font-semibold tracking-tight text-ink md:text-[24px]">{title}</h2>
-      </div>
-      {action}
-    </div>
-  );
-}
-
-/** Fade-up entrance for page sections. */
-export function Appear({ children, delay = 0, className = '' }) {
-  const reduce = useReducedMotion();
-  return (
-    <motion.div
-      className={className}
-      initial={reduce ? false : { opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, ease: EASE, delay }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-/* ---------- Badges, chips, meters ---------- */
-
-export function Badge({ toneName = 'gray', className = '', children }) {
-  const t = tone(toneName);
-  return (
-    <span className={cx('inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[12px] font-medium', t.soft, t.text, className)}>
-      {children}
-    </span>
-  );
-}
-
-export function Chip({ children, toneName, className = '' }) {
-  const t = toneName ? tone(toneName) : null;
-  return (
-    <span className={cx(
-      'inline-flex items-center rounded-full px-3 py-1 text-[13px]',
-      t ? `${t.soft} ${t.text}` : 'bg-mist text-ink',
-      className
-    )}>
-      {children}
-    </span>
-  );
-}
-
-/** Horizontal bar that grows to `value` (0-100). */
-export function Meter({ value, toneName = 'blue', className = 'h-2', delay = 0 }) {
-  const reduce = useReducedMotion();
-  const width = Math.max(0, Math.min(100, value || 0));
-  return (
-    <div className={cx('overflow-hidden rounded-full bg-[#e8e8ed]', className)} role="presentation">
-      <motion.div
-        className={cx('h-full origin-left rounded-full', tone(toneName).bg)}
-        style={{ width: `${width}%` }}
-        initial={reduce ? false : { scaleX: 0 }}
-        animate={{ scaleX: 1 }}
-        transition={{ duration: 1, ease: EASE, delay }}
-      />
-    </div>
-  );
-}
-
-/** Circular progress ring with a number in the middle. */
-export function ScoreRing({ value, max = 100, size = 120, stroke = 10, toneName = 'blue', label, children }) {
-  const reduce = useReducedMotion();
-  const r = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * r;
-  const ratio = Math.max(0, Math.min(1, (value || 0) / max));
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full -rotate-90" aria-hidden="true">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e8e8ed" strokeWidth={stroke} />
-        <motion.circle
-          cx={size / 2} cy={size / 2} r={r} fill="none" stroke={tone(toneName).stroke} strokeWidth={stroke}
-          strokeLinecap="round" strokeDasharray={circumference}
-          initial={reduce ? false : { strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: circumference * (1 - ratio) }}
-          transition={{ duration: 1.3, ease: EASE }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        {children ?? (
-          <span className="font-display text-[30px] font-semibold leading-none tracking-tight text-ink tabular-nums">{Math.round(value || 0)}</span>
-        )}
-        {label && <span className="mt-1 text-[11px] text-silver">{label}</span>}
-      </div>
-    </div>
-  );
-}
-
-/** Small coloured tile for a single statistic. */
-export function StatTile({ label, value, hint, toneName = 'blue' }) {
-  const t = tone(toneName);
-  return (
-    <div className="rounded-[20px] bg-white p-5 ring-1 ring-black/[0.05]">
-      <p className={cx('text-[13px] font-medium', t.text)}>{label}</p>
-      <p className="mt-3 truncate font-display text-[28px] font-semibold leading-none tracking-tight text-ink tabular-nums">{value}</p>
-      {hint && <p className="mt-2 text-[12px] text-silver">{hint}</p>}
-    </div>
-  );
-}
-
-/* ---------- Form fields ---------- */
-
-const FIELD = 'block w-full rounded-2xl border border-black/[0.08] bg-white/70 px-4 py-3 text-[15px] text-ink placeholder:text-silver backdrop-blur transition focus:border-action/60 focus:bg-white focus:outline-none focus:ring-4 focus:ring-action/10 disabled:bg-mist disabled:text-graphite';
-
-function FieldWrap({ id, label, hint, error, children, className = '' }) {
-  return (
-    <div className={className}>
-      {label && <label htmlFor={id} className="mb-1.5 block text-[13px] font-medium text-ink">{label}</label>}
-      {children}
-      {error ? (
-        <p className="mt-1.5 text-[12px] text-red-ink">{error}</p>
-      ) : hint ? (
-        <p className="mt-1.5 text-[12px] text-silver">{hint}</p>
-      ) : null}
-    </div>
-  );
-}
-
-export function TextField({ label, hint, error, className, inputClassName = '', ...props }) {
-  const id = useId();
-  return (
-    <FieldWrap id={id} label={label} hint={hint} error={error} className={className}>
-      <input id={id} className={cx(FIELD, inputClassName)} {...props} />
-    </FieldWrap>
-  );
-}
-
-export function TextArea({ label, hint, error, className, rows = 3, ...props }) {
-  const id = useId();
-  return (
-    <FieldWrap id={id} label={label} hint={hint} error={error} className={className}>
-      <textarea id={id} rows={rows} className={cx(FIELD, 'resize-y')} {...props} />
-    </FieldWrap>
-  );
-}
-
-/** Dropdown field in the SkillLens style (not the browser's native menu). Same props as a <select>. */
-export function SelectField({ label, hint, error, className, options, placeholder, ...props }) {
-  const id = useId();
-  return (
-    <FieldWrap id={id} label={label} hint={hint} error={error} className={className}>
-      <Select id={id} options={options} placeholder={placeholder} {...props} />
-    </FieldWrap>
-  );
-}
-
-/** Text field with suggestions from a long list, in the SkillLens style. */
-export function ComboboxField({ label, hint, error, className, ...props }) {
-  const id = useId();
-  return (
-    <FieldWrap id={id} label={label} hint={hint} error={error} className={className}>
-      <Combobox id={id} {...props} />
-    </FieldWrap>
-  );
-}
-
 /** Apple-style segmented control. */
 export function Segmented({ value, onChange, options, label, className = '' }) {
   return (
@@ -254,22 +78,18 @@ export function Segmented({ value, onChange, options, label, className = '' }) {
 
 /* ---------- Feedback ---------- */
 
+// Red for errors (the default), orange for warnings, blue for information
+const NOTICE_TONES = {
+  red: 'bg-red-soft text-red-ink',
+  orange: 'bg-orange-soft text-orange-ink',
+  blue: 'bg-blue-soft text-blue-ink',
+};
+
 export function Notice({ toneName = 'red', title, children, className = '' }) {
-  const t = tone(toneName);
   return (
-    <div className={cx('rounded-2xl px-4 py-3 text-[14px]', t.soft, t.text, className)} role={toneName === 'red' ? 'alert' : 'status'}>
+    <div className={cx('rounded-2xl px-4 py-3 text-[14px]', NOTICE_TONES[toneName] || NOTICE_TONES.red, className)} role={toneName === 'red' ? 'alert' : 'status'}>
       {title && <p className="font-semibold">{title}</p>}
       {children}
-    </div>
-  );
-}
-
-export function EmptyState({ title, children, action }) {
-  return (
-    <div className="flex flex-col items-center px-6 py-14 text-center">
-      <h3 className="font-display text-[21px] font-semibold tracking-tight text-ink">{title}</h3>
-      {children && <p className="mt-2 max-w-[42ch] text-[15px] leading-[1.5] text-graphite">{children}</p>}
-      {action && <div className="mt-6">{action}</div>}
     </div>
   );
 }

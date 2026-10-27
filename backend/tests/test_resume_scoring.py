@@ -76,7 +76,6 @@ def test_scoring_is_fast():
 
 
 def test_indian_resume_conventions():
-    from models.resume_analyzer import ResumeAnalyzer
     from .sample_resumes import INDIAN_ACCOUNTANT
 
     result = analyze_text(INDIAN_ACCOUNTANT)
@@ -87,11 +86,6 @@ def test_indian_resume_conventions():
     assert contact['score'] == 10  # +91 number with dashes is recognised
     assert ats['quantified_achievements'] >= 3  # "Rs 2 crore", "30%", "45 clients"
     assert ats['personal_details'] and any('personal details' in i.lower() for i in ats['issues'])
-
-    analyzer = ResumeAnalyzer()
-    education = analyzer._extract_education_info(INDIAN_ACCOUNTANT)
-    assert 'BCOM' in education['degrees'] and education['cgpa'] == 8.2
-    assert analyzer._extract_contact_info(INDIAN_ACCOUNTANT)['location'] == 'Noida'
 
 
 def test_short_acronyms_do_not_match_ordinary_words():

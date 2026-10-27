@@ -196,7 +196,7 @@ def _id_token(claims):
     return f"{part({'alg': 'RS256'})}.{part(claims)}.signature"
 
 
-def _google_flow(client, monkeypatch, mode='signup', email='person@gmail.com', sub='g-1', **claims):
+def _google_flow(client, monkeypatch, mode='signup', email='person@gmail.com', sub='g-1', photo=b'', **claims):
     start = client.get(f"/auth/google/start?mode={mode}")
     assert start.status_code == 302 and start.location.startswith(google_auth.AUTHORIZE_URL)
     params = urllib.parse.parse_qs(urllib.parse.urlparse(start.location).query)
@@ -217,6 +217,9 @@ def _google_flow(client, monkeypatch, mode='signup', email='person@gmail.com', s
     sent = {}
 
     def fake_urlopen(req, timeout):
+        if req.data is None:  # downloading the Google profile photo
+            sent['photo_url'] = req.full_url
+            return FakeResponse(photo)
         sent['body'] = urllib.parse.parse_qs(req.data.decode())
         return FakeResponse(json.dumps({'id_token': token}).encode())
     monkeypatch.setattr(google_auth.urllib.request, 'urlopen', fake_urlopen)
@@ -259,6 +262,32 @@ def test_google_links_an_existing_account_and_refuses_the_admin(client, google_o
 
     admin_try, _ = _google_flow(make_client(), monkeypatch, email=ADMIN['email'], sub='g-admin')
     assert 'error=google_admin' in admin_try.location
+
+
+def test_google_sign_in_copies_the_google_photo_once(client, google_on, monkeypatch):
+    png = b'\x89PNG\r\n\x1a\n' + b'\x00' * 32
+    google_photo = 'https://lh3.googleusercontent.com/a/abc123=s96-c'
+    _, sent = _google_flow(client, monkeypatch, photo=png, picture=google_photo)
+    assert sent['photo_url'].endswith('=s256-c')  # asks Google for a sharper copy
+    user = User.query.filter_by(email='person@gmail.com').one()
+    assert user.picture_source == 'google' and client.get('/auth/me').get_json()['user']['picture']
+    assert client.get('/profile/picture').data == png
+
+    # Removed by the person: signing in with Google again does not bring it back
+    csrf = {'X-CSRF-TOKEN': client.get('/auth/me').get_json()['csrf_access_token']}
+    client.delete('/profile/picture', headers=csrf)
+    _, sent = _google_flow(client, monkeypatch, mode='signin', photo=png, picture=google_photo)
+    assert 'photo_url' not in sent and User.query.filter_by(email='person@gmail.com').one().picture_path is None
+
+
+def test_google_photo_from_another_host_or_broken_is_skipped(client, google_on, monkeypatch, make_client):
+    callback, sent = _google_flow(client, monkeypatch, picture='https://evil.example/me.png')
+    assert callback.location.endswith('/dashboard') and 'photo_url' not in sent
+    # Not an image: sign-in still works, just without a photo
+    callback, sent = _google_flow(make_client(), monkeypatch, email='b@gmail.com', sub='g-2', photo=b'<html>',
+                                  picture='https://lh3.googleusercontent.com/a/x=s96-c')
+    assert callback.location.endswith('/dashboard') and sent['photo_url']
+    assert User.query.filter_by(email='b@gmail.com').one().picture_path is None
 
 
 def test_google_rejects_a_wrong_state_or_unverified_email(client, google_on, monkeypatch):

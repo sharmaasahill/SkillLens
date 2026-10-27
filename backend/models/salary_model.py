@@ -106,7 +106,6 @@ class SalaryModel:
         y = np.log(data['salary_mid'].values)
         X = self._blocks(df, fit=True)
         self.ridge = Ridge(alpha=RIDGE_ALPHA, solver='lsqr').fit(X, y)
-        self.baseline = float(self.ridge.predict(X).mean())
 
         self.svd = TruncatedSVD(80, random_state=0).fit(X)
         Z = self._dense(X, df)

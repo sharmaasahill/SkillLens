@@ -9,7 +9,7 @@ from flask_jwt_extended import create_access_token, create_refresh_token, set_ac
 from models.database import User
 
 from ..extensions import db, limiter
-from ..services import admin_account, error_log, google_auth, passwords
+from ..services import admin_account, error_log, google_auth, passwords, pictures
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +80,7 @@ def callback():
         db.session.rollback()
         return _back_to_sign_in('blocked', mode)
     db.session.commit()
+    pictures.copy_from_google(user, person.get('picture'))
 
     response = redirect(_frontend('/dashboard'))
     set_access_cookies(response, create_access_token(identity=user))

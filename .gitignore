@@ -8,7 +8,6 @@ venv/
 .env
 .env.*
 !.env.example
-kaggle.json
 *.pem
 *.key
 
@@ -37,3 +36,4 @@ Thumbs.db
 # Test caches
 .pytest_cache/
 frontend/coverage/
+npm-debug.log*

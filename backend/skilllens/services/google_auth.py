@@ -123,5 +123,6 @@ def finish(args, cookie):
         'sub': str(claims['sub']),
         'email': claims['email'].strip().lower(),
         'name': (claims.get('name') or '').strip()[:100],
+        'picture': claims.get('picture') or None,
         'mode': saved.get('mode'),
     }

@@ -32,16 +32,10 @@ def job_market():
     return _get('job_market', JobMarket)
 
 
-def resume_analyzer():
-    from models.resume_analyzer import ResumeAnalyzer
-    return _get('resume_analyzer', ResumeAnalyzer)
-
-
 def preload():
     """Load every model up front so the first requests are fast."""
     salary_model()
     job_market()
-    resume_analyzer()
 
 
 def reset():

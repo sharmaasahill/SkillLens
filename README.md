@@ -53,6 +53,7 @@ I didn't want the AI to invent anything, so a few rules are built in:
 - **One sign-in page** for everyone, with email and password or **Continue with Google**.
 - **Date of birth at sign-up**, because SkillLens is for people aged 18 or older. Google doesn't share it, so Google sign-ups (and older accounts) are asked for it once before they go on.
 - **Profile:** you can edit everything, change your password, or delete your account and all your data in one go.
+- **Profile photo** in the top bar and on the Profile page. Upload one (it's cropped to a square in the browser first), or it's copied from your Google account the first time you sign in with Google.
 - **Admin dashboard** (one admin account):
   - Search and filter users, mark them Verified, Follow up or Flagged, and keep private notes.
   - See analytics, export CSV and download resumes.

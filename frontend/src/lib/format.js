@@ -17,8 +17,6 @@ export const signedPercent = (value, digits = 0) => {
   return `${n > 0 ? '+' : n < 0 ? '\u2212' : ''}${Math.abs(n).toFixed(digits)}%`;
 };
 
-export const percent = (ratio, digits = 0) => `${(Number(ratio || 0) * 100).toFixed(digits)}%`;
-
 /**
  * A file name that can wrap onto several lines instead of being cut off. Names like
  * "Sahil_Sharma_Citi_Java_Python_Resume.pdf" have no spaces, so an invisible break point is added
@@ -61,16 +59,6 @@ export function greeting(now = new Date()) {
   return 'Good evening';
 }
 
-/** Turn "**bold** text" into React-safe segments: [{ text, bold }]. Used instead of innerHTML. */
-export function boldSegments(text) {
-  return String(text || '')
-    .split(/(\*\*[^*]+\*\*)/g)
-    .filter(Boolean)
-    .map((part) => (part.startsWith('**') && part.endsWith('**')
-      ? { text: part.slice(2, -2), bold: true }
-      : { text: part, bold: false }));
-}
-
 /** Build CSV text with proper quoting, so commas and quotes inside values stay in one column. */
 export function toCsv(rows) {
   if (!rows.length) return '';
@@ -80,14 +68,6 @@ export function toCsv(rows) {
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
   return [headers.join(','), ...rows.map((row) => headers.map((h) => escape(row[h])).join(','))].join('\n');
-}
-
-/** Decode HTML entities such as &hellip; and &amp; found in scraped job text. */
-export function decodeEntities(text) {
-  if (!text) return '';
-  const el = document.createElement('textarea');
-  el.innerHTML = text;
-  return el.value;
 }
 
 export function downloadBlob(data, filename, type) {

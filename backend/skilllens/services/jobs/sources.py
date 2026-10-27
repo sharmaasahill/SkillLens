@@ -16,7 +16,7 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, Tuple
 
 from flask import current_app
@@ -512,7 +512,6 @@ class Source:
     cache_hours: int = 6
     attribution: Tuple[str, str] = ('', '')  # (name, URL) shown next to every job from this source
     cost: str = 'Free'
-    optional: Tuple[str, ...] = field(default=())
 
 
 SOURCES = {s.name: s for s in [
@@ -549,13 +548,10 @@ SOURCES = {s.name: s for s in [
     Source('remotive', 'Remotive', 'Remote job boards', 'Remote jobs open to India on Remotive', _remotive,
            daily_limit=4, cache_hours=12, attribution=('Remotive', 'https://remotive.com')),
     Source('himalayas', 'Himalayas', 'Remote job boards', 'Remote jobs open to India on Himalayas', _himalayas,
-           daily_limit=200, cache_hours=6, optional=('HIMALAYAS_API_KEY',), attribution=('Himalayas', 'https://himalayas.app')),
+           daily_limit=200, cache_hours=6, attribution=('Himalayas', 'https://himalayas.app')),
     Source('remoteok', 'Remote OK', 'Remote job boards', 'Remote jobs on Remote OK', _remoteok,
            daily_limit=48, cache_hours=1, attribution=('Remote OK', 'https://remoteok.com')),
 ]}
-
-GROUPS = ['Job boards', 'Apify scrapers', 'Company career pages', 'Remote job boards']
-
 
 def _cfg():
     return current_app.config

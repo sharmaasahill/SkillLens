@@ -96,11 +96,6 @@ def _local(relative):
     return absolute
 
 
-def resume_path(resume):
-    """Absolute path of a Resume's file, including files uploaded before unique storage."""
-    return _local(resume.stored_filename or resume.filename)
-
-
 def profile_resume_path(user):
     """Absolute path of a user's profile resume, including pre-migration uploads."""
     if user.profile_resume_path:

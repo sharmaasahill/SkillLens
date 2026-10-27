@@ -1,12 +1,14 @@
-"""Current user's profile, history, profile resume, password and account deletion."""
+"""Current user's profile, history, photo, profile resume, password and account deletion."""
+import io
+
 from flask import Blueprint, current_app, jsonify, request, send_file
 from flask_jwt_extended import current_user, unset_jwt_cookies
 
 from ..extensions import limiter
 from ..schemas import ChangePasswordRequest, DeleteAccountRequest, ProfileUpdateRequest
 from ..security import user_required
-from ..services import accounts, profiles
-from ..services.serializers import profile_history_entry, user_profile
+from ..services import accounts, pictures, profiles
+from ..services.serializers import picture_version, profile_history_entry, user_profile
 from . import json_body
 
 bp = Blueprint('profile', __name__)
@@ -61,6 +63,31 @@ def update_profile():
     changes = json_body(ProfileUpdateRequest).model_dump(exclude_unset=True)
     user = profiles.update_profile(current_user, changes)
     return jsonify({'message': 'Profile updated successfully', 'user': user_profile(user)})
+
+
+@bp.get('/profile/picture')
+@user_required
+def get_picture():
+    data, mime = pictures.load(current_user)
+    response = send_file(io.BytesIO(data), mimetype=mime, max_age=0)
+    # The page asks with ?v=<when it changed>, so a saved copy is always the current photo
+    response.headers['Cache-Control'] = 'private, max-age=86400'
+    return response
+
+
+@bp.post('/profile/picture')
+@limiter.limit('30 per hour')
+@user_required
+def upload_picture():
+    user = pictures.save_upload(current_user, request.files.get('file'))
+    return jsonify({'message': 'Photo saved', 'picture': picture_version(user)})
+
+
+@bp.delete('/profile/picture')
+@user_required
+def delete_picture():
+    pictures.remove(current_user)
+    return jsonify({'message': 'Photo removed', 'picture': None})
 
 
 @bp.post('/profile/upload-resume')

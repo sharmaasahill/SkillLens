@@ -9,9 +9,9 @@ from datetime import datetime, timezone
 
 from flask import current_app
 
-from models import jd_matcher
+from models import jd_matcher, resume_analyzer
 from models.database import AiResult, Resume, ResumeScore
-from models.resume_analyzer import ResumeAnalyzer, analyze_text, extract_skills_from_resume
+from models.resume_analyzer import analyze_text, extract_skills_from_resume
 
 from ..errors import ApiError
 from ..extensions import db
@@ -176,7 +176,7 @@ def score_history(user, limit=30):
 def experience_years(resume):
     if not resume or not resume.raw_text:
         return 0
-    return ResumeAnalyzer()._extract_experience_info(resume.raw_text).get('total_years', 0)
+    return resume_analyzer.experience_years(resume.raw_text)
 
 
 def delete_resume(user, resume_id):

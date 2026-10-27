@@ -1,15 +1,17 @@
-import React, { useCallback, useEffect, useId, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import api, { errorMessage } from '../api';
 import AppShell from '../components/ui/AppShell';
 import { Button, Notice, Skeleton, Spinner, cx } from '../components/ui/primitives';
 import { useFeedback } from '../components/ui/overlays';
-import { pdfError } from '../components/ui/Dropzone';
+import { pdfError, squarePhoto } from '../lib/files';
 import { CountNumber, EASE, Orbit, RevealText, Rise, Section } from '../components/ui/studio';
 import { editFormFrom, profileCompletion } from '../lib/careerStats';
 import { WRAP, birthDateBounds, birthDateLabel, breakable, dateLabel, dateTimeLabel, downloadBlob } from '../lib/format';
 import AccountSettings from '../components/profile/AccountSettings';
+import Avatar from '../components/ui/Avatar';
+import { useAuth } from '../contexts/AuthContext';
 
 const SECTIONS = [
   {
@@ -61,11 +63,84 @@ function Value({ field, value, age }) {
   return <span className="whitespace-pre-line">{value}{field.suffix ? ` ${field.suffix}` : ''}</span>;
 }
 
+/** The profile photo with Add / Change / Remove. Saves straight away, without Edit profile. */
+function PhotoRow({ source, onChanged }) {
+  const { avatarUrl, refreshUser } = useAuth();
+  const { notify, confirm } = useFeedback();
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const changed = () => Promise.all([refreshUser(), onChanged()]);
+
+  const upload = async (file) => {
+    setError('');
+    setBusy(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', await squarePhoto(file), 'photo.jpg');
+      await api.post('/profile/picture', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      await changed();
+      notify('Photo saved');
+    } catch (err) {
+      setError(err.response ? errorMessage(err, 'Could not save the photo') : err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    const ok = await confirm({ title: 'Remove your photo?', message: 'You can add a new one at any time.', confirmLabel: 'Remove', destructive: true });
+    if (!ok) return;
+    setError('');
+    setBusy(true);
+    try {
+      await api.delete('/profile/picture');
+      await changed();
+      notify('Photo removed');
+    } catch (err) {
+      setError(errorMessage(err, 'Could not remove the photo'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-1 border-b border-black/[0.07] py-5 sm:grid-cols-[180px_1fr] sm:gap-8">
+      <dt className="pt-0.5 text-[14px] text-graphite">Photo</dt>
+      <dd className="min-w-0">
+        <div className="flex flex-wrap items-center gap-4">
+          <Avatar src={avatarUrl} size={56} alt="Your profile photo" className={avatarUrl ? 'ring-1 ring-black/10' : ''} />
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={inputRef} type="file" accept="image/*" className="sr-only" tabIndex={-1} aria-hidden="true"
+              onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) upload(file); }}
+            />
+            <Button variant="outline" size="sm" loading={busy} onClick={() => inputRef.current?.click()}>
+              {avatarUrl ? 'Change photo' : 'Add photo'}
+            </Button>
+            {avatarUrl && (
+              <button type="button" onClick={remove} disabled={busy} className="h-8 rounded-full px-3.5 text-[13px] font-medium text-red-ink transition-colors hover:bg-red-soft disabled:opacity-50">
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="mt-2 text-[13px] text-silver">
+          {source === 'google' ? 'From your Google account. ' : ''}JPG, PNG or WebP, cropped to a square.
+        </p>
+        {error && <Notice className="mt-3">{error}</Notice>}
+      </dd>
+    </div>
+  );
+}
+
 /** Spec-sheet rows: label on the left, value (or an underlined input when editing) on the right. */
-function SpecSection({ section, profile, editing, form, onChange }) {
+function SpecSection({ section, profile, editing, form, onChange, onPhotoChanged }) {
   return (
     <Section index={section.index} title={section.title} note={section.note}>
       <dl>
+        {section.key === 'personal' && <PhotoRow source={profile.picture_source} onChanged={onPhotoChanged} />}
         {section.key === 'personal' && (
           <div className="grid gap-1 border-b border-black/[0.07] py-5 sm:grid-cols-[180px_1fr] sm:gap-8">
             <dt className="text-[14px] text-graphite">Email</dt>
@@ -98,6 +173,7 @@ function SpecSection({ section, profile, editing, form, onChange }) {
 
 function Profile() {
   const { notify } = useFeedback();
+  const { avatarUrl } = useAuth();
   const uploadId = useId();
   const [profile, setProfile] = useState(null);
   const [history, setHistory] = useState([]);
@@ -186,6 +262,12 @@ function Profile() {
       {/* Opening */}
       <div className="grid items-center gap-12 pb-16 md:grid-cols-[1fr_auto]">
         <div className="min-w-0">
+          {avatarUrl && (
+            <Rise>
+              <Avatar src={avatarUrl} size={96} alt={profile.full_name ? `${profile.full_name}'s photo` : 'Your photo'}
+                className="mb-7 shadow-[0_18px_40px_-16px_rgba(0,0,0,0.35)] ring-4 ring-white" />
+            </Rise>
+          )}
           <div className="flex items-center gap-3">
             <span className="h-px w-9 bg-orange" />
             <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-orange-ink">Profile</p>
@@ -217,7 +299,7 @@ function Profile() {
       </div>
 
       {SECTIONS.map((section) => (
-        <SpecSection key={section.key} section={section} profile={profile} editing={editing} form={form} onChange={onChange} />
+        <SpecSection key={section.key} section={section} profile={profile} editing={editing} form={form} onChange={onChange} onPhotoChanged={load} />
       ))}
 
       <Section index="05" title="Primary resume" note={<>Used for salary and job matches. <Link to="/dashboard" className="text-action-link hover:underline">Manage all resumes</Link></>}>

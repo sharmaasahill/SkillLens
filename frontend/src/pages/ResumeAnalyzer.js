@@ -5,7 +5,7 @@ import api, { errorMessage } from '../api';
 import AppShell, { PageHeader } from '../components/ui/AppShell';
 import { Button, Notice, Segmented, Skeleton, Spinner, cx } from '../components/ui/primitives';
 import { Select } from '../components/ui/Select';
-import { pdfError } from '../components/ui/Dropzone';
+import { pdfError } from '../lib/files';
 import { WRAP, breakable } from '../lib/format';
 import {
   Check, CountNumber, EASE, Glass, Line, Metric, MetricRow, Rise, Section, SegmentDial, WordCloud, ratioColor, scoreColor,
