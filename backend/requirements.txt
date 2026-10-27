@@ -16,7 +16,7 @@ python-dotenv==1.2.4
 pandas==2.0.3
 numpy==1.24.3
 scikit-learn==1.9.1
-scipy==1.15.3
+scipy==1.18.1
 joblib==1.6.0
 # Two-factor sign-in for the admin (codes from Google Authenticator) and its QR code
 pyotp==2.10.0
