@@ -209,10 +209,10 @@ To run one of these against the live database, set `DATABASE_URL` just for that 
 
 ```bash
 cd backend
-pytest                         # 171 tests: API, sign-in, admin tools, security, salary, resumes, jobs
+pytest                         # 178 tests: API, sign-in, admin tools, security, salary, resumes, jobs, photos
 
 cd frontend
-npm test -- --watchAll=false   # 35 tests: sign-in, route guards and the newer screens
+npm test -- --watchAll=false   # 40 tests: sign-in, route guards and the newer screens
 ```
 
 On every push to `master`, GitHub Actions runs:
