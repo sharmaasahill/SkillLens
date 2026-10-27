@@ -70,6 +70,34 @@ def test_admin_sign_in_is_off_without_an_admin_email(app, client):
     assert client.post('/auth/login', json=ADMIN).status_code == 401
 
 
+def test_admin_settings_ignore_pasted_quotes_and_are_described_safely(monkeypatch):
+    from importlib import reload
+    from skilllens import config
+    from skilllens.services import admin_account
+    monkeypatch.setenv('ADMIN_EMAIL', ' "Admin.SkillLens@Gmail.com" ')
+    monkeypatch.setenv('ADMIN_PASSWORD', '`admin20Skilllens26`')
+    reload(config)
+    try:
+        assert config.Config.ADMIN_EMAIL == 'admin.skilllens@gmail.com'
+        assert config.Config.ADMIN_PASSWORD == 'admin20Skilllens26'
+        line = admin_account.describe_settings({'ADMIN_EMAIL': config.Config.ADMIN_EMAIL, 'ADMIN_PASSWORD': config.Config.ADMIN_PASSWORD})
+        assert line == 'Admin sign-in is ON for adm...@gmail.com (25 characters); ADMIN_PASSWORD has 18 characters.'
+        assert 'admin20' not in line
+        assert 'OFF: ADMIN_EMAIL not set' in admin_account.describe_settings({'ADMIN_PASSWORD': 'x'})
+    finally:
+        monkeypatch.delenv('ADMIN_EMAIL')
+        monkeypatch.delenv('ADMIN_PASSWORD')
+        reload(config)
+
+
+def test_failed_admin_sign_in_says_why(client, caplog):
+    import logging
+    with caplog.at_level(logging.WARNING):
+        client.post('/auth/login', json={**ADMIN, 'password': 'not-the-password'})
+    assert 'the password typed is not the ADMIN_PASSWORD setting' in caplog.text
+    assert 'not-the-password' not in caplog.text
+
+
 def test_site_info_is_public(client):
     assert client.get('/api/site').get_json() == {'google_sign_in': False, 'contact_email': None,
                                                   'privacy_version': TestingConfig.PRIVACY_VERSION}

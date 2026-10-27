@@ -36,10 +36,10 @@ def create_app(config_object=Config, overrides=None):
         raise RuntimeError("JWT_SECRET_KEY is not set. Copy backend/.env.example to backend/.env and set a value.")
 
     logging.basicConfig(level=logging.INFO)
-    if not app.config.get('TESTING') and not (app.config.get('ADMIN_EMAIL') and app.config.get('ADMIN_PASSWORD')):
-        # Shown in the server log (Render > Logs) so a missing setting is easy to spot
-        logging.getLogger(__name__).warning(
-            'Admin sign-in is OFF: set both ADMIN_EMAIL and ADMIN_PASSWORD (in backend/.env or the host settings).')
+    if not app.config.get('TESTING'):
+        from .services import admin_account
+        # One line in the server log (Render > Logs) shows whether admin sign-in is on, without the secrets
+        logging.getLogger(__name__).warning(admin_account.describe_settings(app.config))
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
     db.init_app(app)

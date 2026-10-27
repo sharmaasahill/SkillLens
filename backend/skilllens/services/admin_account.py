@@ -19,6 +19,30 @@ from . import passwords
 logger = logging.getLogger(__name__)
 
 
+def _mask(email):
+    """adm...@gmail.com: enough to spot a typo in the server log, without printing the address."""
+    name, _, domain = (email or '').partition('@')
+    return f'{name[:3]}...@{domain}' if domain else '(not an email)'
+
+
+def describe_settings(config):
+    email, password = config.get('ADMIN_EMAIL') or '', config.get('ADMIN_PASSWORD') or ''
+    if not email or not password:
+        missing = ' and '.join(n for n, v in (('ADMIN_EMAIL', email), ('ADMIN_PASSWORD', password)) if not v)
+        return f'Admin sign-in is OFF: {missing} not set (backend/.env locally, Environment on Render).'
+    return (f'Admin sign-in is ON for {_mask(email)} ({len(email)} characters); '
+            f'ADMIN_PASSWORD has {len(password)} characters.')
+
+
+def explain_failed_sign_in(email, user):
+    """Log why a sign-in to the admin account failed (never the typed password)."""
+    if is_admin_email(email):
+        logger.warning('Admin sign-in failed: the password typed is not the ADMIN_PASSWORD setting.')
+    elif user is not None and user.is_admin:
+        logger.warning('Sign-in failed for an admin account whose email is not the ADMIN_EMAIL setting (%s). '
+                       'Check ADMIN_EMAIL for a typo.', _mask(admin_email()) if admin_email() else 'ADMIN_EMAIL not set')
+
+
 def admin_email():
     return current_app.config['ADMIN_EMAIL']
 

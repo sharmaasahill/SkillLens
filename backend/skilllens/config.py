@@ -9,6 +9,14 @@ def _bool(name, default=False):
     return os.environ.get(name, str(default)).strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+def _setting(name):
+    """A setting as typed, without spaces or quotes pasted around it (`x`, "x" and 'x' all become x)."""
+    value = os.environ.get(name, '').strip()
+    while len(value) >= 2 and value[0] == value[-1] and value[0] in '"\'`':
+        value = value[1:-1].strip()
+    return value
+
+
 def _list(name, default):
     return [item.strip() for item in os.environ.get(name, default).split(',') if item.strip()]
 
@@ -51,9 +59,9 @@ class Config:
     # The one admin account. Every other email is a regular user. Neither the email nor the password
     # is written in code: set both in backend/.env locally and in the host's settings (Render) live.
     # Without them, admin sign-in is off.
-    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', '').strip().lower()
-    # Spaces around a pasted value (a common slip in hosting dashboards) are ignored
-    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '').strip()
+    ADMIN_EMAIL = _setting('ADMIN_EMAIL').lower()
+    # Spaces and quotes around a pasted value (a common slip in hosting dashboards) are ignored
+    ADMIN_PASSWORD = _setting('ADMIN_PASSWORD')
 
     # Privacy policy shown at /privacy. Raise the version when the policy changes.
     PRIVACY_VERSION = '2026-10'

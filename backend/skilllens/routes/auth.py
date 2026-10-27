@@ -78,6 +78,7 @@ def login():
         user = User.query.filter_by(email=data.email).first()
     password_ok = check_password_hash(user.password if user else _DUMMY_HASH, data.password)
     if not user or not password_ok:
+        admin_account.explain_failed_sign_in(data.email, user)
         raise ApiError('Invalid email or password', 401)
     # Checked only after the password is right, so it reveals nothing to someone guessing
     if user.blocked_at is not None:
