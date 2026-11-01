@@ -14,7 +14,7 @@ ENV GENERATE_SOURCEMAP=false \
 RUN npm run build
 
 # 2) Python backend that also serves frontend/build
-FROM python:3.11-slim
+FROM python:3.15-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
